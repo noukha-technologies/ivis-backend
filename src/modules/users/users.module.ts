@@ -2,8 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersService } from './users.service.js';
 import { UsersController } from './users.controller.js';
-import { User } from './entities/user.entity.js';
-import { UsersRepository } from './repositories/users.repository.js';
+import { User } from '../database/entity/user.entity.js';
+import { UsersRepository } from '../database/dao/users.entity.dao.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([User])],
@@ -11,4 +11,4 @@ import { UsersRepository } from './repositories/users.repository.js';
   providers: [UsersService, UsersRepository],
   exports: [UsersService, UsersRepository],
 })
-export class UsersModule {}
+export class UsersModule { }

@@ -1,9 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { User } from './entities/user.entity.js';
+import { User } from '../database/entity/user.entity.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { PaginationQueryDto } from './dto/pagination-query.dto.js';
-import { UsersRepository, PaginatedResult } from './repositories/users.repository.js';
+import { UsersRepository, PaginatedResult } from '../database/dao/users.entity.dao.js';
 import {
   DuplicateResourceException,
   ResourceNotFoundException,
@@ -14,7 +14,7 @@ import {
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(private readonly usersRepository: UsersRepository) {}
+  constructor(private readonly usersRepository: UsersRepository) { }
 
   /**
    * Create a new user.

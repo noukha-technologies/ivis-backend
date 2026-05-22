@@ -1,0 +1,1 @@
+export const whiteListingDomains = ["http://localhost:3000"]

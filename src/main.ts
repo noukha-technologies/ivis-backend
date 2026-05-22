@@ -2,76 +2,144 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { WinstonModule } from 'nest-winston';
 import { AppModule } from './app.module';
-import { winstonConfig } from './configs/logger/logger.config';
-import { TransformInterceptor } from './common/interceptors/transform.interceptor';
+import { AppLogger } from './common/logger/app.logger';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+const NODE_ENV: string | undefined = process.env.NODE_ENV;
+const isDevelopment: boolean = NODE_ENV === 'development';
+const isProduction: boolean = NODE_ENV === 'production';
+const port: number = Number(process.env.PORT);
+const apiPrefix: string = process.env.API_PREFIX ?? '';
+const corsOrigins: string[] = process.env.CORS_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean) || [];
+
 async function bootstrap() {
-  // Use Winston logger as NestJS application logger
-  const app = await NestFactory.create(AppModule, {
-    logger: WinstonModule.createLogger(winstonConfig),
-  });
+  const bootstrapLogger = new AppLogger();
 
-  const configService = app.get(ConfigService);
+  try {
+    const app = await NestFactory.create(AppModule, { bufferLogs: true });
+    const logger = app.get(AppLogger);
+    app.useLogger(logger);
 
-  // Set Global Path Prefix (e.g. /api)
-  const apiPrefix = configService.get<string>('app.apiPrefix') || 'api';
-  app.setGlobalPrefix(apiPrefix);
+    app.setGlobalPrefix(apiPrefix);
+    app.useGlobalFilters(new HttpExceptionFilter());
+    app.useGlobalInterceptors(new ResponseInterceptor());
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+        skipMissingProperties: false,
+        stopAtFirstError: false,
+        errorHttpStatusCode: 422,
+      }),
+    );
 
-  // Set Global Exception Filters
-  app.useGlobalFilters(new HttpExceptionFilter());
+    app.enableCors({
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+        if (corsOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          logger.warn(`Blocked origin: ${origin}`, 'CORS');
+          callback(new Error(`Origin ${origin} not allowed by CORS`));
+        }
+      },
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+      credentials: true,
+      allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
+      maxAge: 3600,
+    });
 
-  // Set Global Interceptors
-  app.useGlobalInterceptors(new TransformInterceptor());
+    const configService = app.get(ConfigService);
 
-  // Global Validation Pipe
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-    }),
-  );
+    if (isDevelopment || configService.get<boolean>('swagger.enabled')) {
+      const swaggerTitle = configService.get<string>('swagger.title') || 'API Documentation';
+      const swaggerDesc =
+        configService.get<string>('swagger.description') || 'API Endpoints Documentation';
+      const swaggerVersion = configService.get<string>('swagger.version') || '1.0.0';
+      const swaggerPath = configService.get<string>('swagger.path') || 'api/docs';
 
-  // Enable CORS with White-listed Origins
-  const corsOrigins = configService.get<string[]>('app.corsOrigins') || ['*'];
-  app.enableCors({
-    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-      // Allow requests with no origin (like mobile apps, curl, postman) or if origin is in whitelist
-      if (!origin || corsOrigins.includes('*') || corsOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`Origin ${origin} not allowed by CORS`));
-      }
-    },
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-  });
+      const document = SwaggerModule.createDocument(
+        app,
+        new DocumentBuilder()
+          .setTitle(swaggerTitle)
+          .setDescription(swaggerDesc)
+          .setVersion(swaggerVersion)
+          .addBearerAuth(
+            {
+              type: 'http',
+              scheme: 'bearer',
+              bearerFormat: 'JWT',
+              description: 'JWT Bearer Token - Include in Authorization header',
+            },
+            'jwt',
+          )
+          .addApiKey(
+            {
+              type: 'apiKey',
+              in: 'header',
+              name: 'X-API-Key',
+              description: 'API Key for service-to-service authentication',
+            },
+            'api-key',
+          )
+          .build(),
+      );
 
-  // Setup Swagger API Documentation
-  const swaggerTitle = configService.get<string>('swagger.title') || 'API';
-  const swaggerDesc = configService.get<string>('swagger.description') || 'API Docs';
-  const swaggerVersion = configService.get<string>('swagger.version') || '1.0';
-  const swaggerPath = configService.get<string>('swagger.path') || 'api/docs';
+      SwaggerModule.setup(swaggerPath, app, document, {
+        swaggerOptions: {
+          persistAuthorization: true,
+          deepLinking: true,
+          displayRequestDuration: true,
+          tryItOutEnabled: true,
+        },
+        customCss: '.swagger-ui .topbar { display: none }',
+      });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle(swaggerTitle)
-    .setDescription(swaggerDesc)
-    .setVersion(swaggerVersion)
-    .addBearerAuth() // Support Bearer Token authentication in Swagger UI
-    .build();
+      logger.log(`Swagger: http://localhost:${port}/${swaggerPath}`, 'Bootstrap');
+    } else if (isProduction) {
+      logger.log('Swagger disabled in production', 'Bootstrap');
+    }
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup(swaggerPath, app, document);
+    await app.listen(port);
 
-  const port = configService.get<number>('app.port') || 4780;
-  await app.listen(port);
+    logger.log(`Server: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
+    logger.log(`Environment: ${NODE_ENV}`, 'Bootstrap');
 
-  const logger = WinstonModule.createLogger(winstonConfig);
-  logger.log(`🚀 Application is running on: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
-  logger.log(`📚 Swagger documentation is available at: http://localhost:${port}/${swaggerPath}`, 'Bootstrap');
+    process.on('SIGTERM', async () => {
+      logger.log('SIGTERM received, shutting down', 'Bootstrap');
+      await app.close();
+      process.exit(0);
+    });
+
+    process.on('SIGINT', async () => {
+      logger.log('SIGINT received, shutting down', 'Bootstrap');
+      await app.close();
+      process.exit(0);
+    });
+
+    process.on('uncaughtException', (error: Error) => {
+      logger.error(error.message, error.stack, 'Bootstrap');
+      process.exit(1);
+    });
+
+    process.on('unhandledRejection', (reason: unknown) => {
+      logger.error(String(reason), undefined, 'Bootstrap');
+      process.exit(1);
+    });
+  } catch (error) {
+    bootstrapLogger.error('Failed to bootstrap application', String(error), 'Bootstrap');
+    process.exit(1);
+  }
 }
 
 bootstrap();

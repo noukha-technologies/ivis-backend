@@ -1,40 +1,30 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import appConfig from './configs/app.config';
-import databaseConfig from './configs/database/database.config';
-import swaggerConfig from './configs/swagger.config';
+import swaggerConfig from './common/swagger/swagger.config';
+import databaseConfig from './modules/database/database.config';
+import { LoggerModule } from './common/logger/logger.module';
+import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { UsersModule } from './modules/users/users.module';
-import { AuthModule } from './modules/auth/auth.module';
+import { DatabaseModule } from './modules/database/database.module';
 
 @Module({
   imports: [
-    // Configure Global Configuration Module
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, swaggerConfig],
+      load: [databaseConfig, swaggerConfig],
       envFilePath: ['.env'],
     }),
-    
-    // Configure PostgreSQL with TypeORM
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.POSTGRES_HOST,
-      port: Number(process.env.POSTGRES_PORT),
-      username: process.env.POSTGRES_USER,
-      password: process.env.POSTGRES_PASSWORD,
-      database: process.env.POSTGRES_DB,
-      autoLoadEntities: true,
-      synchronize: false,
-    }),
-    
-    // Feature Modules
+    LoggerModule,
+    DatabaseModule,
     UsersModule,
-    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, LoggerMiddleware],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(LoggerMiddleware).forRoutes('*');
+  }
+}

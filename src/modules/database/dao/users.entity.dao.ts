@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Repository, DataSource, ILike } from 'typeorm';
-import { User } from '../entities/user.entity.js';
-import { PaginationQueryDto } from '../dto/pagination-query.dto.js';
+import { User } from '../entity/user.entity.js';
+import { PaginationQueryDto } from '../../users/dto/pagination-query.dto.js';
 
 export interface PaginatedResult<T> {
   data: T[];

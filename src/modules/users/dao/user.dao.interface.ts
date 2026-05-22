@@ -9,6 +9,7 @@ export interface IUserDao {
   merge(user: User, dto: UpdateUserDto): User;
   findActiveById(id: string): Promise<User | null>;
   findByEmail(email: string): Promise<User | null>;
+  findByEmailWithPassword(email: string): Promise<User | null>;
   findByUserId(userId: number): Promise<User | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>>;
 }

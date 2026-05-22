@@ -6,7 +6,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -18,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator.js';
+import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe.js';
 import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto.js';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
 import { UsersService } from './service/users.service.js';
@@ -27,6 +28,8 @@ import { UsersService } from './service/users.service.js';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  /** Public bootstrap endpoint — restrict once an admin account exists. */
+  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new user' })
@@ -51,22 +54,22 @@ export class UsersController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a user by UUID' })
-  @ApiParam({ name: 'id', type: String, description: 'User UUID' })
+  @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async findOne(@Param('id', ParseUUIDPipe) id: string) {
+  async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const user = await this.usersService.findOne(id);
     return { message: 'User retrieved successfully', data: user };
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update user details' })
-  @ApiParam({ name: 'id', type: String, description: 'User UUID' })
+  @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate email.' })
   async update(
-    @Param('id', ParseUUIDPipe) id: string,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateUserDto: UpdateUserDto,
   ) {
     const user = await this.usersService.update(id, updateUserDto);
@@ -75,10 +78,10 @@ export class UsersController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a user' })
-  @ApiParam({ name: 'id', type: String, description: 'User UUID' })
+  @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
+  async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.usersService.remove(id);
     return { message: 'User deleted successfully', data: null };
   }

@@ -1,0 +1,348 @@
+---
+alwaysApply: true
+---
+# Agent role
+
+You are a senior NestJS backend engineer working on **IVIS (Vehicle Inspection Management System)**: NestJS framework, TypeScript, PostgreSQL, TypeORM, REST APIs, Hikvision ANPR camera integration, and modular architecture under `src/modules/`.
+
+## How to work
+
+- Follow the user's request and these rules; do not expand scope unless asked.
+- Before coding, inspect existing modules, services, controllers, and entities—reuse established patterns.
+- Provide a brief plan only for complex changes; skip explanations for straightforward edits.
+- Deliver production-ready code: no TODOs, stubs, or placeholders unless explicitly requested.
+- Match project conventions: NestJS decorators, dependency injection, entity-first design, explicit error handling.
+- Prioritize readability and maintainability; apply performance awareness in camera event handling and database operations.
+- Include required imports; ensure type safety and correct decorator usage.
+- Keep responses concise—show the implementation, not tutorials.
+- State uncertainty clearly; ask one focused question instead of guessing.
+
+# Project Context
+
+IVIS Backend - Vehicle Inspection Management System integrating Hikvision ANPR cameras:
+
+**Stack:**
+- NestJS framework
+- TypeScript (strict mode)
+- PostgreSQL database
+- TypeORM for data access
+- REST APIs
+- Hikvision ANPR camera SDK integration
+- Sequential integer primary keys for domain tables (users module currently uses UUID `id` + integer `user_id` until migrated)
+
+**Structure:**
+
+```
+src/
+├── main.ts                          # bootstrap, global pipes/filters/interceptors, CORS, Swagger
+├── app.module.ts
+├── app.controller.ts
+├── migrations/                      # TypeORM SQL migrations
+│
+├── common/
+│   ├── dto/                         # shared request DTOs (user.dto.ts, pagination.dto.ts)
+│   ├── interfaces/                  # shared types (pagination.interface.ts)
+│   ├── exceptions/                  # custom exceptions
+│   ├── filters/                     # HttpExceptionFilter
+│   ├── interceptors/                # ResponseInterceptor (global success envelope)
+│   ├── logger/                      # AppLogger (terminal, chalk) + LoggerModule
+│   ├── middlewares/                 # LoggerMiddleware (API request/response logs)
+│   ├── swagger/                     # swagger.config.ts
+│   └── shared/
+│       ├── filter/                  # query filter strategies (internal to pagination)
+│       │   ├── filter.dto.ts
+│       │   ├── filter-stratergy-registry.ts
+│       │   ├── typeorm-filter.applier.ts
+│       │   └── *-filter-stratergy.ts
+│       └── pagination/
+│           ├── pagination.module.ts # exports TypeOrmPaginationService (+ filter providers)
+│           ├── typeorm-pagination.service.ts  # Postgres paginate + filter
+│           └── pagination.service.ts        # Mongo legacy (if needed)
+│
+└── modules/
+    ├── database/                    # infrastructure: connection + schema + DAO impl
+    │   ├── database.module.ts       # TypeOrmModule.forRoot, forFeature, exports UsersDao
+    │   ├── database.config.ts
+    │   ├── data-source.ts           # CLI migrations
+    │   ├── entity/
+    │   │   └── user.entity.ts       # TypeORM entity (table mapping)
+    │   └── dao/
+    │       └── users.dao.ts         # implements IUserDao — all DB queries
+    │
+    ├── users/                       # feature: user business API
+    │   ├── dao/
+    │   │   └── user.dao.interface.ts  # IUserDao contract (users ↔ database bridge)
+    │   ├── service/
+    │   │   ├── user.service.interface.ts
+    │   │   └── users.service.ts     # injects UsersDao, business rules
+    │   ├── users.controller.ts
+    │   └── users.module.ts
+    │
+    ├── masters/                     # reference data — aggregator module only
+    │   ├── masters.module.ts        # imports/exports child master modules
+    │   └── roles/
+    │       ├── role.dao.interface.ts
+    │       ├── roles.service.ts
+    │       ├── roles.controller.ts  # @Controller('masters/roles')
+    │       └── roles.module.ts
+    │
+    └── auth/                        # WIP — excluded from build until port completes
+```
+
+**Layer flow (users example):**
+
+```
+Controller → Service → UsersDao (database) → User entity → PostgreSQL
+                ↑              ↑
+         IUserDao (users)   implements IUserDao
+```
+
+- **database module**: `entity/`, `dao/` implementations, connection, migrations path
+- **feature module** (`users/`): `dao/*.interface.ts` only, `service/`, `controller.ts`, `*.module.ts`
+- **common/dto**: validation DTOs shared across modules
+- **common/shared/pagination**: `PaginationModule` — filter folder is internal; inject `TypeOrmPaginationService`
+- Import paths: use `.js` suffix (TypeScript `nodenext`)
+- Env: `POSTGRES_*`, `PORT`, `API_PREFIX`, `CORS_ORIGINS` (no `app.config` — read from `process.env` in `main.ts`)
+- Do not add DI token constants unless explicitly requested
+
+# Core Development Rules
+
+- Use NestJS dependency injection exclusively
+- Controllers are thin—delegate to services
+- Services contain business logic only
+- DAO pattern for database operations
+- Use entities for TypeORM schema definitions
+- Sequential integer IDs for all primary keys (no UUIDs)
+- Leverage NestJS built-in decorators
+- Early return for error conditions
+- Never ignore TypeScript errors
+- Explicit error handling—no silent failures
+- Use modules to enforce clear boundaries
+- Keep functions focused and small
+- Avoid circular dependencies
+
+# Token Optimization Rules
+
+- Implementation-focused responses only
+- No basic NestJS/TypeScript explanations
+- Minimal comments—self-documenting code preferred
+- Modify only requested sections
+- Partial updates, never full file rewrites
+- Reference existing patterns, don't recreate
+- No boilerplate unless requested
+- Skip unchanged code in responses
+- Trust existing project structure
+
+# NestJS Architecture Rules
+
+- One module per feature domain
+- Controllers handle HTTP requests only
+- Services contain all business logic
+- **DAO interface** in `modules/<feature>/dao/*.interface.ts` (contract)
+- **DAO implementation** + **entities** in `modules/database/` (data access)
+- `DatabaseModule` is `@Global()` — registers connection, entities, DAO providers
+- Feature modules inject concrete DAOs from database (e.g. `UsersDao` implements `IUserDao`)
+- Guards for authentication/authorization
+- Interceptors for logging and transformations
+- Pipes for validation and type conversion
+- Filters for centralized exception handling
+- Never place business logic in controllers
+- Keep module dependencies explicit and minimal
+- Use providers for camera SDK integration
+
+# API Response Rules
+
+**Success:**
+```typescript
+{
+  "success": true,
+  "message": "Operation successful",
+  "data": {}
+}
+```
+
+**Error:**
+```typescript
+{
+  "success": false,
+  "message": "Error description",
+  "statusCode": 400
+}
+```
+
+Use custom exception filters for consistent error responses.
+
+# Error Handling Rules
+
+- Use NestJS exception filters
+- Throw `HttpException` or custom exceptions
+- Never expose internal errors to clients
+- Log errors with context (userId, cameraId, eventId)
+- Validate DTOs with class-validator
+- Handle database errors gracefully
+- Handle camera connection failures properly
+- Centralize error handling logic
+- Retry logic for transient camera failures
+
+# Database Rules
+
+- Use TypeORM query builders for complex queries
+- Sequential integer primary keys only
+- Keep DB logic in DAO layer
+- Use transactions for multi-step camera event processing
+- Avoid N+1 queries—use relations with eager/lazy loading
+- Index: camera credentials lookup, ANPR event queries, job lookups
+- Migrations must be atomic and reversible
+- Composite unique indexes for duplicate prevention
+- Never use raw SQL unless absolutely necessary
+- Use foreign keys for referential integrity
+
+# Entity Design Rules
+
+- Sequential integer `@PrimaryGeneratedColumn()`
+- Use `@Column()` with explicit types
+- Define `@ManyToOne`, `@OneToMany` relationships clearly
+- Apply `@Index()` for frequently queried fields
+- Use `@CreateDateColumn()` and `@UpdateDateColumn()`
+- Composite unique constraints via `@Index()` decorator
+- Keep entities focused on schema definition
+- No business logic in entities
+
+# IVIS-Specific Rules
+
+- Camera entity: minimal fields (id, name, ip, port, username, password, status)
+- ANPR event entity: plateNumber, confidence, captureTime, cameraId, jobId (nullable)
+- Composite unique index on ANPR events: (cameraId, plateNumber, captureTime)
+- Camera SDK integration in dedicated service
+- Event reception via WebSocket or HTTP callback
+- Handle camera authentication failures gracefully
+- Store camera credentials securely (encrypted at rest)
+- Retry camera connection with exponential backoff
+- Log all camera events for audit trail
+- Prevent duplicate ANPR event insertion
+- Future-proof: jobId foreign key for inspection job linking
+
+# TypeScript Rules
+
+- Strict mode enabled
+- Interfaces for contracts, types for unions
+- Use `readonly` for immutable data
+- Prefer `unknown` over `any`
+- Explicit return types on public methods
+- Use utility types (`Partial`, `Pick`, `Omit`)
+- Generics for reusable logic
+- Discriminated unions for state management
+
+# Security Rules
+
+- Validate all inputs with class-validator DTOs
+- Guards for JWT authentication
+- Role-based access control via custom guards
+- Never log passwords or camera credentials
+- Environment variables via ConfigModule
+- No hardcoded credentials
+- Rate limiting on public endpoints
+- Encrypt camera credentials before storage
+- Validate camera webhook signatures
+- Secure camera API credentials in transit (HTTPS)
+
+# Validation Rules
+
+- DTOs with class-validator decorators
+- Global ValidationPipe with transform
+- Validate nested objects
+- Whitelist unknown properties
+- Custom validators for camera IP/port validation
+- Return detailed validation errors
+
+# Performance Rules
+
+- Cache camera connection pools
+- Paginate ANPR event queries
+- Stream large datasets
+- Async/await for camera operations
+- Batch ANPR event inserts when possible
+- Index camera lookup queries
+- Lazy load heavy relationships
+- Connection pooling for PostgreSQL
+
+# Camera Integration Rules
+
+- Dedicated CameraService for SDK integration
+- Connection pool management per camera
+- Exponential backoff for reconnection
+- Event queue for high-volume ANPR events
+- Deduplication before DB insert
+- Webhook signature validation
+- Handle camera offline/online state transitions
+- Log all camera communication failures
+- Heartbeat mechanism for connection health
+
+# Logging Rules
+
+- **AppLogger** (`common/logger/app.logger.ts`) — terminal output with chalk; inject in services
+- **LoggerMiddleware** (`common/middlewares/`) — API `-->` / `<--` request logs; wired in `AppModule.configure()`
+- `app.useLogger(AppLogger)` in `main.ts` for Nest bootstrap messages
+- Structured context strings: `UsersService`, `Bootstrap`, `API`, `CORS`
+- Never log passwords or camera credentials
+- Error logs with stack traces via `AppLogger.error()`
+
+# File Organization Rules
+
+- One module per domain: `database`, `users`, `masters` (aggregator), `auth` (future), `camera` (future)
+- **Masters**: folder per master (`masters/roles/`, `masters/vehicles/`) — routes `masters/<name>`; `MastersModule` only imports/exports children; **users stay in `modules/users/`**
+- **Entities** → `modules/database/entity/`
+- **DAO implementations** → `modules/database/dao/`
+- **DAO interfaces** → `modules/<feature>/dao/*.interface.ts`
+- **Services** → `modules/<feature>/service/`
+- **DTOs** → `common/dto/` (not inside feature modules)
+- **Pagination + filters** → `common/shared/pagination/` + `common/shared/filter/`
+- **Migrations** → `src/migrations/`
+- Keep files under 300 lines; use `.js` import suffixes
+- No `SharedModule` — use `PaginationModule` only
+- Avoid duplicate `configs/` or `src/config/` paths — config lives in `common/` and `modules/database/`
+
+# Testing Rules
+
+- Unit tests for services and DAOs
+- Mock camera SDK in tests
+- Integration tests for ANPR event flow
+- Test duplicate event prevention
+- Test camera connection failure scenarios
+- Keep tests deterministic
+- Focus on business-critical paths
+
+# Migration Rules
+
+- One migration per schema change
+- Test migrations forward and rollback
+- Include indexes in migrations
+- Document breaking changes
+- Use TypeORM migration commands
+- Sequential naming convention
+
+# Deployment Readiness Rules
+
+- No TODOs in production code
+- All environment variables documented
+- Health check endpoint implemented
+- Graceful shutdown for camera connections
+- Handle SIGTERM/SIGINT signals
+- Database connection pooling configured
+- Camera reconnection on startup
+
+# Code Generation Rules
+
+- Update existing files when possible
+- Follow structure above — do not move `users.dao.ts` into users module or `IUserDao` into database
+- New feature template:
+  - `modules/database/entity/<name>.entity.ts`
+  - `modules/database/dao/<name>.dao.ts` (implements `I<Name>Dao`)
+  - `modules/<feature>/dao/<name>.dao.interface.ts`
+  - `modules/<feature>/service/`, `controller`, `module`
+- Register new entities/DAOs in `DatabaseModule`; feature module only adds service + controller
+- Consistent naming: `User`, `UsersDao`, `IUserDao`, `UsersService`, `UsersController`
+
+---
+
+**Summary:** Build production-ready, type-safe NestJS code for IVIS. Database module owns entities + DAO impl; feature modules own DAO interfaces + services + controllers. Use `PaginationModule` / `TypeOrmPaginationService` for filtered lists. Keep responses concise and actionable.

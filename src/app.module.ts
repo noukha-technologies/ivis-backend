@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -7,8 +8,11 @@ import databaseConfig from './modules/database/database.config';
 import { LoggerModule } from './common/logger/logger.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { UsersModule } from './modules/users/users.module';
+import { MastersModule } from './modules/masters/masters.module.js';
 import { DatabaseModule } from './modules/database/database.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module.js';
+import { AuthModule } from './modules/auth/auth.module.js';
+import { AuthGuard } from './guards/auth.guard.js';
 
 @Module({
   imports: [
@@ -21,9 +25,15 @@ import { PaginationModule } from './common/shared/pagination/pagination.module.j
     PaginationModule,
     DatabaseModule,
     UsersModule,
+    MastersModule,
+    AuthModule,
   ],
   controllers: [AppController],
-  providers: [AppService, LoggerMiddleware],
+  providers: [
+    AppService,
+    LoggerMiddleware,
+    { provide: APP_GUARD, useClass: AuthGuard },
+  ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

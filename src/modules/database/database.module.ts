@@ -3,7 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config.js';
 import { User } from './entity/user.entity.js';
+import { Role } from './entity/role.entity.js';
+import { UserSession } from './entity/user-session.entity.js';
 import { UsersDao } from './dao/users.dao.js';
+import { RolesDao } from './dao/roles.dao.js';
+import { UserSessionsDao } from './dao/user-sessions.dao.js';
 
 @Global()
 @Module({
@@ -20,9 +24,9 @@ import { UsersDao } from './dao/users.dao.js';
         };
       },
     }),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, Role, UserSession]),
   ],
-  providers: [UsersDao],
-  exports: [TypeOrmModule, UsersDao],
+  providers: [UsersDao, RolesDao, UserSessionsDao],
+  exports: [TypeOrmModule, UsersDao, RolesDao, UserSessionsDao],
 })
 export class DatabaseModule {}

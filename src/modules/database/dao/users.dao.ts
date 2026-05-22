@@ -19,6 +19,14 @@ export class UsersDao extends Repository<User> implements IUserDao {
     return this.findOne({ where: { email, is_deleted: false } });
   }
 
+  async findByEmailWithPassword(email: string): Promise<User | null> {
+    return this.createQueryBuilder('user')
+      .addSelect('user.password_hash')
+      .where('user.email = :email', { email: email.trim().toLowerCase() })
+      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
+      .getOne();
+  }
+
   async findByUserId(userId: number): Promise<User | null> {
     return this.findOne({ where: { user_id: userId, is_deleted: false } });
   }

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
@@ -8,6 +9,7 @@ import {
   ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception.js';
 import { AppLogger } from '../../../common/logger/app.logger.js';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration.js';
 import { User } from '../../database/entity/user.entity.js';
 import { UsersDao } from '../../database/dao/users.dao.js';
 import { IUsersService } from './user.service.interface.js';
@@ -35,7 +37,13 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'user_id', createUserDto.user_id);
       }
 
-      const user = this.usersDao.create(createUserDto);
+      const { password, ...userFields } = createUserDto;
+      const password_hash = await bcrypt.hash(password, 10);
+      const user = this.usersDao.create({
+        id: generateSnowflakeId(),
+        ...userFields,
+        password_hash,
+      });
       const savedUser = await this.usersDao.save(user);
 
       this.logger.log(`User created with ID: ${savedUser.id}`, UsersService.context);

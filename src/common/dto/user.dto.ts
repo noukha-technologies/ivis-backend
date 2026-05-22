@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
 
@@ -39,6 +40,16 @@ export class CreateUserDto {
   @IsString({ message: 'line must be a string' })
   @IsOptional()
   line?: string;
+
+  @ApiProperty({
+    description: 'Login password (stored as bcrypt hash)',
+    example: 'P@ssw0rd123',
+    minLength: 8,
+  })
+  @IsString()
+  @MinLength(8)
+  @IsNotEmpty()
+  password!: string;
 }
 
 /** All fields optional; user_id cannot be updated after creation. */

@@ -1,21 +1,10 @@
-import { Module } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
-import { AppConstants } from "src/common/constants/app.constants";
-import { SharedModule } from "src/common/shared/shared.module";
-import { UserModule } from "../user/user.module";
-import { AuthController } from "./auth.controller";
-import { AuthService } from "./service/auth.service";
-import { NotificationModule } from "../notification/notification.module";
+import { Module } from '@nestjs/common';
+import { AuthController } from './auth.controller.js';
+import { AuthService } from './service/auth.service.js';
 
 @Module({
-  imports: [UserModule, SharedModule, ConfigModule, NotificationModule],
   controllers: [AuthController],
-  providers: [
-    {
-      provide: AppConstants.AUTH_SERVICE_TOKEN,
-      useClass: AuthService,
-    },
-  ],
-  exports: [AppConstants.AUTH_SERVICE_TOKEN],
+  providers: [AuthService],
+  exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

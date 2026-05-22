@@ -8,12 +8,17 @@ import {
   PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './user.entity.js';
-import { SessionMetadata } from '../../../common/interfaces/user.interfaces.js';
-import { DatabaseSchemas } from '../../../common/constants/database-schemas.js';
-import { bigintAsStringTransformer } from '../bigint-string.transformer.js';
+import { User } from './user.entity';
+import { bigintAsStringTransformer } from '../bigint-string.transformer';
 
-@Entity({ name: 'user_sessions', schema: DatabaseSchemas.CORE })
+export interface SessionMetadata {
+  browser: string;
+  os: string;
+  deviceType: string;
+  ipAddress: string;
+}
+
+@Entity({ name: 'user_sessions', schema: 'core' })
 @Index('IDX_user_sessions_user_jti', ['user_id', 'access_token_jti'])
 export class UserSession {
   @PrimaryColumn({ type: 'bigint', transformer: bigintAsStringTransformer })

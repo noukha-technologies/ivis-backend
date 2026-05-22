@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
-import { QueryFilter } from '../filter/filter.dto.js';
-import { TypeOrmFilterApplier } from '../filter/typeorm-filter.applier.js';
-import { PaginationResponse } from '../../interfaces/pagination.interface.js';
+import { QueryFilter } from '../filter/filter.dto';
+import { TypeOrmFilterApplier } from '../filter/typeorm-filter.applier';
+import { PaginationResponse } from '../../interfaces/pagination.interface';
 
 export type TypeOrmPaginationOptions<T, K> = {
   filter?: QueryFilter[];

@@ -9,7 +9,7 @@ import {
   QueryFilter,
   RegexFieldFilter,
   SearchFilter,
-} from './filter.dto.js';
+} from './filter.dto';
 
 @Injectable()
 export class TypeOrmFilterApplier {

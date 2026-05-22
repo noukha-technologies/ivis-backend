@@ -3,9 +3,9 @@ import { DataSource, Repository } from 'typeorm';
 import {
   IUserSessionDao,
   UpsertUserSessionData,
-} from '../../auth/dao/user-session.interface.js';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration.js';
-import { UserSession } from '../entity/user-session.entity.js';
+} from '../../auth/dao/user-session.interface';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { UserSession } from '../entity/user-session.entity';
 
 @Injectable()
 export class UserSessionsDao extends Repository<UserSession> implements IUserSessionDao {

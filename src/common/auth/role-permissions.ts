@@ -1,4 +1,4 @@
-import { PermissionKeys } from '../constants/permissions.js';
+import { PermissionKeys } from '../constants/permissions';
 
 const ALL_PERMISSIONS = Object.values(PermissionKeys);
 

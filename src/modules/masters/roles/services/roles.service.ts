@@ -1,17 +1,17 @@
 import { Injectable } from '@nestjs/common';
-import { CreateRoleDto, UpdateRoleDto } from '../../../../common/dto/role.dto.js';
-import { PaginationQueryDto } from '../../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../../common/interfaces/pagination.interface.js';
+import { CreateRoleDto, UpdateRoleDto } from '../../../../common/dto/role.dto';
+import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
   DatabaseException,
   DuplicateResourceException,
   ResourceNotFoundException,
-} from '../../../../common/exceptions/custom.exception.js';
-import { AppLogger } from '../../../../common/logger/app.logger.js';
-import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration.js';
-import { Role } from '../../../database/entity/role.entity.js';
-import { RolesDao } from '../../../database/dao/roles.dao.js';
-import { IRolesService } from './role.service.interface.js';
+} from '../../../../common/exceptions/custom.exception';
+import { AppLogger } from '../../../../common/logger/app.logger';
+import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { Role } from '../../../database/entity/role.entity';
+import { RolesDao } from '../../../database/dao/roles.dao';
+import { IRolesService } from './role.service.interface';
 
 @Injectable()
 export class RolesService implements IRolesService {

@@ -1,13 +1,13 @@
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import databaseConfig, { DatabaseConfig } from './database.config.js';
-import { User } from './entity/user.entity.js';
-import { Role } from './entity/role.entity.js';
-import { UserSession } from './entity/user-session.entity.js';
-import { UsersDao } from './dao/users.dao.js';
-import { RolesDao } from './dao/roles.dao.js';
-import { UserSessionsDao } from './dao/user-sessions.dao.js';
+import databaseConfig, { DatabaseConfig } from './database.config';
+import { User } from './entity/user.entity';
+import { Role } from './entity/role.entity';
+import { UserSession } from './entity/user-session.entity';
+import { UsersDao } from './dao/users.dao';
+import { RolesDao } from './dao/roles.dao';
+import { UserSessionsDao } from './dao/user-sessions.dao';
 
 @Global()
 @Module({

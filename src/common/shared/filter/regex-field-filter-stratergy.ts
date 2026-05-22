@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { QueryFilter, RegexFieldFilter } from './filter.dto.js';
-import { FilterStrategy } from './filter-stratergy.interface.js';
-import { FilterQueryDocument } from './filter-query.type.js';
+import { QueryFilter, RegexFieldFilter } from './filter.dto';
+import { FilterStrategy } from './filter-stratergy.interface';
+import { FilterQueryDocument } from './filter-query.type';
 
 @Injectable()
 export class RegexFieldFilterStrategy implements FilterStrategy<RegexFieldFilter> {

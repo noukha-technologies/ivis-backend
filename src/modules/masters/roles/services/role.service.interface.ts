@@ -1,7 +1,7 @@
-import { CreateRoleDto, UpdateRoleDto } from '../../../../common/dto/role.dto.js';
-import { PaginationQueryDto } from '../../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../../common/interfaces/pagination.interface.js';
-import { Role } from '../../../database/entity/role.entity.js';
+import { CreateRoleDto, UpdateRoleDto } from '../../../../common/dto/role.dto';
+import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+import { Role } from '../../../database/entity/role.entity';
 
 export interface IRolesService {
   create(createRoleDto: CreateRoleDto): Promise<Role>;

@@ -6,10 +6,9 @@ import {
   UpdateDateColumn,
   Index,
 } from 'typeorm';
-import { DatabaseSchemas } from '../../../common/constants/database-schemas.js';
-import { bigintAsStringTransformer } from '../bigint-string.transformer.js';
+import { bigintAsStringTransformer } from '../bigint-string.transformer';
 
-@Entity({ name: 'users', schema: DatabaseSchemas.CORE })
+@Entity({ name: 'users', schema: 'core' })
 export class User {
   @PrimaryColumn({ type: 'bigint', transformer: bigintAsStringTransformer })
   id!: string;

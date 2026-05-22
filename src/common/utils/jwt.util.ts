@@ -1,5 +1,5 @@
 import jwt, { type JwtPayload, type SignOptions } from 'jsonwebtoken';
-import { ErrorException } from '../errors/custom-error.exception.js';
+import { ErrorException } from '../errors/custom-error.exception';
 
 export type AccessTokenPayload = JwtPayload & {
   sub: string;

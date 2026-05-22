@@ -2,30 +2,30 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
-import { ErrorException } from '../../../common/errors/custom-error.exception.js';
+import { ErrorException } from '../../../common/errors/custom-error.exception';
 import {
   AuthUserDto,
   LoginRequestDto,
   LoginResponseDto,
   TokenPair,
   UserContext,
-} from '../../../common/dto/auth.dto.js';
-import { resolvePermissionsForRole } from '../../../common/auth/role-permissions.js';
+} from '../../../common/dto/auth.dto';
+import { resolvePermissionsForRole } from '../../../common/auth/role-permissions';
 import {
   decrypt,
   encrypt,
   hashRefreshTokenKey,
-} from '../../../common/utils/crypto.util.js';
+} from '../../../common/utils/crypto.util';
 import {
   signAccessToken,
   signRefreshToken,
   verifyRefreshToken,
-} from '../../../common/utils/jwt.util.js';
-import { RequestMetadata } from '../../../common/utils/request-metadata.util.js';
-import { UsersDao } from '../../database/dao/users.dao.js';
-import { User } from '../../database/entity/user.entity.js';
-import { UserSessionsDao } from '../../database/dao/user-sessions.dao.js';
-import { IAuthService } from './auth-service.interface.js';
+} from '../../../common/utils/jwt.util';
+import { RequestMetadata } from '../../../common/utils/request-metadata.util';
+import { UsersDao } from '../../database/dao/users.dao';
+import { User } from '../../database/entity/user.entity';
+import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
+import { IAuthService } from './auth-service.interface';
 
 @Injectable()
 export class AuthService implements IAuthService {

@@ -17,10 +17,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe.js';
-import { CreateRoleDto, UpdateRoleDto } from '../../../common/dto/role.dto.js';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { RolesService } from './services/roles.service.js';
+import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+import { CreateRoleDto, UpdateRoleDto } from '../../../common/dto/role.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { RolesService } from './services/roles.service';
 
 @ApiTags('Masters / Roles')
 @Controller('masters/roles')

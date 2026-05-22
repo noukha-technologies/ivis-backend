@@ -1,4 +1,4 @@
-import { UserContext } from '../common/dto/auth.dto.js';
+import { UserContext } from '../common/dto/auth.dto';
 
 declare global {
   namespace Express {

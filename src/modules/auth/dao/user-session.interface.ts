@@ -1,5 +1,5 @@
-import { RequestMetadata } from '../../../common/utils/request-metadata.util.js';
-import { UserSession } from '../../database/entity/user-session.entity.js';
+import { RequestMetadata } from '../../../common/utils/request-metadata.util';
+import { UserSession } from '../../database/entity/user-session.entity';
 
 export interface UpsertUserSessionData {
   id?: string;

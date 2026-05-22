@@ -1,5 +1,5 @@
-import { FilterQueryDocument } from '../shared/filter/filter-query.type.js';
-import { QueryFilter } from '../shared/filter/filter.dto.js';
+import { FilterQueryDocument } from '../shared/filter/filter-query.type';
+import { QueryFilter } from '../shared/filter/filter.dto';
 
 export interface PaginationMeta {
   total: number;

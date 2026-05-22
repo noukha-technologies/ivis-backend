@@ -1,8 +1,8 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
-import { UserContext } from '../common/dto/auth.dto.js';
-import { ErrorException } from '../common/errors/custom-error.exception.js';
+import { UserContext } from '../common/dto/auth.dto';
+import { ErrorException } from '../common/errors/custom-error.exception';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {

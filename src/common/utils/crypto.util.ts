@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { ErrorException } from '../errors/custom-error.exception.js';
+import { ErrorException } from '../errors/custom-error.exception';
 
 export function encrypt(data: string, key: Buffer): string {
   try {

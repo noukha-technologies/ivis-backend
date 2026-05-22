@@ -1,7 +1,7 @@
-import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto.js';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
-import { User } from '../../database/entity/user.entity.js';
+import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { User } from '../../database/entity/user.entity';
 
 export interface IUserDao {
   create(dto: CreateUserDto): User;

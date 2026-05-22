@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrimitiveFieldFilter, QueryFilter } from './filter.dto.js';
-import { FilterQueryDocument } from './filter-query.type.js';
-import { FilterStrategy } from './filter-stratergy.interface.js';
+import { PrimitiveFieldFilter, QueryFilter } from './filter.dto';
+import { FilterQueryDocument } from './filter-query.type';
+import { FilterStrategy } from './filter-stratergy.interface';
 
 @Injectable()
 export class PrimitiveFieldFilterStrategy implements FilterStrategy<PrimitiveFieldFilter> {

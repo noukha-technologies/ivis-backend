@@ -1,6 +1,6 @@
 import { createParamDecorator, ExecutionContext } from '@nestjs/common';
 import { Request } from 'express';
-import { getRequestMetadata } from '../utils/request-metadata.util.js';
+import { getRequestMetadata } from '../utils/request-metadata.util';
 
 export const RequestMetadata = createParamDecorator(
   (_: unknown, ctx: ExecutionContext) => {

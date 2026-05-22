@@ -12,17 +12,17 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
-import { RequestMetadata } from '../../common/decorators/request-metadata.decorator.js';
+import { Public } from '../../common/decorators/public.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { RequestMetadata } from '../../common/decorators/request-metadata.decorator';
 import {
   LoginRequestDto,
   LoginResponseDto,
   RefreshTokenRequestDto,
-} from '../../common/dto/auth.dto.js';
-import type { UserContext } from '../../common/dto/auth.dto.js';
-import type { RequestMetadata as RequestMetadataType } from '../../common/utils/request-metadata.util.js';
-import { AuthService } from './service/auth.service.js';
+} from '../../common/dto/auth.dto';
+import type { UserContext } from '../../common/dto/auth.dto';
+import type { RequestMetadata as RequestMetadataType } from '../../common/utils/request-metadata.util';
+import { AuthService } from './service/auth.service';
 
 @ApiTags('Auth')
 @Controller('auth')

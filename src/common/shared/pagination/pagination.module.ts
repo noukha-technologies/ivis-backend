@@ -1,14 +1,14 @@
 import { Global, Module } from '@nestjs/common';
-import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry.js';
-import { SearchFilterStrategy } from '../filter/search-filter-stratergy.js';
-import { DateFieldFilterStrategy } from '../filter/date-field-filter-stratergy.js';
-import { RegexFieldFilterStrategy } from '../filter/regex-field-filter-stratergy.js';
-import { LogicalOperatorFilterStrategy } from '../filter/logical-filter-stratergy.js';
-import { ArrayFieldFilterStrategy } from '../filter/array-field-filter-stratergy.js';
-import { PrimitiveFieldFilterStrategy } from '../filter/primitive-field-filter-stratergy.js';
-import { TypeOrmFilterApplier } from '../filter/typeorm-filter.applier.js';
-import { PaginationService } from './pagination.service.js';
-import { TypeOrmPaginationService } from './typeorm-pagination.service.js';
+import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry';
+import { SearchFilterStrategy } from '../filter/search-filter-stratergy';
+import { DateFieldFilterStrategy } from '../filter/date-field-filter-stratergy';
+import { RegexFieldFilterStrategy } from '../filter/regex-field-filter-stratergy';
+import { LogicalOperatorFilterStrategy } from '../filter/logical-filter-stratergy';
+import { ArrayFieldFilterStrategy } from '../filter/array-field-filter-stratergy';
+import { PrimitiveFieldFilterStrategy } from '../filter/primitive-field-filter-stratergy';
+import { TypeOrmFilterApplier } from '../filter/typeorm-filter.applier';
+import { PaginationService } from './pagination.service';
+import { TypeOrmPaginationService } from './typeorm-pagination.service';
 
 @Global()
 @Module({

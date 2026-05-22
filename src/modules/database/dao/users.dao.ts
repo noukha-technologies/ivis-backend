@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
-import { IUserDao } from '../../users/dao/user.dao.interface.js';
-import { User } from '../entity/user.entity.js';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { IUserDao } from '../../users/dao/user.dao.interface';
+import { User } from '../entity/user.entity';
 
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {

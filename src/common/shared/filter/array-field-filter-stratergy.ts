@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { FilterStrategy } from './filter-stratergy.interface.js';
-import { ArrayFieldFilter, QueryFilter } from './filter.dto.js';
-import { FilterQueryDocument } from './filter-query.type.js';
+import { FilterStrategy } from './filter-stratergy.interface';
+import { ArrayFieldFilter, QueryFilter } from './filter.dto';
+import { FilterQueryDocument } from './filter-query.type';
 
 @Injectable()
 export class ArrayFieldFilterStrategy implements FilterStrategy<ArrayFieldFilter> {

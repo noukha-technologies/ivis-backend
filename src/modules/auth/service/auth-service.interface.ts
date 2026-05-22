@@ -2,8 +2,8 @@ import {
   LoginRequestDto,
   LoginResponseDto,
   UserContext,
-} from '../../../common/dto/auth.dto.js';
-import { RequestMetadata } from '../../../common/utils/request-metadata.util.js';
+} from '../../../common/dto/auth.dto';
+import { RequestMetadata } from '../../../common/utils/request-metadata.util';
 
 export interface IAuthService {
   login(request: LoginRequestDto, metadata: RequestMetadata): Promise<LoginResponseDto>;

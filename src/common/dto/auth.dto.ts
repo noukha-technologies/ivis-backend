@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty } from 'class-validator';
-import { UserSession } from '../../modules/database/entity/user-session.entity.js';
+import { UserSession } from '../../modules/database/entity/user-session.entity';
 
 
 export class AuthUserDto {

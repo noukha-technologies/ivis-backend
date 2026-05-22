@@ -1,18 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto.js';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
+import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
   DatabaseException,
   DuplicateResourceException,
   ResourceNotFoundException,
-} from '../../../common/exceptions/custom.exception.js';
-import { AppLogger } from '../../../common/logger/app.logger.js';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration.js';
-import { User } from '../../database/entity/user.entity.js';
-import { UsersDao } from '../../database/dao/users.dao.js';
-import { IUsersService } from './user.service.interface.js';
+} from '../../../common/exceptions/custom.exception';
+import { AppLogger } from '../../../common/logger/app.logger';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { User } from '../../database/entity/user.entity';
+import { UsersDao } from '../../database/dao/users.dao';
+import { IUsersService } from './user.service.interface';
 
 @Injectable()
 export class UsersService implements IUsersService {

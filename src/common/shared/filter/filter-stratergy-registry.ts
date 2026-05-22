@@ -1,13 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { QueryFilter } from './filter.dto.js';
-import { FilterQueryDocument } from './filter-query.type.js';
-import { FilterStrategy } from './filter-stratergy.interface.js';
-import { SearchFilterStrategy } from './search-filter-stratergy.js';
-import { DateFieldFilterStrategy } from './date-field-filter-stratergy.js';
-import { RegexFieldFilterStrategy } from './regex-field-filter-stratergy.js';
-import { LogicalOperatorFilterStrategy } from './logical-filter-stratergy.js';
-import { ArrayFieldFilterStrategy } from './array-field-filter-stratergy.js';
-import { PrimitiveFieldFilterStrategy } from './primitive-field-filter-stratergy.js';
+import { QueryFilter } from './filter.dto';
+import { FilterQueryDocument } from './filter-query.type';
+import { FilterStrategy } from './filter-stratergy.interface';
+import { SearchFilterStrategy } from './search-filter-stratergy';
+import { DateFieldFilterStrategy } from './date-field-filter-stratergy';
+import { RegexFieldFilterStrategy } from './regex-field-filter-stratergy';
+import { LogicalOperatorFilterStrategy } from './logical-filter-stratergy';
+import { ArrayFieldFilterStrategy } from './array-field-filter-stratergy';
+import { PrimitiveFieldFilterStrategy } from './primitive-field-filter-stratergy';
 
 @Injectable()
 export class FilterStrategyRegistry {

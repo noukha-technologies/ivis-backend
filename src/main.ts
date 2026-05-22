@@ -5,7 +5,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { AppLogger } from './common/logger/app.logger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
-import { HttpExceptionFilter } from './common/filters/http-exception.filter.js';
+import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
 const NODE_ENV: string | undefined = process.env.NODE_ENV;
 const isDevelopment: boolean = NODE_ENV === 'development';

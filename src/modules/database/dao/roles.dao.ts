@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
-import { IRoleDao } from '../../masters/roles/dao/role.dao.interface.js';
-import { Role } from '../entity/role.entity.js';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { IRoleDao } from '../../masters/roles/dao/role.dao.interface';
+import { Role } from '../entity/role.entity';
 
 @Injectable()
 export class RolesDao extends Repository<Role> implements IRoleDao {

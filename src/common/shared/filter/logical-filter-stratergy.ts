@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { FilterStrategy } from './filter-stratergy.interface.js';
-import { LogicalFilter, QueryFilter } from './filter.dto.js';
-import { FilterQueryDocument } from './filter-query.type.js';
+import { FilterStrategy } from './filter-stratergy.interface';
+import { LogicalFilter, QueryFilter } from './filter.dto';
+import { FilterQueryDocument } from './filter-query.type';
 
 export const MongoLogicalOperators = ['$or', '$and', '$nor'] as const;
 

@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry.js';
-import { PageableCollection, PaginationOptions, PaginationResponse } from '../../interfaces/pagination.interface.js';
+import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry';
+import { PageableCollection, PaginationOptions, PaginationResponse } from '../../interfaces/pagination.interface';
 
 @Injectable()
 export class PaginationService {

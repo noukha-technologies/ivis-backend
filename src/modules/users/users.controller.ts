@@ -17,11 +17,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../../common/decorators/public.decorator.js';
-import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe.js';
-import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto.js';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
-import { UsersService } from './service/users.service.js';
+import { Public } from '../../common/decorators/public.decorator';
+import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { UsersService } from './service/users.service';
 
 @ApiTags('Users')
 @Controller('users')

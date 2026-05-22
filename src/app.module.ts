@@ -8,11 +8,11 @@ import databaseConfig from './modules/database/database.config';
 import { LoggerModule } from './common/logger/logger.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { UsersModule } from './modules/users/users.module';
-import { MastersModule } from './modules/masters/masters.module.js';
+import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
-import { PaginationModule } from './common/shared/pagination/pagination.module.js';
-import { AuthModule } from './modules/auth/auth.module.js';
-import { AuthGuard } from './guards/auth.guard.js';
+import { PaginationModule } from './common/shared/pagination/pagination.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuthGuard } from './guards/auth.guard';
 
 @Module({
   imports: [

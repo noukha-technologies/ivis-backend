@@ -4,37 +4,81 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
 } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-@Entity('users')
+@Entity({ name: 'users', schema: 'users' })
 export class User {
-  @ApiProperty({ example: 'd3b07384-d113-4956-a5e2-aa59c256037a' })
+  @ApiProperty({
+    description: 'Unique identifier (UUID)',
+    example: 'd3b07384-d113-4956-a5e2-aa59c256037a',
+  })
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @ApiProperty({ example: 'user@example.com' })
-  @Column({ unique: true })
+  @ApiProperty({
+    description: 'Unique numeric user identifier',
+    example: 1001,
+  })
+  @Column({ type: 'integer', unique: true, nullable: false })
+  @Index('IDX_USER_USER_ID', { unique: true })
+  user_id!: number;
+
+  @ApiProperty({
+    description: 'Full name of the user',
+    example: 'John Doe',
+  })
+  @Column({ type: 'varchar', nullable: false })
+  user_name!: string;
+
+  @ApiProperty({
+    description: 'Email address of the user',
+    example: 'john.doe@example.com',
+  })
+  @Column({ type: 'varchar', unique: true, nullable: false })
+  @Index('IDX_USER_EMAIL', { unique: true })
   email!: string;
 
-  @Column({ select: false, nullable: true }) // Password won't be returned in queries by default
-  password?: string;
+  @ApiProperty({
+    description: 'Role of the user',
+    example: 'admin',
+  })
+  @Column({ type: 'varchar', nullable: false })
+  role!: string;
 
-  @ApiProperty({ example: 'John' })
-  @Column({ nullable: true })
-  firstName!: string;
+  @ApiPropertyOptional({
+    description: 'Center / location of the user',
+    example: 'Center-A',
+  })
+  @Column({ type: 'varchar', nullable: true })
+  center?: string;
 
-  @ApiProperty({ example: 'Doe' })
-  @Column({ nullable: true })
-  lastName!: string;
+  @ApiPropertyOptional({
+    description: 'Production line assigned to the user',
+    example: 'Line-1',
+  })
+  @Column({ type: 'varchar', nullable: true })
+  line?: string;
 
-  @ApiProperty({ example: true })
-  @Column({ default: true })
-  isActive!: boolean;
+  @ApiProperty({
+    description: 'Record creation timestamp',
+    example: '2026-05-21T12:00:00.000Z',
+  })
+  @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
+  created_at!: Date;
 
-  @CreateDateColumn()
-  createdAt!: Date;
+  @ApiProperty({
+    description: 'Record last update timestamp',
+    example: '2026-05-21T12:00:00.000Z',
+  })
+  @UpdateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
+  updated_at!: Date;
 
-  @UpdateDateColumn()
-  updatedAt!: Date;
+  @ApiProperty({
+    description: 'Whether the user has been deleted',
+    example: false,
+  })
+  @Column({ type: 'boolean', default: false })
+  is_deleted!: boolean;
 }

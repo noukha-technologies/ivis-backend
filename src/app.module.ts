@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -18,13 +18,16 @@ import { AuthModule } from './modules/auth/auth.module';
       envFilePath: ['.env'],
     }),
     
-    // Configure PostgreSQL with TypeORM Asynchronously
-    TypeOrmModule.forRootAsync({
-      imports: [ConfigModule],
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => ({
-        ...configService.get('database'),
-      }),
+    // Configure PostgreSQL with TypeORM
+    TypeOrmModule.forRoot({
+      type: 'postgres',
+      host: process.env.POSTGRES_HOST,
+      port: Number(process.env.POSTGRES_PORT),
+      username: process.env.POSTGRES_USER,
+      password: process.env.POSTGRES_PASSWORD,
+      database: process.env.POSTGRES_DB,
+      autoLoadEntities: true,
+      synchronize: false,
     }),
     
     // Feature Modules

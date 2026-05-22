@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { QueryFailedError } from 'typeorm';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -17,46 +18,57 @@ export class HttpExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
-
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
-    let errors: any = null;
+    let error: any = null;
 
+    // ─── Handle known NestJS/Http exceptions ─────────────────────────────
     if (exception instanceof HttpException) {
+      status = exception.getStatus();
       const resContent = exception.getResponse();
+
       if (typeof resContent === 'string') {
         message = resContent;
       } else if (typeof resContent === 'object' && resContent !== null) {
-        message = (resContent as any).message || exception.message;
-        errors = (resContent as any).error || null;
-      } else {
-        message = exception.message;
+        const body = resContent as Record<string, any>;
+        // class-validator returns message as an array
+        message = Array.isArray(body.message) ? 'Validation failed' : (body.message || exception.message);
+        error = Array.isArray(body.message) ? body.message : (body.error || null);
       }
-    } else if (exception instanceof Error) {
+    }
+    // ─── Handle TypeORM duplicate key errors ─────────────────────────────
+    else if (exception instanceof QueryFailedError) {
+      const driverError = (exception as any).driverError;
+
+      if (driverError?.code === '23505') {
+        // Unique constraint violation
+        status = HttpStatus.CONFLICT;
+        const detail: string = driverError.detail || '';
+        message = detail ? `Duplicate entry: ${detail}` : 'A record with this value already exists';
+        error = 'Conflict';
+      } else {
+        message = 'A database error occurred';
+        error = 'Database Error';
+        this.logger.error(`QueryFailedError: ${exception.message}`, (exception as Error).stack);
+      }
+    }
+    // ─── Handle generic errors ───────────────────────────────────────────
+    else if (exception instanceof Error) {
       message = exception.message;
+      this.logger.error(`Unhandled Error: ${exception.message}`, exception.stack);
     }
 
     const errorResponse = {
       success: false,
       statusCode: status,
       message,
-      errors: Array.isArray(message) ? message : (errors ? [errors] : [message]),
+      error: error || message,
       path: request.url,
       timestamp: new Date().toISOString(),
     };
 
-    // Make message singular if it's validation error array
-    if (Array.isArray(message)) {
-      errorResponse.message = 'Validation failed';
-      errorResponse.errors = message;
-    }
-
     this.logger.error(
-      `${request.method} ${request.url} - Status: ${status} - Error: ${JSON.stringify(errorResponse)}`,
-      exception instanceof Error ? exception.stack : undefined,
+      `${request.method} ${request.url} — ${status} — ${message}`,
     );
 
     response.status(status).json(errorResponse);

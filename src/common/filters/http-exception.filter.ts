@@ -20,9 +20,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
-    let error: any = null;
+    let error: string | string[] | null = null;
 
-    // ─── Handle known NestJS/Http exceptions ─────────────────────────────
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const resContent = exception.getResponse();
@@ -30,20 +29,21 @@ export class HttpExceptionFilter implements ExceptionFilter {
       if (typeof resContent === 'string') {
         message = resContent;
       } else if (typeof resContent === 'object' && resContent !== null) {
-        const body = resContent as Record<string, any>;
-        // class-validator returns message as an array
-        message = Array.isArray(body.message) ? 'Validation failed' : (body.message || exception.message);
-        error = Array.isArray(body.message) ? body.message : (body.error || null);
+        const body = resContent as Record<string, unknown>;
+        message = Array.isArray(body.message)
+          ? 'Validation failed'
+          : String(body.message || exception.message);
+        error = Array.isArray(body.message)
+          ? (body.message as string[])
+          : String(body.error || null);
       }
-    }
-    // ─── Handle TypeORM duplicate key errors ─────────────────────────────
-    else if (exception instanceof QueryFailedError) {
-      const driverError = (exception as any).driverError;
+    } else if (exception instanceof QueryFailedError) {
+      const driverError = (exception as QueryFailedError & { driverError?: { code?: string; detail?: string } })
+        .driverError;
 
       if (driverError?.code === '23505') {
-        // Unique constraint violation
         status = HttpStatus.CONFLICT;
-        const detail: string = driverError.detail || '';
+        const detail = driverError.detail || '';
         message = detail ? `Duplicate entry: ${detail}` : 'A record with this value already exists';
         error = 'Conflict';
       } else {
@@ -51,9 +51,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
         error = 'Database Error';
         this.logger.error(`QueryFailedError: ${exception.message}`, (exception as Error).stack);
       }
-    }
-    // ─── Handle generic errors ───────────────────────────────────────────
-    else if (exception instanceof Error) {
+    } else if (exception instanceof Error) {
       message = exception.message;
       this.logger.error(`Unhandled Error: ${exception.message}`, exception.stack);
     }
@@ -67,9 +65,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
     };
 
-    this.logger.error(
-      `${request.method} ${request.url} — ${status} — ${message}`,
-    );
+    this.logger.error(`${request.method} ${request.url} — ${status} — ${message}`);
 
     response.status(status).json(errorResponse);
   }

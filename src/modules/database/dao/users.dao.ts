@@ -1,49 +1,34 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, DataSource, ILike } from 'typeorm';
+import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface.js';
 import { User } from '../entity/user.entity.js';
-import { PaginationQueryDto } from '../../users/dto/pagination-query.dto.js';
-
-export interface PaginatedResult<T> {
-  data: T[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-    hasNextPage: boolean;
-    hasPreviousPage: boolean;
-  };
-}
+import { IUserDao } from './user.dao.interface.js';
 
 @Injectable()
-export class UsersRepository extends Repository<User> {
+export class UsersDao extends Repository<User> implements IUserDao {
   constructor(private readonly dataSource: DataSource) {
     super(User, dataSource.createEntityManager());
   }
 
-  /**
-   * Find user by email (active users only)
-   */
+  async findActiveById(id: string): Promise<User | null> {
+    return this.findOne({ where: { id, is_deleted: false } });
+  }
+
   async findByEmail(email: string): Promise<User | null> {
     return this.findOne({ where: { email, is_deleted: false } });
   }
 
-  /**
-   * Find user by user_id (integer, active users only)
-   */
   async findByUserId(userId: number): Promise<User | null> {
     return this.findOne({ where: { user_id: userId, is_deleted: false } });
   }
 
-  /**
-   * Paginated find with optional search by user_name or email
-   */
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 10;
     const skip = (page - 1) * limit;
 
-    const where: any[] = [];
+    const where: FindOptionsWhere<User>[] = [];
 
     if (query.search) {
       where.push(

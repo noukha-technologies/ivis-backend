@@ -1,34 +1,31 @@
 import {
-  Controller,
-  Get,
-  Post,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  Query,
-  ParseUUIDPipe,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import {
-  ApiTags,
   ApiOperation,
-  ApiResponse,
   ApiParam,
   ApiQuery,
+  ApiResponse,
+  ApiTags,
 } from '@nestjs/swagger';
-import { UsersService } from './users.service.js';
-import { CreateUserDto } from './dto/create-user.dto.js';
-import { UpdateUserDto } from './dto/update-user.dto.js';
-import { PaginationQueryDto } from './dto/pagination-query.dto.js';
+import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto.js';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto.js';
+import { UsersService } from './service/users.service.js';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
-
-  // ─── CREATE ────────────────────────────────────────────────────────────────
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -41,20 +38,16 @@ export class UsersController {
     return { message: 'User created successfully', data: user };
   }
 
-  // ─── READ ALL (paginated) ─────────────────────────────────────────────────
-
   @Get()
   @ApiOperation({ summary: 'Retrieve all users (paginated)' })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Records per page' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search by user_name or email' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
   @ApiResponse({ status: 200, description: 'Users list retrieved.' })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.usersService.findAll(query);
     return { message: 'Users retrieved successfully', ...result };
   }
-
-  // ─── READ ONE ─────────────────────────────────────────────────────────────
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a user by UUID' })
@@ -65,8 +58,6 @@ export class UsersController {
     const user = await this.usersService.findOne(id);
     return { message: 'User retrieved successfully', data: user };
   }
-
-  // ─── UPDATE ───────────────────────────────────────────────────────────────
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update user details' })
@@ -81,8 +72,6 @@ export class UsersController {
     const user = await this.usersService.update(id, updateUserDto);
     return { message: 'User updated successfully', data: user };
   }
-
-  // ─── DELETE (soft) ────────────────────────────────────────────────────────
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a user' })

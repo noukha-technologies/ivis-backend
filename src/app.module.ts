@@ -8,6 +8,7 @@ import { LoggerModule } from './common/logger/logger.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { UsersModule } from './modules/users/users.module';
 import { DatabaseModule } from './modules/database/database.module';
+import { PaginationModule } from './common/shared/pagination/pagination.module.js';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { DatabaseModule } from './modules/database/database.module';
       envFilePath: ['.env'],
     }),
     LoggerModule,
+    PaginationModule,
     DatabaseModule,
     UsersModule,
   ],

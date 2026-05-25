@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, FindOptionsWhere, ILike, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import {
+  buildTypeOrmPaginationOptions,
+  toPaginatedResult,
+} from '../../../common/shared/pagination/pagination-query.util';
+import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { IUserDao } from '../../users/dao/user.dao.interface';
 import { User } from '../entity/user.entity';
 
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {
-  constructor(private readonly dataSource: DataSource) {
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly paginationService: PaginationService,
+  ) {
     super(User, dataSource.createEntityManager());
   }
 
@@ -16,8 +24,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    const data = this.findOne({ where: { email, is_deleted: false }, relations: { role: true } });
-    return data
+    return this.findOne({ where: { email, is_deleted: false }, relations: { role: true } });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
@@ -34,40 +41,25 @@ export class UsersDao extends Repository<User> implements IUserDao {
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
-    const page = query.page ?? 1;
-    const limit = query.limit ?? 10;
-    const skip = (page - 1) * limit;
+    const qb = this.createQueryBuilder('user').leftJoinAndSelect('user.role', 'role');
 
-    const where: FindOptionsWhere<User>[] = [];
-
-    if (query.search) {
-      where.push(
-        { user_name: ILike(`%${query.search}%`), is_deleted: false },
-        { email: ILike(`%${query.search}%`), is_deleted: false },
-      );
-    }
-
-    const [data, total] = await this.findAndCount({
-      where: where.length > 0 ? where : { is_deleted: false },
-      relations: { role: true },
-      skip,
-      take: limit,
-      order: { created_at: 'DESC' },
+    const options = buildTypeOrmPaginationOptions<User, User>(query, {
+      searchFields: ['user_name', 'email', 'center', 'line'],
+      allowedSortFields: [
+        'user_id',
+        'user_name',
+        'email',
+        'center',
+        'line',
+        'created_at',
+        'updated_at',
+      ],
+      defaultSort: { created_at: 'DESC' },
+      baseWhere: { is_deleted: false },
     });
 
-    const totalPages = Math.ceil(total / limit);
-
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages,
-        hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
-      },
-    };
+    const response = await this.paginationService.paginateQueryBuilder(qb, 'user', options);
+    return toPaginatedResult(response);
   }
 
   async getNextUserId(): Promise<number> {

@@ -34,6 +34,7 @@ export class UserSessionsDao extends Repository<UserSession> implements IUserSes
     const session = this.create({
       id: generateSnowflakeId(),
       user_id: input.userId,
+      created_by: input.userId,
       access_token_jti: input.accessTokenJti,
       refresh_token_jti: input.refreshTokenJti,
       refresh_token: input.refreshToken,

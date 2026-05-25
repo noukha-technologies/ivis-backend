@@ -42,10 +42,14 @@ export class UsersController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all users (paginated)' })
+  @ApiOperation({ summary: 'Retrieve all users (paginated, filterable, sortable)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'user_name, email, center, line' })
+  @ApiQuery({ name: 'sortBy', required: false, type: String })
+  @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+  @ApiQuery({ name: 'filters', required: false, type: String })
+  @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Users list retrieved.' })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.usersService.findAll(query);

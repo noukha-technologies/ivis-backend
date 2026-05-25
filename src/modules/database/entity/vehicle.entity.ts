@@ -1,29 +1,32 @@
 import {
-  Entity,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
-  Generated,
+  Entity,
   Index,
+  UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 
-@Entity({ name: 'roles', schema: 'master' })
-export class Role {
+@Entity({ name: 'vehicles', schema: 'master' })
+export class Vehicle {
   @SnowflakePrimaryColumn()
   id!: string;
 
-  @Generated('increment')
   @Column({ type: 'integer', unique: true, nullable: false })
-  @Index('IDX_ROLE_ROLE_CODE', { unique: true })
-  role_id!: number;
+  @Index('IDX_VEHICLE_VEHICLE_ID', { unique: true })
+  vehicle_id!: number;
 
-  @Column({ type: 'varchar', unique: true, nullable: false })
-  @Index('IDX_ROLE_ROLE_NAME', { unique: true })
-  role_name!: string;
+  @Column({ type: 'varchar', nullable: false })
+  plate_number!: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  description?: string;
+  @Column({ type: 'varchar', nullable: false })
+  vehicle_type!: string;
+
+  @Column({ type: 'varchar', nullable: false })
+  vehicle_color!: string;
+
+  @Column({ type: 'varchar', nullable: false })
+  vehicle_brand!: string;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

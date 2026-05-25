@@ -5,11 +5,11 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
-  PrimaryColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from './user.entity';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { User } from './user.entity';
 
 export interface SessionMetadata {
   browser: string;
@@ -21,7 +21,7 @@ export interface SessionMetadata {
 @Entity({ name: 'user_sessions', schema: 'core' })
 @Index('IDX_user_sessions_user_jti', ['user_id', 'access_token_jti'])
 export class UserSession {
-  @PrimaryColumn({ type: 'bigint', transformer: bigintAsStringTransformer })
+  @SnowflakePrimaryColumn()
   id!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer })
@@ -51,6 +51,9 @@ export class UserSession {
 
   @Column({ type: 'jsonb', nullable: true })
   metadata?: SessionMetadata | null;
+
+  @Column({ type: 'varchar', nullable: true })
+  created_by?: string;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;

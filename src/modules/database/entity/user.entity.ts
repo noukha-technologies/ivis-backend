@@ -1,6 +1,5 @@
 import {
   Entity,
-  PrimaryColumn,
   Column,
   CreateDateColumn,
   UpdateDateColumn,
@@ -9,11 +8,12 @@ import {
   JoinColumn,
 } from 'typeorm';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Role } from './role.entity';
 
 @Entity({ name: 'users', schema: 'core' })
 export class User {
-  @PrimaryColumn({ type: 'bigint', transformer: bigintAsStringTransformer })
+  @SnowflakePrimaryColumn()
   id!: string;
 
   @Column({ type: 'integer', unique: true, nullable: false })
@@ -42,6 +42,9 @@ export class User {
 
   @Column({ type: 'varchar', nullable: true })
   line!: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  created_by?: string;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;

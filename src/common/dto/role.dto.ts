@@ -11,6 +11,14 @@ export class CreateRoleDto {
   @IsString({ message: 'description must be a string' })
   @IsOptional()
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Creator user snowflake ID',
+    example: '2058858609483202561',
+  })
+  @IsString({ message: 'created_by must be a string' })
+  @IsOptional()
+  created_by?: string;
 }
 
 export class UpdateRoleDto extends PartialType(CreateRoleDto) {}

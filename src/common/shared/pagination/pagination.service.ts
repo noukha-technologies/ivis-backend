@@ -1,10 +1,36 @@
 import { Injectable } from '@nestjs/common';
+import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry';
 import { PageableCollection, PaginationOptions, PaginationResponse } from '../../interfaces/pagination.interface';
+import {
+  TypeOrmPaginationOptions,
+  TypeOrmPaginationService,
+} from './typeorm-pagination.service';
 
 @Injectable()
 export class PaginationService {
-  constructor(private readonly registry: FilterStrategyRegistry) { }
+  constructor(
+    private readonly registry: FilterStrategyRegistry,
+    private readonly typeOrmPagination: TypeOrmPaginationService,
+  ) {}
+
+  /** TypeORM repository pagination (PostgreSQL). */
+  paginate<Entity extends ObjectLiteral, K>(
+    repository: Repository<Entity>,
+    alias: string,
+    options: TypeOrmPaginationOptions<Entity, K> = {},
+  ): Promise<PaginationResponse<K>> {
+    return this.typeOrmPagination.paginate(repository, alias, options);
+  }
+
+  /** TypeORM query-builder pagination (joins, custom selects). */
+  paginateQueryBuilder<Entity extends ObjectLiteral, K>(
+    qb: SelectQueryBuilder<Entity>,
+    alias: string,
+    options: TypeOrmPaginationOptions<Entity, K> = {},
+  ): Promise<PaginationResponse<K>> {
+    return this.typeOrmPagination.paginateQueryBuilder(qb, alias, options);
+  }
 
   async findAndPaginate<T, K>(
     collection: PageableCollection<T>,

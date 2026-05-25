@@ -23,7 +23,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')
-      .addSelect('user.password_hash')
+      .addSelect('user.password')
       .where('user.email = :email', { email: email.trim().toLowerCase() })
       .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
       .getOne();

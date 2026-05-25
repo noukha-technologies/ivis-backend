@@ -27,7 +27,7 @@ export class User {
   @Index('IDX_USER_EMAIL', { unique: true })
   email!: string;
 
-  @Column({ name: 'password_hash', type: 'varchar', nullable: true, select: false })
+  @Column({ name: 'password', type: 'varchar', nullable: true, select: false })
   password!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer })

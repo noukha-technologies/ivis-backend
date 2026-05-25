@@ -12,6 +12,7 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { User } from '../../database/entity/user.entity';
 import { UsersDao } from '../../database/dao/users.dao';
+import { RolesDao } from '../../database/dao/roles.dao';
 import { IUsersService } from './user.service.interface';
 
 @Injectable()
@@ -20,8 +21,9 @@ export class UsersService implements IUsersService {
 
   constructor(
     private readonly usersDao: UsersDao,
+    private readonly rolesDao: RolesDao,
     private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     this.logger.log(`Creating user with email: ${createUserDto.email}`, UsersService.context);
@@ -32,24 +34,39 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'email', createUserDto.email);
       }
 
-      const existingUserId = await this.usersDao.findByUserId(createUserDto.user_id);
-      if (existingUserId) {
-        throw new DuplicateResourceException('User', 'user_id', createUserDto.user_id);
+      let user_id = createUserDto.user_id;
+      if (!user_id) {
+        user_id = await this.usersDao.getNextUserId();
+      } else {
+        const existingUserId = await this.usersDao.findByUserId(user_id);
+        if (existingUserId) {
+          throw new DuplicateResourceException('User', 'user_id', user_id);
+        }
       }
 
-      const { password, ...userFields } = createUserDto;
+      const role = await this.rolesDao.findByRoleId(createUserDto.role_id);
+      if (!role) {
+        throw new ResourceNotFoundException('Role', String(createUserDto.role_id));
+      }
+
+      const { password, role_id: _roleId, ...userFields } = createUserDto;
       const password_hash = await bcrypt.hash(password, 10);
       const user = this.usersDao.create({
         id: generateSnowflakeId(),
         ...userFields,
-        password_hash,
+        user_id,
+        role_id: role.id,
+        password: password_hash,
       });
       const savedUser = await this.usersDao.save(user);
 
       this.logger.log(`User created with ID: ${savedUser.id}`, UsersService.context);
       return savedUser;
     } catch (error) {
-      if (error instanceof DuplicateResourceException) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ResourceNotFoundException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -129,7 +146,20 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const mergedUser = this.usersDao.merge(user, updateUserDto);
+      const { role_id: businessRoleId, ...updateFields } = updateUserDto;
+      let roleFkId: string | undefined;
+      if (businessRoleId !== undefined) {
+        const role = await this.rolesDao.findByRoleId(businessRoleId);
+        if (!role) {
+          throw new ResourceNotFoundException('Role', String(businessRoleId));
+        }
+        roleFkId = role.id;
+      }
+
+      const mergedUser = this.usersDao.merge(user, {
+        ...updateFields,
+        ...(roleFkId !== undefined ? { role_id: roleFkId } : {}),
+      });
       const savedUser = await this.usersDao.save(mergedUser);
 
       this.logger.log(`User updated ID: ${savedUser.id}`, UsersService.context);

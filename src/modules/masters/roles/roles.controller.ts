@@ -21,6 +21,7 @@ import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.p
 import { CreateRoleDto, UpdateRoleDto } from '../../../common/dto/role.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { RolesService } from './services/roles.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Masters / Roles')
 @Controller('masters/roles')

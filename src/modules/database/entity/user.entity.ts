@@ -5,8 +5,11 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { Role } from './role.entity';
 
 @Entity({ name: 'users', schema: 'core' })
 export class User {
@@ -24,17 +27,21 @@ export class User {
   @Index('IDX_USER_EMAIL', { unique: true })
   email!: string;
 
-  @Column({ type: 'varchar', nullable: true, select: false })
-  password_hash?: string;
+  @Column({ name: 'password_hash', type: 'varchar', nullable: true, select: false })
+  password!: string;
 
-  @Column({ type: 'varchar', nullable: false })
-  role!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer })
+  role_id!: string;
+
+  @ManyToOne(() => Role, { nullable: false })
+  @JoinColumn({ name: 'role_id' })
+  role!: Role;
 
   @Column({ type: 'varchar', nullable: true })
-  center?: string;
+  center!: string;
 
   @Column({ type: 'varchar', nullable: true })
-  line?: string;
+  line!: string;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;

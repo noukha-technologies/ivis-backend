@@ -4,6 +4,7 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Generated,
   Index,
 } from 'typeorm';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
@@ -12,6 +13,11 @@ import { bigintAsStringTransformer } from '../bigint-string.transformer';
 export class Role {
   @PrimaryColumn({ type: 'bigint', transformer: bigintAsStringTransformer })
   id!: string;
+
+  @Generated('increment')
+  @Column({ type: 'integer', unique: true, nullable: false })
+  @Index('IDX_ROLE_ROLE_CODE', { unique: true })
+  role_id!: number;
 
   @Column({ type: 'varchar', unique: true, nullable: false })
   @Index('IDX_ROLE_ROLE_NAME', { unique: true })

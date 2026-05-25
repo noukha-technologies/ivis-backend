@@ -9,5 +9,6 @@ export interface IRoleDao {
   merge(role: Role, dto: UpdateRoleDto): Role;
   findActiveById(id: string): Promise<Role | null>;
   findByRoleName(roleName: string): Promise<Role | null>;
+  findByRoleId(roleId: number): Promise<Role | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Role>>;
 }

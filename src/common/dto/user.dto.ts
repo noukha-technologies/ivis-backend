@@ -10,11 +10,11 @@ import {
 import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
 
 export class CreateUserDto {
-  @ApiProperty({ description: 'Unique numeric user identifier', example: 1001 })
+  @ApiPropertyOptional({ description: 'Unique numeric user identifier (auto-generated if omitted)', example: 1001 })
   @IsInt({ message: 'user_id must be a valid integer' })
   @Min(1, { message: 'user_id must be greater than 0' })
-  @IsNotEmpty({ message: 'user_id is required' })
-  user_id!: number;
+  @IsOptional()
+  user_id?: number;
 
   @ApiProperty({ description: 'Full name of the user', example: 'John Doe' })
   @IsString({ message: 'user_name must be a string' })
@@ -26,10 +26,13 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'email is required' })
   email!: string;
 
-  @ApiProperty({ description: 'Role of the user', example: 'admin' })
-  @IsString({ message: 'role must be a string' })
-  @IsNotEmpty({ message: 'role is required' })
-  role!: string;
+  @ApiProperty({
+    description: 'Business role ID (master.roles.role_id)',
+    example: 2,
+  })
+  @IsInt({ message: 'role_id must be a valid integer' })
+  @Min(1, { message: 'role_id must be greater than 0' })
+  role_id!: number;
 
   @ApiPropertyOptional({ description: 'Center / location of the user', example: 'Center-A' })
   @IsString({ message: 'center must be a string' })
@@ -55,4 +58,4 @@ export class CreateUserDto {
 /** All fields optional; user_id cannot be updated after creation. */
 export class UpdateUserDto extends PartialType(
   OmitType(CreateUserDto, ['user_id'] as const),
-) {}
+) { }

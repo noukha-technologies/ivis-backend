@@ -12,11 +12,15 @@ export class RolesDao extends Repository<Role> implements IRoleDao {
   }
 
   async findActiveById(id: string): Promise<Role | null> {
-    return this.findOne({ where: { id, is_deleted: false } });
+    return this.findOne({ where: { role_id: Number(id), is_deleted: false } });
   }
 
   async findByRoleName(roleName: string): Promise<Role | null> {
     return this.findOne({ where: { role_name: roleName, is_deleted: false } });
+  }
+
+  async findByRoleId(roleId: number): Promise<Role | null> {
+    return this.findOne({ where: { role_id: roleId, is_deleted: false } });
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Role>> {

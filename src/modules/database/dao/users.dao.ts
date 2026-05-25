@@ -12,15 +12,17 @@ export class UsersDao extends Repository<User> implements IUserDao {
   }
 
   async findActiveById(id: string): Promise<User | null> {
-    return this.findOne({ where: { id, is_deleted: false } });
+    return this.findOne({ where: { id, is_deleted: false }, relations: { role: true } });
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.findOne({ where: { email, is_deleted: false } });
+    const data = this.findOne({ where: { email, is_deleted: false }, relations: { role: true } });
+    return data
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
       .addSelect('user.password_hash')
       .where('user.email = :email', { email: email.trim().toLowerCase() })
       .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
@@ -47,6 +49,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
     const [data, total] = await this.findAndCount({
       where: where.length > 0 ? where : { is_deleted: false },
+      relations: { role: true },
       skip,
       take: limit,
       order: { created_at: 'DESC' },
@@ -65,5 +68,13 @@ export class UsersDao extends Repository<User> implements IUserDao {
         hasPreviousPage: page > 1,
       },
     };
+  }
+
+  async getNextUserId(): Promise<number> {
+    const result = await this.createQueryBuilder('user')
+      .select('MAX(user.user_id)', 'max')
+      .getRawOne();
+    const max = result?.max ? Number(result.max) : 0;
+    return max + 1;
   }
 }

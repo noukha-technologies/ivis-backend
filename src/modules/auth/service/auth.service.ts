@@ -52,11 +52,11 @@ export class AuthService implements IAuthService {
 
   async login(request: LoginRequestDto, metadata: RequestMetadata): Promise<LoginResponseDto> {
     const user = await this.usersDao.findByEmailWithPassword(request.email);
-    if (!user?.password_hash) {
+    if (!user?.password) {
       throw new ErrorException('INVALID_USER');
     }
 
-    const passwordMatches = await bcrypt.compare(request.password, user.password_hash);
+    const passwordMatches = await bcrypt.compare(request.password, user.password);
     if (!passwordMatches) {
       throw new ErrorException('INVALID_USER');
     }
@@ -124,7 +124,7 @@ export class AuthService implements IAuthService {
     return {
       user: this.toAuthUser(user),
       session,
-      resolvedPermissions: resolvePermissionsForRole(user.role),
+      resolvedPermissions: resolvePermissionsForRole(user.role?.role_name || ''),
     };
   }
 
@@ -136,7 +136,7 @@ export class AuthService implements IAuthService {
     );
 
     const accessToken = signAccessToken(
-      { sub: user.id, jti: accessJti, role: user.role },
+      { sub: user.id, jti: accessJti, role: user.role?.role_name || '' },
       this.accessSecret,
       this.accessExpiresIn,
     );
@@ -176,7 +176,7 @@ export class AuthService implements IAuthService {
       user_id: user.user_id,
       user_name: user.user_name,
       email: user.email,
-      role: user.role,
+      role: user.role?.role_name || '',
       center: user.center,
       line: user.line,
     };

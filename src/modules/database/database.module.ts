@@ -7,11 +7,13 @@ import { Role } from './entity/role.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { Test } from './entity/test.entity';
+import { Centre } from './entity/centre.entity';
 import { UsersDao } from './dao/users.dao';
 import { RolesDao } from './dao/roles.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
 import { VehicleDao } from './dao/vehicle.dao';
 import { TestDao } from './dao/test.dao';
+import { CentreDao } from './dao/centre.dao';
 
 @Global()
 @Module({
@@ -28,9 +30,9 @@ import { TestDao } from './dao/test.dao';
         };
       },
     }),
-    TypeOrmModule.forFeature([User, Role, UserSession, Vehicle, Test]),
+    TypeOrmModule.forFeature([User, Role, UserSession, Vehicle, Test, Centre]),
   ],
-  providers: [UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao],
-  exports: [TypeOrmModule, UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao],
+  providers: [UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao, CentreDao],
+  exports: [TypeOrmModule, UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao, CentreDao],
 })
 export class DatabaseModule {}

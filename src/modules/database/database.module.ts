@@ -9,6 +9,9 @@ import { Vehicle } from './entity/vehicle.entity';
 import { Test } from './entity/test.entity';
 import { Centre } from './entity/centre.entity';
 import { Line } from './entity/line.entity';
+import { AdminPc } from './entity/admin-pc.entity';
+import { Camera } from './entity/camera.entity';
+import { Payment } from './entity/payment.entity';
 import { UsersDao } from './dao/users.dao';
 import { RolesDao } from './dao/roles.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
@@ -16,6 +19,9 @@ import { VehicleDao } from './dao/vehicle.dao';
 import { TestDao } from './dao/test.dao';
 import { CentreDao } from './dao/centre.dao';
 import { LineDao } from './dao/line.dao';
+import { AdminPcDao } from './dao/admin-pc.dao';
+import { CameraDao } from './dao/camera.dao';
+import { PaymentDao } from './dao/payment.dao';
 
 @Global()
 @Module({
@@ -32,9 +38,43 @@ import { LineDao } from './dao/line.dao';
         };
       },
     }),
-    TypeOrmModule.forFeature([User, Role, UserSession, Vehicle, Test, Centre, Line]),
+    TypeOrmModule.forFeature([
+      User,
+      Role,
+      UserSession,
+      Vehicle,
+      Test,
+      Centre,
+      Line,
+      AdminPc,
+      Camera,
+      Payment,
+    ]),
   ],
-  providers: [UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao, CentreDao, LineDao],
-  exports: [TypeOrmModule, UsersDao, RolesDao, UserSessionsDao, VehicleDao, TestDao, CentreDao, LineDao],
+  providers: [
+    UsersDao,
+    RolesDao,
+    UserSessionsDao,
+    VehicleDao,
+    TestDao,
+    CentreDao,
+    LineDao,
+    AdminPcDao,
+    CameraDao,
+    PaymentDao,
+  ],
+  exports: [
+    TypeOrmModule,
+    UsersDao,
+    RolesDao,
+    UserSessionsDao,
+    VehicleDao,
+    TestDao,
+    CentreDao,
+    LineDao,
+    AdminPcDao,
+    CameraDao,
+    PaymentDao,
+  ],
 })
 export class DatabaseModule {}

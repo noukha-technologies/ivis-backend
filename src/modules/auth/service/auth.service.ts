@@ -177,8 +177,10 @@ export class AuthService implements IAuthService {
       user_name: user.user_name,
       email: user.email,
       role: user.role?.role_name || '',
-      center: user.center,
-      line: user.line,
+      center: user.assignedCentre?.name,
+      line: user.assignedLine?.name,
+      center_id: user.center_id ?? undefined,
+      line_id: user.line_id ?? undefined,
     };
   }
 

@@ -12,6 +12,7 @@ import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AuthGuard } from './guards/auth.guard';
 
 @Module({
@@ -26,6 +27,7 @@ import { AuthGuard } from './guards/auth.guard';
     DatabaseModule,
     UsersModule,
     MastersModule,
+    TransactionsModule,
     AuthModule,
   ],
   controllers: [AppController],

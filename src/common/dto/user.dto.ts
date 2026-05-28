@@ -34,15 +34,21 @@ export class CreateUserDto {
   @Min(1, { message: 'role_id must be greater than 0' })
   role_id!: number;
 
-  @ApiPropertyOptional({ description: 'Center / location of the user', example: 'Center-A' })
-  @IsString({ message: 'center must be a string' })
+  @ApiPropertyOptional({
+    description: 'Assigned centre snowflake ID (master.centres.id)',
+    example: '2058858609483202561',
+  })
+  @IsString({ message: 'center_id must be a string' })
   @IsOptional()
-  center?: string;
+  center_id?: string;
 
-  @ApiPropertyOptional({ description: 'Production line assigned to the user', example: 'Line-1' })
-  @IsString({ message: 'line must be a string' })
+  @ApiPropertyOptional({
+    description: 'Assigned line snowflake ID (master.lines.id)',
+    example: '2058858609483202562',
+  })
+  @IsString({ message: 'line_id must be a string' })
   @IsOptional()
-  line?: string;
+  line_id?: string;
 
   @ApiProperty({
     description: 'Login password (stored as bcrypt hash)',

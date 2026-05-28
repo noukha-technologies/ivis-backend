@@ -12,6 +12,8 @@ import { Line } from './entity/line.entity';
 import { AdminPc } from './entity/admin-pc.entity';
 import { Camera } from './entity/camera.entity';
 import { Payment } from './entity/payment.entity';
+import { AnprCapture } from './entity/anpr-capture.entity';
+import { RopVerification } from './entity/rop-verification.entity';
 import { UsersDao } from './dao/users.dao';
 import { RolesDao } from './dao/roles.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
@@ -22,6 +24,8 @@ import { LineDao } from './dao/line.dao';
 import { AdminPcDao } from './dao/admin-pc.dao';
 import { CameraDao } from './dao/camera.dao';
 import { PaymentDao } from './dao/payment.dao';
+import { AnprCaptureDao } from './dao/anpr-capture.dao';
+import { RopVerificationDao } from './dao/rop-verification.dao';
 
 @Global()
 @Module({
@@ -49,6 +53,8 @@ import { PaymentDao } from './dao/payment.dao';
       AdminPc,
       Camera,
       Payment,
+      AnprCapture,
+      RopVerification,
     ]),
   ],
   providers: [
@@ -62,6 +68,8 @@ import { PaymentDao } from './dao/payment.dao';
     AdminPcDao,
     CameraDao,
     PaymentDao,
+    AnprCaptureDao,
+    RopVerificationDao,
   ],
   exports: [
     TypeOrmModule,
@@ -75,6 +83,8 @@ import { PaymentDao } from './dao/payment.dao';
     AdminPcDao,
     CameraDao,
     PaymentDao,
+    AnprCaptureDao,
+    RopVerificationDao,
   ],
 })
 export class DatabaseModule {}

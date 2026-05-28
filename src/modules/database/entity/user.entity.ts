@@ -9,6 +9,8 @@ import {
 } from 'typeorm';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { Centre } from './centre.entity';
+import { Line } from './line.entity';
 import { Role } from './role.entity';
 
 @Entity({ name: 'users', schema: 'core' })
@@ -37,11 +39,19 @@ export class User {
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
-  @Column({ type: 'varchar', nullable: true })
-  center!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  center_id?: string | null;
 
-  @Column({ type: 'varchar', nullable: true })
-  line!: string;
+  @ManyToOne(() => Centre, { nullable: true })
+  @JoinColumn({ name: 'center_id' })
+  assignedCentre?: Centre;
+
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  line_id?: string | null;
+
+  @ManyToOne(() => Line, { nullable: true })
+  @JoinColumn({ name: 'line_id' })
+  assignedLine?: Line;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

@@ -20,11 +20,17 @@ export class AuthUserDto {
   @ApiProperty()
   role!: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Centre display name' })
   center?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Line display name' })
   line?: string;
+
+  @ApiPropertyOptional({ description: 'Centre snowflake ID' })
+  center_id?: string;
+
+  @ApiPropertyOptional({ description: 'Line snowflake ID' })
+  line_id?: string;
 }
 
 export class LoginRequestDto {

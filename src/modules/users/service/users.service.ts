@@ -11,6 +11,8 @@ import {
 import { AppLogger } from '../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { User } from '../../database/entity/user.entity';
+import { CentreDao } from '../../database/dao/centre.dao';
+import { LineDao } from '../../database/dao/line.dao';
 import { UsersDao } from '../../database/dao/users.dao';
 import { RolesDao } from '../../database/dao/roles.dao';
 import { IUsersService } from './user.service.interface';
@@ -22,8 +24,10 @@ export class UsersService implements IUsersService {
   constructor(
     private readonly usersDao: UsersDao,
     private readonly rolesDao: RolesDao,
+    private readonly centreDao: CentreDao,
+    private readonly lineDao: LineDao,
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
   async create(createUserDto: CreateUserDto): Promise<User> {
     this.logger.log(`Creating user with email: ${createUserDto.email}`, UsersService.context);
@@ -49,13 +53,35 @@ export class UsersService implements IUsersService {
         throw new ResourceNotFoundException('Role', String(createUserDto.role_id));
       }
 
-      const { password, role_id: _roleId, ...userFields } = createUserDto;
+      const { password, role_id: _roleId, center_id, line_id, ...userFields } =
+        createUserDto;
       const password_hash = await bcrypt.hash(password, 10);
+
+      let centreFkId: string | undefined;
+      if (center_id) {
+        const centre = await this.centreDao.findActiveById(center_id);
+        if (!centre) {
+          throw new ResourceNotFoundException('Centre', center_id);
+        }
+        centreFkId = centre.id;
+      }
+
+      let lineFkId: string | undefined;
+      if (line_id) {
+        const line = await this.lineDao.findActiveById(line_id);
+        if (!line) {
+          throw new ResourceNotFoundException('Line', line_id);
+        }
+        lineFkId = line.id;
+      }
+
       const user = this.usersDao.create({
         id: generateSnowflakeId(),
         ...userFields,
         user_id,
         role_id: role.id,
+        center_id: centreFkId,
+        line_id: lineFkId,
         password: password_hash,
       });
       const savedUser = await this.usersDao.save(user);
@@ -146,7 +172,7 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const { role_id: businessRoleId, ...updateFields } = updateUserDto;
+      const { role_id: businessRoleId, center_id, line_id, ...updateFields } = updateUserDto;
       let roleFkId: string | undefined;
       if (businessRoleId !== undefined) {
         const role = await this.rolesDao.findByRoleId(businessRoleId);
@@ -156,9 +182,37 @@ export class UsersService implements IUsersService {
         roleFkId = role.id;
       }
 
+      let centreFkId: string | null | undefined;
+      if (center_id !== undefined) {
+        if (center_id === null || center_id === '') {
+          centreFkId = null;
+        } else {
+          const centre = await this.centreDao.findActiveById(center_id);
+          if (!centre) {
+            throw new ResourceNotFoundException('Centre', center_id);
+          }
+          centreFkId = centre.id;
+        }
+      }
+
+      let lineFkId: string | null | undefined;
+      if (line_id !== undefined) {
+        if (line_id === null || line_id === '') {
+          lineFkId = null;
+        } else {
+          const line = await this.lineDao.findActiveById(line_id);
+          if (!line) {
+            throw new ResourceNotFoundException('Line', line_id);
+          }
+          lineFkId = line.id;
+        }
+      }
+
       const mergedUser = this.usersDao.merge(user, {
         ...updateFields,
         ...(roleFkId !== undefined ? { role_id: roleFkId } : {}),
+        ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
+        ...(lineFkId !== undefined ? { line_id: lineFkId } : {}),
       });
       const savedUser = await this.usersDao.save(mergedUser);
 

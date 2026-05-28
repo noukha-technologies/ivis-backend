@@ -45,7 +45,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Retrieve all users (paginated, filterable, sortable)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'user_name, email, center, line' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'user_name, email' })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })

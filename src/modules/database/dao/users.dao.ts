@@ -20,16 +20,24 @@ export class UsersDao extends Repository<User> implements IUserDao {
   }
 
   async findActiveById(id: string): Promise<User | null> {
-    return this.findOne({ where: { id, is_deleted: false }, relations: { role: true } });
+    return this.findOne({
+      where: { id, is_deleted: false },
+      relations: { role: true, assignedCentre: true, assignedLine: true },
+    });
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.findOne({ where: { email, is_deleted: false }, relations: { role: true } });
+    return this.findOne({
+      where: { email, is_deleted: false },
+      relations: { role: true, assignedCentre: true, assignedLine: true },
+    });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('user.assignedCentre', 'centre')
+      .leftJoinAndSelect('user.assignedLine', 'line')
       .addSelect('user.password')
       .where('user.email = :email', { email: email.trim().toLowerCase() })
       .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
@@ -41,16 +49,19 @@ export class UsersDao extends Repository<User> implements IUserDao {
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
-    const qb = this.createQueryBuilder('user').leftJoinAndSelect('user.role', 'role');
+    const qb = this.createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('user.assignedCentre', 'centre')
+      .leftJoinAndSelect('user.assignedLine', 'line');
 
     const options = buildTypeOrmPaginationOptions<User, User>(query, {
-      searchFields: ['user_name', 'email', 'center', 'line'],
+      searchFields: ['user_name', 'email'],
       allowedSortFields: [
         'user_id',
         'user_name',
         'email',
-        'center',
-        'line',
+        'center_id',
+        'line_id',
         'created_at',
         'updated_at',
       ],

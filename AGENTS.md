@@ -16,6 +16,8 @@
 - REST APIs
 - Sequential integer primary keys
 
+**PostgreSQL schemas:** `core` (users/sessions), `master` (reference masters), `transaction` (customers, vehicle registry, ANPR/ROP, appointments, payments, jobs). Entity schema names live in `src/common/constants/database-schemas.ts`.
+
 ---
 
 ## Project Structure

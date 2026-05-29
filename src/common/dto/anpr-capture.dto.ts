@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -91,6 +92,14 @@ export class CreateAnprCaptureDto {
   @IsOptional()
   @IsString()
   created_by?: string;
+
+  @ApiPropertyOptional({
+    description: 'Simulate ROP fetch and upsert vehicle record after capture (demo)',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  simulate_rop?: boolean;
 }
 
 export class UpdateAnprCaptureDto extends PartialType(

@@ -8,7 +8,7 @@ export interface IVehicleDao {
   save(vehicle: Vehicle): Promise<Vehicle>;
   merge(vehicle: Vehicle, entityLike: DeepPartial<Vehicle>): Vehicle;
   findActiveById(id: string): Promise<Vehicle | null>;
-  findByPlateNumber(plateNumber: string): Promise<Vehicle | null>;
+  findByCode(code: string): Promise<Vehicle | null>;
   findByVehicleId(vehicleId: number): Promise<Vehicle | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Vehicle>>;
   getNextVehicleId(): Promise<number>;

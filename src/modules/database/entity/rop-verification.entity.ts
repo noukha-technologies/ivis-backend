@@ -11,7 +11,9 @@ import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { AnprCapture } from './anpr-capture.entity';
 
-@Entity({ name: 'rop_verifications', schema: 'core' })
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+
+@Entity({ name: 'rop_verifications', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_ROP_VERIFICATION_ROP_VERIFICATION_ID', ['rop_verification_id'], { unique: true })
 @Index('IDX_ROP_VERIFICATION_ANPR_CAPTURE_ID', ['anpr_capture_id'])
 @Index('IDX_ROP_VERIFICATION_FETCH_STATUS_CREATED_AT', ['fetch_status', 'created_at'])

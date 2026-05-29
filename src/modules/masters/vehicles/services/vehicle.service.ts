@@ -24,20 +24,14 @@ export class VehicleService implements IVehicleService {
 
   async create(createVehicleDto: CreateVehicleDto): Promise<Vehicle> {
     this.logger.log(
-      `Creating vehicle with plate: ${createVehicleDto.plate_number}`,
+      `Creating vehicle master with code: ${createVehicleDto.code}`,
       VehicleService.context,
     );
 
     try {
-      const existingPlate = await this.vehicleDao.findByPlateNumber(
-        createVehicleDto.plate_number,
-      );
-      if (existingPlate) {
-        throw new DuplicateResourceException(
-          'Vehicle',
-          'plate_number',
-          createVehicleDto.plate_number,
-        );
+      const existingCode = await this.vehicleDao.findByCode(createVehicleDto.code);
+      if (existingCode) {
+        throw new DuplicateResourceException('Vehicle', 'code', createVehicleDto.code);
       }
 
       let vehicle_id = createVehicleDto.vehicle_id;
@@ -54,27 +48,28 @@ export class VehicleService implements IVehicleService {
         id: generateSnowflakeId(),
         ...createVehicleDto,
         vehicle_id,
+        status: createVehicleDto.status || 'Active',
       });
       const savedVehicle = await this.vehicleDao.save(vehicle);
 
-      this.logger.log(`Vehicle created with ID: ${savedVehicle.id}`, VehicleService.context);
+      this.logger.log(`Vehicle master created with ID: ${savedVehicle.id}`, VehicleService.context);
       return savedVehicle;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
         throw error;
       }
       this.logger.error(
-        `Failed to create vehicle: ${(error as Error).message}`,
+        `Failed to create vehicle master: ${(error as Error).message}`,
         (error as Error).stack,
         VehicleService.context,
       );
-      throw new DatabaseException('Failed to create vehicle. Please try again.');
+      throw new DatabaseException('Failed to create vehicle master. Please try again.');
     }
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Vehicle>> {
     this.logger.log(
-      `Fetching vehicles — page: ${query.page}, limit: ${query.limit}`,
+      `Fetching vehicle masters — page: ${query.page}, limit: ${query.limit}`,
       VehicleService.context,
     );
 
@@ -82,16 +77,16 @@ export class VehicleService implements IVehicleService {
       return await this.vehicleDao.findPaginated(query);
     } catch (error) {
       this.logger.error(
-        `Failed to fetch vehicles: ${(error as Error).message}`,
+        `Failed to fetch vehicle masters: ${(error as Error).message}`,
         (error as Error).stack,
         VehicleService.context,
       );
-      throw new DatabaseException('Failed to fetch vehicles. Please try again.');
+      throw new DatabaseException('Failed to fetch vehicle masters. Please try again.');
     }
   }
 
   async findOne(id: string): Promise<Vehicle> {
-    this.logger.log(`Fetching vehicle ID: ${id}`, VehicleService.context);
+    this.logger.log(`Fetching vehicle master ID: ${id}`, VehicleService.context);
 
     try {
       const vehicle = await this.vehicleDao.findActiveById(id);
@@ -104,55 +99,31 @@ export class VehicleService implements IVehicleService {
         throw error;
       }
       this.logger.error(
-        `Failed to fetch vehicle: ${(error as Error).message}`,
+        `Failed to fetch vehicle master: ${(error as Error).message}`,
         (error as Error).stack,
         VehicleService.context,
       );
-      throw new DatabaseException('Failed to fetch vehicle. Please try again.');
-    }
-  }
-
-  async findByPlateNumber(plateNumber: string): Promise<Vehicle | null> {
-    this.logger.log(`Lookup by plate number: ${plateNumber}`, VehicleService.context);
-
-    try {
-      return await this.vehicleDao.findByPlateNumber(plateNumber);
-    } catch (error) {
-      this.logger.error(
-        `Failed to find vehicle by plate: ${(error as Error).message}`,
-        (error as Error).stack,
-        VehicleService.context,
-      );
-      throw new DatabaseException('Failed to look up vehicle by plate number.');
+      throw new DatabaseException('Failed to fetch vehicle master. Please try again.');
     }
   }
 
   async update(id: string, updateVehicleDto: UpdateVehicleDto): Promise<Vehicle> {
-    this.logger.log(`Updating vehicle ID: ${id}`, VehicleService.context);
+    this.logger.log(`Updating vehicle master ID: ${id}`, VehicleService.context);
 
     try {
       const vehicle = await this.findOne(id);
 
-      if (
-        updateVehicleDto.plate_number &&
-        updateVehicleDto.plate_number !== vehicle.plate_number
-      ) {
-        const existingPlate = await this.vehicleDao.findByPlateNumber(
-          updateVehicleDto.plate_number,
-        );
-        if (existingPlate) {
-          throw new DuplicateResourceException(
-            'Vehicle',
-            'plate_number',
-            updateVehicleDto.plate_number,
-          );
+      if (updateVehicleDto.code && updateVehicleDto.code !== vehicle.code) {
+        const existingCode = await this.vehicleDao.findByCode(updateVehicleDto.code);
+        if (existingCode) {
+          throw new DuplicateResourceException('Vehicle', 'code', updateVehicleDto.code);
         }
       }
 
       const mergedVehicle = this.vehicleDao.merge(vehicle, updateVehicleDto);
       const savedVehicle = await this.vehicleDao.save(mergedVehicle);
 
-      this.logger.log(`Vehicle updated ID: ${savedVehicle.id}`, VehicleService.context);
+      this.logger.log(`Vehicle master updated ID: ${savedVehicle.id}`, VehicleService.context);
       return savedVehicle;
     } catch (error) {
       if (
@@ -162,32 +133,32 @@ export class VehicleService implements IVehicleService {
         throw error;
       }
       this.logger.error(
-        `Failed to update vehicle: ${(error as Error).message}`,
+        `Failed to update vehicle master: ${(error as Error).message}`,
         (error as Error).stack,
         VehicleService.context,
       );
-      throw new DatabaseException('Failed to update vehicle. Please try again.');
+      throw new DatabaseException('Failed to update vehicle master. Please try again.');
     }
   }
 
   async remove(id: string): Promise<void> {
-    this.logger.log(`Deleting vehicle ID: ${id}`, VehicleService.context);
+    this.logger.log(`Deleting vehicle master ID: ${id}`, VehicleService.context);
 
     try {
       const vehicle = await this.findOne(id);
       vehicle.is_deleted = true;
       await this.vehicleDao.save(vehicle);
-      this.logger.log(`Vehicle soft-deleted ID: ${id}`, VehicleService.context);
+      this.logger.log(`Vehicle master soft-deleted ID: ${id}`, VehicleService.context);
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
       }
       this.logger.error(
-        `Failed to delete vehicle: ${(error as Error).message}`,
+        `Failed to delete vehicle master: ${(error as Error).message}`,
         (error as Error).stack,
         VehicleService.context,
       );
-      throw new DatabaseException('Failed to delete vehicle. Please try again.');
+      throw new DatabaseException('Failed to delete vehicle master. Please try again.');
     }
   }
 }

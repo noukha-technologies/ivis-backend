@@ -14,6 +14,11 @@ import { Test } from './entity/test.entity';
 import { User } from './entity/user.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
+import { VehicleRecord } from './entity/vehicle-record.entity';
+import { Customer } from './entity/customer.entity';
+import { Job } from './entity/job.entity';
+import { Appointment } from './entity/appointment.entity';
+import { PaymentTransaction } from './entity/payment-transaction.entity';
 
 dotenv.config();
 
@@ -33,6 +38,11 @@ export const AppDataSource = new DataSource({
     Payment,
     AnprCapture,
     RopVerification,
+    Customer,
+    VehicleRecord,
+    Job,
+    Appointment,
+    PaymentTransaction,
   ],
   migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
   subscribers: [],

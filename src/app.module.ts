@@ -13,6 +13,8 @@ import { DatabaseModule } from './modules/database/database.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { AuthGuard } from './guards/auth.guard';
 
 @Module({
@@ -28,6 +30,8 @@ import { AuthGuard } from './guards/auth.guard';
     UsersModule,
     MastersModule,
     TransactionsModule,
+    JobsModule,
+    AppointmentsModule,
     AuthModule,
   ],
   controllers: [AppController],

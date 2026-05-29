@@ -1,0 +1,220 @@
+import { Injectable } from '@nestjs/common';
+import {
+  CreateCustomerDto,
+  UpdateCustomerDto,
+} from '../../../../common/dto/customer.dto';
+import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+import {
+  DatabaseException,
+  DuplicateResourceException,
+  ResourceNotFoundException,
+} from '../../../../common/exceptions/custom.exception';
+import { AppLogger } from '../../../../common/logger/app.logger';
+import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { CustomerDao } from '../../../database/dao/customer.dao';
+import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
+import { Customer } from '../../../database/entity/customer.entity';
+import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
+
+@Injectable()
+export class CustomerService {
+  private static readonly context = 'CustomerService';
+
+  constructor(
+    private readonly customerDao: CustomerDao,
+    private readonly vehicleRecordDao: VehicleRecordDao,
+    private readonly logger: AppLogger,
+  ) {}
+
+  async create(createDto: CreateCustomerDto): Promise<Customer> {
+    this.logger.log(`Creating customer: ${createDto.name}`, CustomerService.context);
+
+    try {
+      let customerId = createDto.customer_id;
+      if (!customerId) {
+        customerId = await this.customerDao.getNextCustomerId();
+      } else {
+        const existing = await this.customerDao.findByCustomerId(customerId);
+        if (existing) {
+          throw new DuplicateResourceException('Customer', 'customer_id', customerId);
+        }
+      }
+
+      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(createDto);
+
+      const customer = this.customerDao.create({
+        id: generateSnowflakeId(),
+        customer_id: customerId,
+        name: createDto.name,
+        phone: createDto.phone,
+        owner_name: createDto.owner_name,
+        id_number: createDto.id_number,
+        primary_vehicle_record_id: primaryVehicleRecordId,
+        created_by: createDto.created_by,
+      });
+
+      const saved = await this.customerDao.save(customer);
+      this.logger.log(`Customer created with ID: ${saved.id}`, CustomerService.context);
+      return (await this.customerDao.findActiveById(saved.id)) ?? saved;
+    } catch (error) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ResourceNotFoundException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to create customer: ${(error as Error).message}`,
+        (error as Error).stack,
+        CustomerService.context,
+      );
+      throw new DatabaseException('Failed to create customer. Please try again.');
+    }
+  }
+
+  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Customer>> {
+    this.logger.log(
+      `Fetching customers — page: ${query.page}, limit: ${query.limit}`,
+      CustomerService.context,
+    );
+
+    try {
+      return await this.customerDao.findPaginated(query);
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch customers: ${(error as Error).message}`,
+        (error as Error).stack,
+        CustomerService.context,
+      );
+      throw new DatabaseException('Failed to fetch customers. Please try again.');
+    }
+  }
+
+  async findOne(id: string): Promise<Customer> {
+    this.logger.log(`Fetching customer ID: ${id}`, CustomerService.context);
+
+    try {
+      const customer = await this.customerDao.findActiveById(id);
+      if (!customer) {
+        throw new ResourceNotFoundException('Customer', id);
+      }
+      return customer;
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to fetch customer: ${(error as Error).message}`,
+        (error as Error).stack,
+        CustomerService.context,
+      );
+      throw new DatabaseException('Failed to fetch customer. Please try again.');
+    }
+  }
+
+  async update(id: string, updateDto: UpdateCustomerDto): Promise<Customer> {
+    this.logger.log(`Updating customer ID: ${id}`, CustomerService.context);
+
+    try {
+      const customer = await this.findOne(id);
+      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(updateDto, customer);
+
+      const merged = this.customerDao.merge(customer, {
+        name: updateDto.name,
+        phone: updateDto.phone,
+        owner_name: updateDto.owner_name,
+        id_number: updateDto.id_number,
+        created_by: updateDto.created_by,
+        ...(primaryVehicleRecordId !== undefined
+          ? { primary_vehicle_record_id: primaryVehicleRecordId }
+          : {}),
+      });
+
+      const saved = await this.customerDao.save(merged);
+      this.logger.log(`Customer updated ID: ${saved.id}`, CustomerService.context);
+      return (await this.customerDao.findActiveById(saved.id)) ?? saved;
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to update customer: ${(error as Error).message}`,
+        (error as Error).stack,
+        CustomerService.context,
+      );
+      throw new DatabaseException('Failed to update customer. Please try again.');
+    }
+  }
+
+  async remove(id: string): Promise<void> {
+    this.logger.log(`Deleting customer ID: ${id}`, CustomerService.context);
+
+    try {
+      const customer = await this.findOne(id);
+      customer.is_deleted = true;
+      await this.customerDao.save(customer);
+      this.logger.log(`Customer soft-deleted ID: ${id}`, CustomerService.context);
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to delete customer: ${(error as Error).message}`,
+        (error as Error).stack,
+        CustomerService.context,
+      );
+      throw new DatabaseException('Failed to delete customer. Please try again.');
+    }
+  }
+
+  private async resolvePrimaryVehicleRecord(
+    dto: CreateCustomerDto | UpdateCustomerDto,
+    existing?: Customer,
+  ): Promise<string | null | undefined> {
+    if (dto.primary_vehicle_record_id) {
+      const vehicleRecord = await this.vehicleRecordDao.findActiveById(
+        dto.primary_vehicle_record_id,
+      );
+      if (!vehicleRecord) {
+        throw new ResourceNotFoundException('VehicleRecord', dto.primary_vehicle_record_id);
+      }
+      return dto.primary_vehicle_record_id;
+    }
+
+    if (!dto.plate_number) {
+      return undefined;
+    }
+
+    const normalizedPlate = dto.plate_number.trim();
+    let vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(normalizedPlate);
+
+    if (vehicleRecord) {
+      if (dto.plate_color) {
+        vehicleRecord = this.vehicleRecordDao.merge(vehicleRecord, {
+          plate_color: dto.plate_color,
+        });
+        vehicleRecord = await this.vehicleRecordDao.save(vehicleRecord);
+      }
+      return vehicleRecord.id;
+    }
+
+    const createdRecord = await this.createVehicleRecordFromPlate(normalizedPlate, dto.plate_color);
+    return createdRecord.id;
+  }
+
+  private async createVehicleRecordFromPlate(
+    plateNumber: string,
+    plateColor?: string,
+  ): Promise<VehicleRecord> {
+    const vehicleRecordId = await this.vehicleRecordDao.getNextVehicleRecordId();
+    const vehicleRecord = this.vehicleRecordDao.create({
+      id: generateSnowflakeId(),
+      vehicle_record_id: vehicleRecordId,
+      plate_number: plateNumber,
+      plate_color: plateColor?.trim(),
+    });
+
+    return this.vehicleRecordDao.save(vehicleRecord);
+  }
+}

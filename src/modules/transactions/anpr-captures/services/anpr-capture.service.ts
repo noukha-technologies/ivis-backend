@@ -15,6 +15,7 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
+import { VehicleIntakeService } from '../../shared/vehicle-intake.service';
 
 @Injectable()
 export class AnprCaptureService {
@@ -23,8 +24,9 @@ export class AnprCaptureService {
   constructor(
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly cameraDao: CameraDao,
+    private readonly vehicleIntakeService: VehicleIntakeService,
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
   async create(createDto: CreateAnprCaptureDto): Promise<AnprCapture> {
     this.logger.log(
@@ -55,10 +57,20 @@ export class AnprCaptureService {
         capture_time: new Date(createDto.capture_time),
         verification_status: createDto.verification_status || 'Pending',
       });
-      const saved = await this.anprCaptureDao.save(capture);
+      let saved = await this.anprCaptureDao.save(capture);
+
+      if (createDto.simulate_rop) {
+        await this.vehicleIntakeService.simulateRopForCapture(saved);
+        saved.verification_status = 'Verified';
+        saved = await this.anprCaptureDao.save(saved);
+        this.logger.log(
+          `Simulated ROP created for ANPR capture ID: ${saved.id}`,
+          AnprCaptureService.context,
+        );
+      }
 
       this.logger.log(`ANPR capture created with ID: ${saved.id}`, AnprCaptureService.context);
-      return saved;
+      return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||

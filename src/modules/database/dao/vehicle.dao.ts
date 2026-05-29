@@ -23,10 +23,8 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
     return this.findOne({ where: { id, is_deleted: false } });
   }
 
-  async findByPlateNumber(plateNumber: string): Promise<Vehicle | null> {
-    return this.findOne({
-      where: { plate_number: plateNumber, is_deleted: false },
-    });
+  async findByCode(code: string): Promise<Vehicle | null> {
+    return this.findOne({ where: { code, is_deleted: false } });
   }
 
   async findByVehicleId(vehicleId: number): Promise<Vehicle | null> {
@@ -35,13 +33,13 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Vehicle>> {
     const options = buildTypeOrmPaginationOptions<Vehicle, Vehicle>(query, {
-      searchFields: ['plate_number', 'vehicle_type', 'vehicle_color', 'vehicle_brand'],
+      searchFields: ['name', 'code', 'vin_no', 'description', 'status'],
       allowedSortFields: [
         'vehicle_id',
-        'plate_number',
-        'vehicle_type',
-        'vehicle_color',
-        'vehicle_brand',
+        'name',
+        'code',
+        'vin_no',
+        'status',
         'created_at',
         'updated_at',
       ],

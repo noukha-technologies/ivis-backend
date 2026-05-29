@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -9,7 +10,7 @@ import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs
 
 export class CreateVehicleDto {
   @ApiPropertyOptional({
-    description: 'Unique numeric vehicle identifier (auto-generated if omitted)',
+    description: 'Unique numeric vehicle master identifier (auto-generated if omitted)',
     example: 1001,
   })
   @IsInt({ message: 'vehicle_id must be a valid integer' })
@@ -17,25 +18,38 @@ export class CreateVehicleDto {
   @IsOptional()
   vehicle_id?: number;
 
-  @ApiProperty({ description: 'License plate number', example: 'ABC-1234' })
-  @IsString({ message: 'plate_number must be a string' })
-  @IsNotEmpty({ message: 'plate_number is required' })
-  plate_number!: string;
+  @ApiProperty({ description: 'Vehicle type name', example: 'Sedan Light' })
+  @IsString({ message: 'name must be a string' })
+  @IsNotEmpty({ message: 'name is required' })
+  name!: string;
 
-  @ApiProperty({ description: 'Vehicle type', example: 'sedan' })
-  @IsString({ message: 'vehicle_type must be a string' })
-  @IsNotEmpty({ message: 'vehicle_type is required' })
-  vehicle_type!: string;
+  @ApiProperty({ description: 'Unique vehicle type code', example: 'VT-SED-LIGHT' })
+  @IsString({ message: 'code must be a string' })
+  @IsNotEmpty({ message: 'code is required' })
+  code!: string;
 
-  @ApiProperty({ description: 'Vehicle color', example: 'black' })
-  @IsString({ message: 'vehicle_color must be a string' })
-  @IsNotEmpty({ message: 'vehicle_color is required' })
-  vehicle_color!: string;
+  @ApiPropertyOptional({ description: 'Reference VIN number', example: 'JN1AZ32E90U123456' })
+  @IsString({ message: 'vin_no must be a string' })
+  @IsOptional()
+  vin_no?: string;
 
-  @ApiProperty({ description: 'Vehicle brand', example: 'Toyota' })
-  @IsString({ message: 'vehicle_brand must be a string' })
-  @IsNotEmpty({ message: 'vehicle_brand is required' })
-  vehicle_brand!: string;
+  @ApiPropertyOptional({
+    description: 'Vehicle type description',
+    example: 'Light vehicle category for sedan inspections',
+  })
+  @IsString({ message: 'description must be a string' })
+  @IsOptional()
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Vehicle master status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
+  @IsString({ message: 'status must be a string' })
+  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsOptional()
+  status?: string;
 
   @ApiPropertyOptional({ description: 'Creator user snowflake ID', example: '2058858609483202561' })
   @IsString({ message: 'created_by must be a string' })

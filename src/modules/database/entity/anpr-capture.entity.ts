@@ -13,7 +13,9 @@ import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';
 
-@Entity({ name: 'anpr_captures', schema: 'core' })
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+
+@Entity({ name: 'anpr_captures', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], { unique: true })
 @Index('IDX_ANPR_CAPTURE_PLATE_TIME', ['plate_number', 'capture_time'])
 @Index('IDX_ANPR_CAPTURE_CAMERA_TIME', ['camera_id', 'capture_time'])

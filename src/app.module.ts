@@ -15,7 +15,9 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { PermissionsModule } from './modules/permissions/permissions.module';
 import { AuthGuard } from './guards/auth.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
 
 @Module({
   imports: [
@@ -33,12 +35,14 @@ import { AuthGuard } from './guards/auth.guard';
     JobsModule,
     AppointmentsModule,
     AuthModule,
+    PermissionsModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     LoggerMiddleware,
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule implements NestModule {

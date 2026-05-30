@@ -1,7 +1,7 @@
-import { PermissionDto, UpsertPermissionDto } from "src/common/dto/permissions.dto";
+import { PermissionDto, UpsertPermissionDto } from '../../../common/dto/permissions.dto';
 
 export interface IPermissionsService {
-    savePermission(newPermission: UpsertPermissionDto): Promise<PermissionDto>
-    getAllPermissions(includeInActive: boolean): Promise<PermissionDto[]>
-    getPermissions(permissionId: string[]): Promise<PermissionDto[]>
+  savePermission(newPermission: UpsertPermissionDto): Promise<PermissionDto>;
+  getAllPermissions(includeInActive: boolean): Promise<PermissionDto[]>;
+  getPermissions(permissionKeys: string[]): Promise<PermissionDto[]>;
 }

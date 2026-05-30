@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
 import { AppLogger } from './common/logger/app.logger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
@@ -19,6 +20,7 @@ async function bootstrap() {
 
   try {
     const app = await NestFactory.create(AppModule, { bufferLogs: true });
+    useContainer(app.select(AppModule), { fallbackOnErrors: true });
     const logger = app.get(AppLogger);
     app.useLogger(logger);
 

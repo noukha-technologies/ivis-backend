@@ -5,7 +5,6 @@
     "test",
     "dist",
     "**/*spec.ts",
-    "src/common/utils/util.ts",
-    "src/modules/permissions/**"
+    "src/common/utils/util.ts"
   ]
 }

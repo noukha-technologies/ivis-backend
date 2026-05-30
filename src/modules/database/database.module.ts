@@ -36,6 +36,9 @@ import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { JobDao } from './dao/job.dao';
 import { AppointmentDao } from './dao/appointment.dao';
 import { PaymentTransactionDao } from './dao/payment-transaction.dao';
+import { Permission } from './entity/permissions.entity';
+import { PermissionsDao } from './dao/permissions.dao';
+import { AreValidPermissionsValidator } from './permission-validator.service';
 
 @Global()
 @Module({
@@ -70,6 +73,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
       Job,
       Appointment,
       PaymentTransaction,
+      Permission,
     ]),
   ],
   providers: [
@@ -90,6 +94,8 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
+    PermissionsDao,
+    AreValidPermissionsValidator,
   ],
   exports: [
     TypeOrmModule,
@@ -110,6 +116,8 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
+    PermissionsDao,
+    AreValidPermissionsValidator,
   ],
 })
 export class DatabaseModule {}

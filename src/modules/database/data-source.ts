@@ -12,6 +12,7 @@ import { RoleAccess } from './entity/role-access.entity';
 import { RopVerification } from './entity/rop-verification.entity';
 import { Test } from './entity/test.entity';
 import { User } from './entity/user.entity';
+import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { VehicleRecord } from './entity/vehicle-record.entity';
@@ -27,6 +28,7 @@ export const AppDataSource = new DataSource({
   logging: buildDatabaseOptions().logging ?? true,
   entities: [
     User,
+    UserLineMapping,
     RoleAccess,
     UserSession,
     Vehicle,

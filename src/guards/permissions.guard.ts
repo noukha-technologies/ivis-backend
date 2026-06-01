@@ -1,6 +1,7 @@
 import { Reflector } from '@nestjs/core';
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Request } from 'express';
+import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { UserContext } from '../common/dto/auth.dto';
 import { ErrorException } from '../common/errors/custom-error.exception';
 
@@ -9,7 +10,18 @@ export class PermissionsGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) { }
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>('permissions', [context.getHandler(), context.getClass()]);
+    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (isPublic) {
+      return true;
+    }
+
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>('permissions', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requiredPermissions?.length) {
       return true;

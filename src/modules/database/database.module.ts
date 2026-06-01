@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
 import { User } from './entity/user.entity';
+import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { RoleAccess } from './entity/role-access.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
@@ -20,6 +21,7 @@ import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
 import { PaymentTransaction } from './entity/payment-transaction.entity';
 import { UsersDao } from './dao/users.dao';
+import { UserLineMappingDao } from './dao/user-line-mapping.dao';
 import { RoleAccessDao } from './dao/role-access.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
 import { VehicleDao } from './dao/vehicle.dao';
@@ -54,6 +56,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     }),
     TypeOrmModule.forFeature([
       User,
+      UserLineMapping,
       RoleAccess,
       UserSession,
       Vehicle,
@@ -74,6 +77,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
   ],
   providers: [
     UsersDao,
+    UserLineMappingDao,
     RoleAccessDao,
     UserSessionsDao,
     VehicleDao,
@@ -94,6 +98,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
   exports: [
     TypeOrmModule,
     UsersDao,
+    UserLineMappingDao,
     RoleAccessDao,
     UserSessionsDao,
     VehicleDao,

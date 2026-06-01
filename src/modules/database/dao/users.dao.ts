@@ -10,6 +10,12 @@ import { PaginationService } from '../../../common/shared/pagination/pagination.
 import { IUserDao } from '../../users/dao/user.dao.interface';
 import { User } from '../entity/user.entity';
 
+const USER_RELATIONS = {
+  assignedCentre: true,
+  roleAccess: true,
+  lineMappings: { line: true },
+} as const;
+
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {
   constructor(
@@ -22,21 +28,28 @@ export class UsersDao extends Repository<User> implements IUserDao {
   async findActiveById(id: string): Promise<User | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { assignedCentre: true, assignedLine: true },
+      relations: USER_RELATIONS,
     });
   }
 
   async findByEmail(email: string): Promise<User | null> {
     return this.findOne({
       where: { email, is_deleted: false },
-      relations: { assignedCentre: true, assignedLine: true },
+      relations: USER_RELATIONS,
     });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
+      .leftJoinAndSelect('user.roleAccess', 'roleAccess')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
-      .leftJoinAndSelect('user.assignedLine', 'line')
+      .leftJoinAndSelect(
+        'user.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = :mappingDeleted',
+        { mappingDeleted: false },
+      )
+      .leftJoinAndSelect('lineMapping.line', 'line')
       .addSelect('user.password')
       .where('user.email = :email', { email: email.trim().toLowerCase() })
       .andWhere('user.is_deleted = :isDeleted', { isDeleted: false })
@@ -49,8 +62,15 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.createQueryBuilder('user')
+      .leftJoinAndSelect('user.roleAccess', 'roleAccess')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
-      .leftJoinAndSelect('user.assignedLine', 'line');
+      .leftJoinAndSelect(
+        'user.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = :mappingDeleted',
+        { mappingDeleted: false },
+      )
+      .leftJoinAndSelect('lineMapping.line', 'line');
 
     const options = buildTypeOrmPaginationOptions<User, User>(query, {
       searchFields: ['user_name', 'email'],
@@ -58,9 +78,8 @@ export class UsersDao extends Repository<User> implements IUserDao {
         'user_id',
         'user_name',
         'email',
-        'role_name',
+        'role_access_id',
         'center_id',
-        'line_id',
         'created_at',
         'updated_at',
       ],

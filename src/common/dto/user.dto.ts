@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsEmail,
   IsInt,
   IsNotEmpty,
@@ -27,12 +28,12 @@ export class CreateUserDto {
   email!: string;
 
   @ApiProperty({
-    description: 'Role name (core.role_access.role_name)',
-    example: 'Receptionist',
+    description: 'Role access snowflake ID (core.role_access.id)',
+    example: '2058858609483202561',
   })
-  @IsString({ message: 'role_name must be a string' })
-  @IsNotEmpty({ message: 'role_name is required' })
-  role_name!: string;
+  @IsString({ message: 'role_access_id must be a string' })
+  @IsNotEmpty({ message: 'role_access_id is required' })
+  role_access_id!: string;
 
   @ApiPropertyOptional({
     description: 'Assigned centre snowflake ID (master.centres.id)',
@@ -43,12 +44,14 @@ export class CreateUserDto {
   center_id?: string;
 
   @ApiPropertyOptional({
-    description: 'Assigned line snowflake ID (master.lines.id)',
-    example: '2058858609483202562',
+    description: 'Assigned line snowflake IDs (master.lines.id)',
+    example: ['2058858609483202562'],
+    type: [String],
   })
-  @IsString({ message: 'line_id must be a string' })
+  @IsArray({ message: 'line_ids must be an array' })
+  @IsString({ each: true, message: 'each line_id must be a string' })
   @IsOptional()
-  line_id?: string;
+  line_ids?: string[];
 
   @ApiProperty({
     description: 'Login password (stored as bcrypt hash)',

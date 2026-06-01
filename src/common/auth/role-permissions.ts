@@ -8,10 +8,12 @@ import {
   ROLE_ACCESS_MODULES,
 } from '../types/role-access.types';
 
-const FULL_ACCESS_ROLES = new Set([
+const FULL_ACCESS_ROLES = new Set<string>([
   USER_ROLES.ADMIN,
   USER_ROLES.SYSTEM_ADMIN,
   USER_ROLES.CLIENT_ADMIN,
+  'super_admin',
+  'super admin',
 ]);
 
 const RECEPTIONIST_PERMISSIONS: string[] = [
@@ -136,7 +138,7 @@ function hasAnyKey(flatKeys: Set<string>, keys: PermissionKey[]): boolean {
 export function resolvePermissionsForRole(role: string): string[] {
   const normalized = normalizeRole(role);
 
-  if (FULL_ACCESS_ROLES.has(role as USER_ROLES)) {
+  if (FULL_ACCESS_ROLES.has(normalized.replace(/ /g, '_')) || FULL_ACCESS_ROLES.has(normalized)) {
     return ALL_PERMISSION_KEYS;
   }
 

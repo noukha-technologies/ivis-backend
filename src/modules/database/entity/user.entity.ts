@@ -5,12 +5,14 @@ import {
   UpdateDateColumn,
   Index,
   ManyToOne,
+  OneToMany,
   JoinColumn,
 } from 'typeorm';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
-import { Line } from './line.entity';
+import { RoleAccess } from './role-access.entity';
+import { UserLineMapping } from './user-line-mapping.entity';
 
 @Entity({ name: 'users', schema: 'core' })
 export class User {
@@ -31,9 +33,13 @@ export class User {
   @Column({ name: 'password', type: 'varchar', nullable: true, select: false })
   password!: string;
 
-  @Column({ type: 'varchar', length: 64, nullable: false })
-  @Index('IDX_USER_ROLE_NAME')
-  role_name!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Index('IDX_USER_ROLE_ACCESS_ID')
+  role_access_id!: string;
+
+  @ManyToOne(() => RoleAccess, { nullable: false })
+  @JoinColumn({ name: 'role_access_id' })
+  roleAccess!: RoleAccess;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   center_id?: string | null;
@@ -42,12 +48,8 @@ export class User {
   @JoinColumn({ name: 'center_id' })
   assignedCentre?: Centre;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  line_id?: string | null;
-
-  @ManyToOne(() => Line, { nullable: true })
-  @JoinColumn({ name: 'line_id' })
-  assignedLine?: Line;
+  @OneToMany(() => UserLineMapping, (mapping) => mapping.user)
+  lineMappings?: UserLineMapping[];
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

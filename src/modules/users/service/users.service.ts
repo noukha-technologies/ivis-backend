@@ -10,11 +10,12 @@ import {
 } from '../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { User } from '../../database/entity/user.entity';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { LineDao } from '../../database/dao/line.dao';
+import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
 import { UsersDao } from '../../database/dao/users.dao';
 import { RoleAccessDao } from '../../database/dao/role-access.dao';
+import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
 import { IUsersService } from './user.service.interface';
 
 @Injectable()
@@ -26,10 +27,11 @@ export class UsersService implements IUsersService {
     private readonly roleAccessDao: RoleAccessDao,
     private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
+    private readonly userLineMappingDao: UserLineMappingDao,
     private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
-  async create(createUserDto: CreateUserDto): Promise<User> {
+  async create(createUserDto: CreateUserDto): Promise<UserResponse> {
     this.logger.log(`Creating user with email: ${createUserDto.email}`, UsersService.context);
 
     try {
@@ -48,12 +50,17 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const roleAccess = await this.roleAccessDao.findByRoleName(createUserDto.role_name);
+      const roleAccess = await this.roleAccessDao.findActiveById(createUserDto.role_access_id);
       if (!roleAccess) {
-        throw new ResourceNotFoundException('RoleAccess', createUserDto.role_name);
+        throw new ResourceNotFoundException('RoleAccess', createUserDto.role_access_id);
       }
 
-      const { password, role_name, center_id, line_id, ...userFields } = createUserDto;
+      const lineIds = this.normalizeLineIds(createUserDto.line_ids);
+      await this.validateLineIds(lineIds);
+      await this.assertLinesAvailable(lineIds);
+
+      const { password, role_access_id, center_id, line_ids: _lineIds, ...userFields } =
+        createUserDto;
       const password_hash = await bcrypt.hash(password, 10);
 
       let centreFkId: string | undefined;
@@ -65,28 +72,26 @@ export class UsersService implements IUsersService {
         centreFkId = centre.id;
       }
 
-      let lineFkId: string | undefined;
-      if (line_id) {
-        const line = await this.lineDao.findActiveById(line_id);
-        if (!line) {
-          throw new ResourceNotFoundException('Line', line_id);
-        }
-        lineFkId = line.id;
-      }
-
       const user = this.usersDao.create({
         id: generateSnowflakeId(),
         ...userFields,
         user_id,
-        role_name: roleAccess.role_name,
+        role_access_id: roleAccess.id,
         center_id: centreFkId,
-        line_id: lineFkId,
         password: password_hash,
       });
       const savedUser = await this.usersDao.save(user);
 
+      if (lineIds.length > 0) {
+        await this.userLineMappingDao.replaceForUser(
+          savedUser.id,
+          lineIds,
+          createUserDto.created_by,
+        );
+      }
+
       this.logger.log(`User created with ID: ${savedUser.id}`, UsersService.context);
-      return savedUser;
+      return this.findOne(savedUser.id);
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -103,14 +108,18 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
+  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<UserResponse>> {
     this.logger.log(
       `Fetching users — page: ${query.page}, limit: ${query.limit}`,
       UsersService.context,
     );
 
     try {
-      return await this.usersDao.findPaginated(query);
+      const result = await this.usersDao.findPaginated(query);
+      return {
+        ...result,
+        data: result.data.map(mapUserToResponse),
+      };
     } catch (error) {
       this.logger.error(
         `Failed to fetch users: ${(error as Error).message}`,
@@ -121,7 +130,7 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async findOne(id: string): Promise<User> {
+  async findOne(id: string): Promise<UserResponse> {
     this.logger.log(`Fetching user ID: ${id}`, UsersService.context);
 
     try {
@@ -129,7 +138,7 @@ export class UsersService implements IUsersService {
       if (!user) {
         throw new ResourceNotFoundException('User', id);
       }
-      return user;
+      return mapUserToResponse(user);
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -143,11 +152,12 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async findByEmail(email: string): Promise<User | null> {
+  async findByEmail(email: string): Promise<UserResponse | null> {
     this.logger.log(`Lookup by email: ${email}`, UsersService.context);
 
     try {
-      return await this.usersDao.findByEmail(email);
+      const user = await this.usersDao.findByEmail(email);
+      return user ? mapUserToResponse(user) : null;
     } catch (error) {
       this.logger.error(
         `Failed to find user by email: ${(error as Error).message}`,
@@ -158,11 +168,14 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<User> {
+  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponse> {
     this.logger.log(`Updating user ID: ${id}`, UsersService.context);
 
     try {
-      const user = await this.findOne(id);
+      const user = await this.usersDao.findActiveById(id);
+      if (!user) {
+        throw new ResourceNotFoundException('User', id);
+      }
 
       if (updateUserDto.email && updateUserDto.email !== user.email) {
         const existingEmail = await this.usersDao.findByEmail(updateUserDto.email);
@@ -171,14 +184,15 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const { role_name: updatedRoleName, center_id, line_id, ...updateFields } = updateUserDto;
-      let roleName: string | undefined;
-      if (updatedRoleName !== undefined) {
-        const roleAccess = await this.roleAccessDao.findByRoleName(updatedRoleName);
+      const { role_access_id: updatedRoleAccessId, center_id, line_ids, ...updateFields } =
+        updateUserDto;
+      let roleAccessId: string | undefined;
+      if (updatedRoleAccessId !== undefined) {
+        const roleAccess = await this.roleAccessDao.findActiveById(updatedRoleAccessId);
         if (!roleAccess) {
-          throw new ResourceNotFoundException('RoleAccess', updatedRoleName);
+          throw new ResourceNotFoundException('RoleAccess', updatedRoleAccessId);
         }
-        roleName = roleAccess.role_name;
+        roleAccessId = roleAccess.id;
       }
 
       let centreFkId: string | null | undefined;
@@ -194,29 +208,22 @@ export class UsersService implements IUsersService {
         }
       }
 
-      let lineFkId: string | null | undefined;
-      if (line_id !== undefined) {
-        if (line_id === null || line_id === '') {
-          lineFkId = null;
-        } else {
-          const line = await this.lineDao.findActiveById(line_id);
-          if (!line) {
-            throw new ResourceNotFoundException('Line', line_id);
-          }
-          lineFkId = line.id;
-        }
+      if (line_ids !== undefined) {
+        const normalizedLineIds = this.normalizeLineIds(line_ids);
+        await this.validateLineIds(normalizedLineIds);
+        await this.assertLinesAvailable(normalizedLineIds, id);
+        await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, user.created_by);
       }
 
       const mergedUser = this.usersDao.merge(user, {
         ...updateFields,
-        ...(roleName !== undefined ? { role_name: roleName } : {}),
+        ...(roleAccessId !== undefined ? { role_access_id: roleAccessId } : {}),
         ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
-        ...(lineFkId !== undefined ? { line_id: lineFkId } : {}),
       });
-      const savedUser = await this.usersDao.save(mergedUser);
+      await this.usersDao.save(mergedUser);
 
-      this.logger.log(`User updated ID: ${savedUser.id}`, UsersService.context);
-      return savedUser;
+      this.logger.log(`User updated ID: ${id}`, UsersService.context);
+      return this.findOne(id);
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||
@@ -237,9 +244,13 @@ export class UsersService implements IUsersService {
     this.logger.log(`Deleting user ID: ${id}`, UsersService.context);
 
     try {
-      const user = await this.findOne(id);
+      const user = await this.usersDao.findActiveById(id);
+      if (!user) {
+        throw new ResourceNotFoundException('User', id);
+      }
       user.is_deleted = true;
       await this.usersDao.save(user);
+      await this.userLineMappingDao.softDeleteByUserId(id);
       this.logger.log(`User soft-deleted ID: ${id}`, UsersService.context);
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
@@ -251,6 +262,35 @@ export class UsersService implements IUsersService {
         UsersService.context,
       );
       throw new DatabaseException('Failed to delete user. Please try again.');
+    }
+  }
+
+  private normalizeLineIds(lineIds?: string[]): string[] {
+    if (!lineIds?.length) {
+      return [];
+    }
+    return [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+  }
+
+  private async validateLineIds(lineIds: string[]): Promise<void> {
+    for (const lineId of lineIds) {
+      const line = await this.lineDao.findActiveById(lineId);
+      if (!line) {
+        throw new ResourceNotFoundException('Line', lineId);
+      }
+    }
+  }
+
+  private async assertLinesAvailable(lineIds: string[], excludeUserId?: string): Promise<void> {
+    if (!lineIds.length) {
+      return;
+    }
+    const conflicts = await this.userLineMappingDao.findActiveByLineIds(lineIds);
+    for (const mapping of conflicts) {
+      if (excludeUserId && mapping.user_id === excludeUserId) {
+        continue;
+      }
+      throw new DuplicateResourceException('Line', 'line_id', mapping.line_id);
     }
   }
 }

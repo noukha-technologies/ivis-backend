@@ -20,17 +20,35 @@ export class AuthUserDto {
   @ApiProperty()
   role!: string;
 
+  @ApiProperty({ description: 'Role access snowflake ID (core.role_access.id)' })
+  role_access_id!: string;
+
   @ApiPropertyOptional({ description: 'Centre display name' })
   center?: string;
 
-  @ApiPropertyOptional({ description: 'Line display name' })
+  @ApiPropertyOptional({ description: 'Primary line display name (first assigned line)' })
   line?: string;
 
   @ApiPropertyOptional({ description: 'Centre snowflake ID' })
   center_id?: string;
 
-  @ApiPropertyOptional({ description: 'Line snowflake ID' })
-  line_id?: string;
+  @ApiPropertyOptional({ description: 'Assigned line snowflake IDs', type: [String] })
+  line_ids?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Assigned line summaries',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        line_id: { type: 'number' },
+        name: { type: 'string' },
+        code: { type: 'string' },
+      },
+    },
+  })
+  lines?: { id: string; line_id: number; name: string; code: string }[];
 }
 
 export class LoginRequestDto {

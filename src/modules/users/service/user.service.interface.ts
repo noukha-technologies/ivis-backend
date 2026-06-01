@@ -1,13 +1,13 @@
 import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import { User } from '../../database/entity/user.entity';
+import { UserResponse } from '../../../common/utils/map-user-response';
 
 export interface IUsersService {
-  create(createUserDto: CreateUserDto): Promise<User>;
-  findAll(query: PaginationQueryDto): Promise<PaginatedResult<User>>;
-  findOne(id: string): Promise<User>;
-  findByEmail(email: string): Promise<User | null>;
-  update(id: string, updateUserDto: UpdateUserDto): Promise<User>;
+  create(createUserDto: CreateUserDto): Promise<UserResponse>;
+  findAll(query: PaginationQueryDto): Promise<PaginatedResult<UserResponse>>;
+  findOne(id: string): Promise<UserResponse>;
+  findByEmail(email: string): Promise<UserResponse | null>;
+  update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponse>;
   remove(id: string): Promise<void>;
 }

@@ -12,7 +12,6 @@ import {
 } from '../../../common/dto/auth.dto';
 import {
   resolveFlatPermissionsFromMatrix,
-  resolvePermissionsForRole,
 } from '../../../common/auth/role-permissions';
 import { RoleAccessDao } from '../../database/dao/role-access.dao';
 import {
@@ -129,22 +128,23 @@ export class AuthService implements IAuthService {
     return {
       user: this.toAuthUser(user),
       session,
-      resolvedPermissions: await this.resolveUserPermissions(user.role_name),
+      resolvedPermissions: await this.resolveUserPermissions(user),
     };
   }
 
-  private async resolveUserPermissions(roleName: string): Promise<string[]> {
-    const trimmed = roleName?.trim();
-    if (!trimmed) {
-      return [];
+  private async resolveUserPermissions(user: User): Promise<string[]> {
+    if (user.roleAccess?.access) {
+      return resolveFlatPermissionsFromMatrix(user.roleAccess.access);
     }
 
-    const roleAccess = await this.roleAccessDao.findByRoleName(trimmed);
-    if (roleAccess?.access) {
-      return resolveFlatPermissionsFromMatrix(roleAccess.access);
+    if (user.role_access_id) {
+      const roleAccess = await this.roleAccessDao.findActiveById(user.role_access_id);
+      if (roleAccess?.access) {
+        return resolveFlatPermissionsFromMatrix(roleAccess.access);
+      }
     }
 
-    return resolvePermissionsForRole(trimmed);
+    return [];
   }
 
   private async issueTokens(user: User, metadata: RequestMetadata, sessionId?: string): Promise<TokenPair> {
@@ -155,7 +155,7 @@ export class AuthService implements IAuthService {
     );
 
     const accessToken = signAccessToken(
-      { sub: user.id, jti: accessJti, role: user.role_name || '' },
+      { sub: user.id, jti: accessJti, role: user.roleAccess?.role_name ?? '' },
       this.accessSecret,
       this.accessExpiresIn,
     );
@@ -190,16 +190,28 @@ export class AuthService implements IAuthService {
   }
 
   private toAuthUser(user: User): AuthUserDto {
+    const activeMappings = (user.lineMappings ?? []).filter((m) => !m.is_deleted);
+    const lines = activeMappings
+      .filter((m) => m.line)
+      .map((m) => ({
+        id: m.line.id,
+        line_id: m.line.line_id,
+        name: m.line.name,
+        code: m.line.code,
+      }));
+
     return {
       id: user.id,
       user_id: user.user_id,
       user_name: user.user_name,
       email: user.email,
-      role: user.role_name || '',
+      role: user.roleAccess?.role_name ?? '',
+      role_access_id: user.role_access_id,
       center: user.assignedCentre?.name,
-      line: user.assignedLine?.name,
+      line: lines[0]?.name,
       center_id: user.center_id ?? undefined,
-      line_id: user.line_id ?? undefined,
+      line_ids: activeMappings.map((m) => m.line_id),
+      lines,
     };
   }
 

@@ -5,10 +5,15 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   Min,
   MinLength,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+
+const USER_CODE_PATTERN = /^[A-Za-z0-9]+$/;
 
 export class CreateUserDto {
   @ApiPropertyOptional({ description: 'Unique numeric user identifier (auto-generated if omitted)', example: 1001 })
@@ -16,6 +21,18 @@ export class CreateUserDto {
   @Min(1, { message: 'user_id must be greater than 0' })
   @IsOptional()
   user_id?: number;
+
+  @ApiProperty({
+    description: 'Unique alphanumeric user code',
+    example: 'USR1001',
+  })
+  @IsString({ message: 'user_code must be a string' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
+  @Matches(USER_CODE_PATTERN, { message: 'user_code must contain only letters and numbers' })
+  @MinLength(2, { message: 'user_code must be at least 2 characters' })
+  @MaxLength(32, { message: 'user_code must be at most 32 characters' })
+  @IsNotEmpty({ message: 'user_code is required' })
+  user_code!: string;
 
   @ApiProperty({ description: 'Full name of the user', example: 'John Doe' })
   @IsString({ message: 'user_name must be a string' })

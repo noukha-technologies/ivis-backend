@@ -11,6 +11,9 @@ export class AuthUserDto {
   @ApiProperty()
   user_id!: number;
 
+  @ApiProperty({ description: 'Unique alphanumeric user code', example: 'USR1001' })
+  user_code!: string;
+
   @ApiProperty()
   user_name!: string;
 
@@ -83,6 +86,12 @@ export class LoginResponseDto {
 
   @ApiProperty()
   user!: AuthUserDto;
+
+  @ApiProperty({
+    description: 'Flat permission keys resolved from role_access.access (guard vocabulary)',
+    type: [String],
+  })
+  permissions!: string[];
 }
 
 export type UserContext = {

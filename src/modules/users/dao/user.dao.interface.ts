@@ -11,6 +11,7 @@ export interface IUserDao {
   findByEmail(email: string): Promise<User | null>;
   findByEmailWithPassword(email: string): Promise<User | null>;
   findByUserId(userId: number): Promise<User | null>;
+  findByUserCode(userCode: string): Promise<User | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>>;
   getNextUserId(): Promise<number>;
 }

@@ -21,7 +21,6 @@ import { IUsersService } from './user.service.interface';
 @Injectable()
 export class UsersService implements IUsersService {
   private static readonly context = 'UsersService';
-
   constructor(
     private readonly usersDao: UsersDao,
     private readonly roleAccessDao: RoleAccessDao,
@@ -50,6 +49,8 @@ export class UsersService implements IUsersService {
         }
       }
 
+      const user_code = await this.resolveUserCodeForCreate(createUserDto.user_code, user_id);
+
       const roleAccess = await this.roleAccessDao.findActiveById(createUserDto.role_access_id);
       if (!roleAccess) {
         throw new ResourceNotFoundException('RoleAccess', createUserDto.role_access_id);
@@ -59,8 +60,14 @@ export class UsersService implements IUsersService {
       await this.validateLineIds(lineIds);
       await this.assertLinesAvailable(lineIds);
 
-      const { password, role_access_id, center_id, line_ids: _lineIds, ...userFields } =
-        createUserDto;
+      const {
+        password,
+        role_access_id,
+        center_id,
+        line_ids: _lineIds,
+        user_code: _userCode,
+        ...userFields
+      } = createUserDto;
       const password_hash = await bcrypt.hash(password, 10);
 
       let centreFkId: string | undefined;
@@ -76,6 +83,7 @@ export class UsersService implements IUsersService {
         id: generateSnowflakeId(),
         ...userFields,
         user_id,
+        user_code,
         role_access_id: roleAccess.id,
         center_id: centreFkId,
         password: password_hash,
@@ -184,8 +192,24 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const { role_access_id: updatedRoleAccessId, center_id, line_ids, ...updateFields } =
-        updateUserDto;
+      let normalizedUserCode: string | undefined;
+      if (updateUserDto.user_code !== undefined) {
+        normalizedUserCode = this.normalizeUserCode(updateUserDto.user_code);
+        if (normalizedUserCode !== user.user_code) {
+          const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
+          if (existingCode && existingCode.id !== id) {
+            throw new DuplicateResourceException('User', 'user_code', normalizedUserCode);
+          }
+        }
+      }
+
+      const {
+        role_access_id: updatedRoleAccessId,
+        center_id,
+        line_ids,
+        user_code: _userCode,
+        ...updateFields
+      } = updateUserDto;
       let roleAccessId: string | undefined;
       if (updatedRoleAccessId !== undefined) {
         const roleAccess = await this.roleAccessDao.findActiveById(updatedRoleAccessId);
@@ -219,6 +243,7 @@ export class UsersService implements IUsersService {
         ...updateFields,
         ...(roleAccessId !== undefined ? { role_access_id: roleAccessId } : {}),
         ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
+        ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
       });
       await this.usersDao.save(mergedUser);
 
@@ -263,6 +288,36 @@ export class UsersService implements IUsersService {
       );
       throw new DatabaseException('Failed to delete user. Please try again.');
     }
+  }
+
+  private normalizeUserCode(userCode: string): string {
+    return userCode.trim().toUpperCase();
+  }
+
+  private buildDefaultUserCode(userId: number): string {
+    return `USR${String(userId).padStart(4, '0')}`;
+  }
+
+  private async resolveUserCodeForCreate(
+    requestedCode: string | undefined,
+    userId: number,
+  ): Promise<string> {
+    if (requestedCode?.trim()) {
+      const normalized = this.normalizeUserCode(requestedCode);
+      const existing = await this.usersDao.findByUserCode(normalized);
+      if (existing) {
+        throw new DuplicateResourceException('User', 'user_code', normalized);
+      }
+      return normalized;
+    }
+
+    let candidate = this.buildDefaultUserCode(userId);
+    let suffix = 0;
+    while (await this.usersDao.findByUserCode(candidate)) {
+      suffix += 1;
+      candidate = `${this.buildDefaultUserCode(userId)}${suffix}`;
+    }
+    return candidate;
   }
 
   private normalizeLineIds(lineIds?: string[]): string[] {

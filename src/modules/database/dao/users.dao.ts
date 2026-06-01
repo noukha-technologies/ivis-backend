@@ -60,6 +60,12 @@ export class UsersDao extends Repository<User> implements IUserDao {
     return this.findOne({ where: { user_id: userId, is_deleted: false } });
   }
 
+  async findByUserCode(userCode: string): Promise<User | null> {
+    return this.findOne({
+      where: { user_code: userCode.trim().toUpperCase(), is_deleted: false },
+    });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.createQueryBuilder('user')
       .leftJoinAndSelect('user.roleAccess', 'roleAccess')
@@ -73,9 +79,10 @@ export class UsersDao extends Repository<User> implements IUserDao {
       .leftJoinAndSelect('lineMapping.line', 'line');
 
     const options = buildTypeOrmPaginationOptions<User, User>(query, {
-      searchFields: ['user_name', 'email'],
+      searchFields: ['user_name', 'email', 'user_code'],
       allowedSortFields: [
         'user_id',
+        'user_code',
         'user_name',
         'email',
         'role_access_id',

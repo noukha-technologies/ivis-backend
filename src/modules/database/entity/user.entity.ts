@@ -23,6 +23,10 @@ export class User {
   @Index('IDX_USER_USER_ID', { unique: true })
   user_id!: number;
 
+  @Column({ type: 'varchar', unique: true, nullable: false })
+  @Index('IDX_USER_USER_CODE', { unique: true })
+  user_code!: string;
+
   @Column({ type: 'varchar', nullable: false })
   user_name!: string;
 

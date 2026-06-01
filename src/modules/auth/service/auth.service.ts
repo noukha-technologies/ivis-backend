@@ -66,11 +66,13 @@ export class AuthService implements IAuthService {
     }
 
     const tokens = await this.issueTokens(user, metadata);
+    const permissions = await this.resolveUserPermissions(user);
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.accessExpiresAt,
       user: this.toAuthUser(user),
+      permissions,
     };
   }
 
@@ -96,11 +98,13 @@ export class AuthService implements IAuthService {
     }
 
     const tokens = await this.issueTokens(user, metadata, session.id);
+    const permissions = await this.resolveUserPermissions(user);
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.accessExpiresAt,
       user: this.toAuthUser(user),
+      permissions,
     };
   }
 
@@ -203,6 +207,7 @@ export class AuthService implements IAuthService {
     return {
       id: user.id,
       user_id: user.user_id,
+      user_code: user.user_code,
       user_name: user.user_name,
       email: user.email,
       role: user.roleAccess?.role_name ?? '',

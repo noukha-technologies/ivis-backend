@@ -27,12 +27,12 @@ export class CreateUserDto {
   email!: string;
 
   @ApiProperty({
-    description: 'Business role ID (master.roles.role_id)',
-    example: 2,
+    description: 'Role name (core.role_access.role_name)',
+    example: 'Receptionist',
   })
-  @IsInt({ message: 'role_id must be a valid integer' })
-  @Min(1, { message: 'role_id must be greater than 0' })
-  role_id!: number;
+  @IsString({ message: 'role_name must be a string' })
+  @IsNotEmpty({ message: 'role_name is required' })
+  role_name!: string;
 
   @ApiPropertyOptional({
     description: 'Assigned centre snowflake ID (master.centres.id)',

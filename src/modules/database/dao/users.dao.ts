@@ -22,20 +22,19 @@ export class UsersDao extends Repository<User> implements IUserDao {
   async findActiveById(id: string): Promise<User | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { role: true, assignedCentre: true, assignedLine: true },
+      relations: { assignedCentre: true, assignedLine: true },
     });
   }
 
   async findByEmail(email: string): Promise<User | null> {
     return this.findOne({
       where: { email, is_deleted: false },
-      relations: { role: true, assignedCentre: true, assignedLine: true },
+      relations: { assignedCentre: true, assignedLine: true },
     });
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
-      .leftJoinAndSelect('user.role', 'role')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
       .leftJoinAndSelect('user.assignedLine', 'line')
       .addSelect('user.password')
@@ -50,7 +49,6 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.createQueryBuilder('user')
-      .leftJoinAndSelect('user.role', 'role')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
       .leftJoinAndSelect('user.assignedLine', 'line');
 
@@ -60,6 +58,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
         'user_id',
         'user_name',
         'email',
+        'role_name',
         'center_id',
         'line_id',
         'created_at',

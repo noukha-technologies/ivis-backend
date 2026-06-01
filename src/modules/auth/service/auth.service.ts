@@ -10,7 +10,11 @@ import {
   TokenPair,
   UserContext,
 } from '../../../common/dto/auth.dto';
-import { resolvePermissionsForRole } from '../../../common/auth/role-permissions';
+import {
+  resolveFlatPermissionsFromMatrix,
+  resolvePermissionsForRole,
+} from '../../../common/auth/role-permissions';
+import { RoleAccessDao } from '../../database/dao/role-access.dao';
 import {
   decrypt,
   encrypt,
@@ -39,6 +43,7 @@ export class AuthService implements IAuthService {
   constructor(
     private readonly usersDao: UsersDao,
     private readonly userSessionsDao: UserSessionsDao,
+    private readonly roleAccessDao: RoleAccessDao,
     private readonly configService: ConfigService,
   ) {
     this.accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
@@ -124,8 +129,22 @@ export class AuthService implements IAuthService {
     return {
       user: this.toAuthUser(user),
       session,
-      resolvedPermissions: resolvePermissionsForRole(user.role?.role_name || ''),
+      resolvedPermissions: await this.resolveUserPermissions(user.role_name),
     };
+  }
+
+  private async resolveUserPermissions(roleName: string): Promise<string[]> {
+    const trimmed = roleName?.trim();
+    if (!trimmed) {
+      return [];
+    }
+
+    const roleAccess = await this.roleAccessDao.findByRoleName(trimmed);
+    if (roleAccess?.access) {
+      return resolveFlatPermissionsFromMatrix(roleAccess.access);
+    }
+
+    return resolvePermissionsForRole(trimmed);
   }
 
   private async issueTokens(user: User, metadata: RequestMetadata, sessionId?: string): Promise<TokenPair> {
@@ -136,7 +155,7 @@ export class AuthService implements IAuthService {
     );
 
     const accessToken = signAccessToken(
-      { sub: user.id, jti: accessJti, role: user.role?.role_name || '' },
+      { sub: user.id, jti: accessJti, role: user.role_name || '' },
       this.accessSecret,
       this.accessExpiresIn,
     );
@@ -176,7 +195,7 @@ export class AuthService implements IAuthService {
       user_id: user.user_id,
       user_name: user.user_name,
       email: user.email,
-      role: user.role?.role_name || '',
+      role: user.role_name || '',
       center: user.assignedCentre?.name,
       line: user.assignedLine?.name,
       center_id: user.center_id ?? undefined,

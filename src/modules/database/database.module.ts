@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
 import { User } from './entity/user.entity';
-import { Role } from './entity/role.entity';
+import { RoleAccess } from './entity/role-access.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { Test } from './entity/test.entity';
@@ -20,7 +20,7 @@ import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
 import { PaymentTransaction } from './entity/payment-transaction.entity';
 import { UsersDao } from './dao/users.dao';
-import { RolesDao } from './dao/roles.dao';
+import { RoleAccessDao } from './dao/role-access.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
 import { VehicleDao } from './dao/vehicle.dao';
 import { TestDao } from './dao/test.dao';
@@ -36,9 +36,6 @@ import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { JobDao } from './dao/job.dao';
 import { AppointmentDao } from './dao/appointment.dao';
 import { PaymentTransactionDao } from './dao/payment-transaction.dao';
-import { Permission } from './entity/permissions.entity';
-import { PermissionsDao } from './dao/permissions.dao';
-import { AreValidPermissionsValidator } from './permission-validator.service';
 
 @Global()
 @Module({
@@ -57,7 +54,7 @@ import { AreValidPermissionsValidator } from './permission-validator.service';
     }),
     TypeOrmModule.forFeature([
       User,
-      Role,
+      RoleAccess,
       UserSession,
       Vehicle,
       Test,
@@ -73,12 +70,11 @@ import { AreValidPermissionsValidator } from './permission-validator.service';
       Job,
       Appointment,
       PaymentTransaction,
-      Permission,
     ]),
   ],
   providers: [
     UsersDao,
-    RolesDao,
+    RoleAccessDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -94,13 +90,11 @@ import { AreValidPermissionsValidator } from './permission-validator.service';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
-    PermissionsDao,
-    AreValidPermissionsValidator,
   ],
   exports: [
     TypeOrmModule,
     UsersDao,
-    RolesDao,
+    RoleAccessDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -116,8 +110,6 @@ import { AreValidPermissionsValidator } from './permission-validator.service';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
-    PermissionsDao,
-    AreValidPermissionsValidator,
   ],
 })
 export class DatabaseModule {}

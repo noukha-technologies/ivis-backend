@@ -11,7 +11,6 @@ import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
 import { Line } from './line.entity';
-import { Role } from './role.entity';
 
 @Entity({ name: 'users', schema: 'core' })
 export class User {
@@ -32,12 +31,9 @@ export class User {
   @Column({ name: 'password', type: 'varchar', nullable: true, select: false })
   password!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer })
-  role_id!: string;
-
-  @ManyToOne(() => Role, { nullable: false })
-  @JoinColumn({ name: 'role_id' })
-  role!: Role;
+  @Column({ type: 'varchar', length: 64, nullable: false })
+  @Index('IDX_USER_ROLE_NAME')
+  role_name!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   center_id?: string | null;

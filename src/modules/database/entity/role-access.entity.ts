@@ -1,29 +1,24 @@
 import {
-  Entity,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
-  Generated,
+  Entity,
   Index,
+  UpdateDateColumn,
 } from 'typeorm';
+import type { RoleAccessMatrix } from '../../../common/types/role-access.types';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 
-@Entity({ name: 'roles', schema: 'master' })
-export class Role {
+@Entity({ name: 'role_access', schema: 'core' })
+@Index('IDX_ROLE_ACCESS_ROLE_NAME', ['role_name'], { unique: true })
+export class RoleAccess {
   @SnowflakePrimaryColumn()
   id!: string;
 
-  @Generated('increment')
-  @Column({ type: 'integer', unique: true, nullable: false })
-  @Index('IDX_ROLE_ROLE_CODE', { unique: true })
-  role_id!: number;
-
-  @Column({ type: 'varchar', unique: true, nullable: false })
-  @Index('IDX_ROLE_ROLE_NAME', { unique: true })
+  @Column({ type: 'varchar', length: 64, nullable: false })
   role_name!: string;
 
-  @Column({ type: 'varchar', nullable: true })
-  description?: string;
+  @Column({ type: 'jsonb', nullable: false, default: () => "'{}'" })
+  access!: RoleAccessMatrix;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

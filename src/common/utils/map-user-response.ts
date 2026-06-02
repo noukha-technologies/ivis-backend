@@ -7,7 +7,7 @@ export interface UserLineSummary {
   code: string;
 }
 
-export type UserResponse = Omit<User, 'password' | 'lineMappings'> & {
+export type UserResponse = Omit<User, 'password' | 'lineMappings' | 'hashPassword'> & {
   line_ids: string[];
   lines: UserLineSummary[];
 };

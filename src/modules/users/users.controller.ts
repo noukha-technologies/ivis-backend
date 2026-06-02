@@ -33,7 +33,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Create a new user' })
   @ApiResponse({ status: 201, description: 'User created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
-  @ApiResponse({ status: 409, description: 'Duplicate email or user_id.' })
+  @ApiResponse({ status: 409, description: 'Duplicate email or user_code.' })
   async create(@Body() createUserDto: CreateUserDto) {
     const user = await this.usersService.create(createUserDto);
     return { message: 'User created successfully', data: user };

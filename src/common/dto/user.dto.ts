@@ -16,12 +16,6 @@ import { Transform } from 'class-transformer';
 const USER_CODE_PATTERN = /^[A-Za-z0-9]+$/;
 
 export class CreateUserDto {
-  @ApiPropertyOptional({ description: 'Unique numeric user identifier (auto-generated if omitted)', example: 1001 })
-  @IsInt({ message: 'user_id must be a valid integer' })
-  @Min(1, { message: 'user_id must be greater than 0' })
-  @IsOptional()
-  user_id?: number;
-
   @ApiProperty({
     description: 'Unique alphanumeric user code',
     example: 'USR1001',
@@ -89,7 +83,5 @@ export class CreateUserDto {
   created_by?: string;
 }
 
-/** All fields optional; user_id cannot be updated after creation. */
-export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['user_id'] as const),
-) { }
+/** All fields optional. */
+export class UpdateUserDto extends PartialType(CreateUserDto) { }

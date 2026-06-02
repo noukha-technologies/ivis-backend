@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import * as bcrypt from 'bcrypt';
 import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
@@ -39,17 +38,11 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'email', createUserDto.email);
       }
 
-      let user_id = createUserDto.user_id;
-      if (!user_id) {
-        user_id = await this.usersDao.getNextUserId();
-      } else {
-        const existingUserId = await this.usersDao.findByUserId(user_id);
-        if (existingUserId) {
-          throw new DuplicateResourceException('User', 'user_id', user_id);
-        }
+      const normalizedUserCode = createUserDto.user_code.trim().toUpperCase();
+      const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
+      if (existingCode) {
+        throw new DuplicateResourceException('User', 'user_code', normalizedUserCode);
       }
-
-      const user_code = await this.resolveUserCodeForCreate(createUserDto.user_code, user_id);
 
       const roleAccess = await this.roleAccessDao.findActiveById(createUserDto.role_access_id);
       if (!roleAccess) {
@@ -68,7 +61,6 @@ export class UsersService implements IUsersService {
         user_code: _userCode,
         ...userFields
       } = createUserDto;
-      const password_hash = await bcrypt.hash(password, 10);
 
       let centreFkId: string | undefined;
       if (center_id) {
@@ -79,14 +71,16 @@ export class UsersService implements IUsersService {
         centreFkId = centre.id;
       }
 
+      const nextUserId = await this.usersDao.getNextUserId();
+
       const user = this.usersDao.create({
         id: generateSnowflakeId(),
         ...userFields,
-        user_id,
-        user_code,
+        user_id: nextUserId,
+        user_code: normalizedUserCode,
         role_access_id: roleAccess.id,
         center_id: centreFkId,
-        password: password_hash,
+        password,
       });
       const savedUser = await this.usersDao.save(user);
 
@@ -194,7 +188,7 @@ export class UsersService implements IUsersService {
 
       let normalizedUserCode: string | undefined;
       if (updateUserDto.user_code !== undefined) {
-        normalizedUserCode = this.normalizeUserCode(updateUserDto.user_code);
+        normalizedUserCode = updateUserDto.user_code.trim().toUpperCase();
         if (normalizedUserCode !== user.user_code) {
           const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
           if (existingCode && existingCode.id !== id) {
@@ -288,36 +282,6 @@ export class UsersService implements IUsersService {
       );
       throw new DatabaseException('Failed to delete user. Please try again.');
     }
-  }
-
-  private normalizeUserCode(userCode: string): string {
-    return userCode.trim().toUpperCase();
-  }
-
-  private buildDefaultUserCode(userId: number): string {
-    return `USR${String(userId).padStart(4, '0')}`;
-  }
-
-  private async resolveUserCodeForCreate(
-    requestedCode: string | undefined,
-    userId: number,
-  ): Promise<string> {
-    if (requestedCode?.trim()) {
-      const normalized = this.normalizeUserCode(requestedCode);
-      const existing = await this.usersDao.findByUserCode(normalized);
-      if (existing) {
-        throw new DuplicateResourceException('User', 'user_code', normalized);
-      }
-      return normalized;
-    }
-
-    let candidate = this.buildDefaultUserCode(userId);
-    let suffix = 0;
-    while (await this.usersDao.findByUserCode(candidate)) {
-      suffix += 1;
-      candidate = `${this.buildDefaultUserCode(userId)}${suffix}`;
-    }
-    return candidate;
   }
 
   private normalizeLineIds(lineIds?: string[]): string[] {

@@ -7,7 +7,11 @@ import {
   ManyToOne,
   OneToMany,
   JoinColumn,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
+import * as bcrypt from 'bcrypt';
+
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
@@ -66,4 +70,12 @@ export class User {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  async hashPassword(): Promise<void> {
+    if (this.password && !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(this.password)) {
+      this.password = await bcrypt.hash(this.password, 10);
+    }
+  }
 }

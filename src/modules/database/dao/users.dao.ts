@@ -34,7 +34,10 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.findOne({
-      where: { email, is_deleted: false },
+      where: {
+        email: email.trim().toLowerCase(),
+        is_deleted: false,
+      },
       relations: USER_RELATIONS,
     });
   }

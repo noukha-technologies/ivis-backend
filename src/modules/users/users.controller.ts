@@ -26,10 +26,8 @@ import { UsersService } from './service/users.service';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
-  /** Public bootstrap endpoint — restrict once an admin account exists. */
-  @Public()
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new user' })

@@ -5,6 +5,6 @@ import { UserContext } from '../dto/auth.dto';
 export const CurrentUser = createParamDecorator(
   (_data: unknown, ctx: ExecutionContext): UserContext => {
     const request = ctx.switchToHttp().getRequest<Request>();
-    return request.user as UserContext;
+    return request.user!;
   },
 );

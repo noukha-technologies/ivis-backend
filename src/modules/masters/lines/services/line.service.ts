@@ -11,6 +11,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Line } from '../../../database/entity/line.entity';
 import { LineDao } from '../../../database/dao/line.dao';
+import { CentreDao } from '../../../database/dao/centre.dao';
 import { ILineService } from './line.service.interface';
 
 @Injectable()
@@ -19,6 +20,7 @@ export class LineService implements ILineService {
 
   constructor(
     private readonly lineDao: LineDao,
+    private readonly centreDao: CentreDao,
     private readonly logger: AppLogger,
   ) {}
 
@@ -29,6 +31,11 @@ export class LineService implements ILineService {
       const existingCode = await this.lineDao.findByCode(createLineDto.code);
       if (existingCode) {
         throw new DuplicateResourceException('Line', 'code', createLineDto.code);
+      }
+
+      const centre = await this.centreDao.findActiveById(createLineDto.centre_id);
+      if (!centre) {
+        throw new ResourceNotFoundException('Centre', createLineDto.centre_id);
       }
 
       let line_id = createLineDto.line_id;
@@ -52,7 +59,7 @@ export class LineService implements ILineService {
       this.logger.log(`Line created with ID: ${savedLine.id}`, LineService.context);
       return savedLine;
     } catch (error) {
-      if (error instanceof DuplicateResourceException) {
+      if (error instanceof DuplicateResourceException || error instanceof ResourceNotFoundException) {
         throw error;
       }
       this.logger.error(
@@ -126,6 +133,13 @@ export class LineService implements ILineService {
         const existingCode = await this.lineDao.findByCode(updateLineDto.code);
         if (existingCode) {
           throw new DuplicateResourceException('Line', 'code', updateLineDto.code);
+        }
+      }
+
+      if (updateLineDto.centre_id) {
+        const centre = await this.centreDao.findActiveById(updateLineDto.centre_id);
+        if (!centre) {
+          throw new ResourceNotFoundException('Centre', updateLineDto.centre_id);
         }
       }
 

@@ -19,7 +19,7 @@ export class AdminPcDao extends Repository<AdminPc> {
   }
 
   async findActiveById(id: string): Promise<AdminPc | null> {
-    return this.findOne({ where: { id, is_deleted: false }, relations: { line: true } });
+    return this.findOne({ where: { id, is_deleted: false }, relations: { centre: true } });
   }
 
   async findByCode(code: string): Promise<AdminPc | null> {
@@ -32,11 +32,11 @@ export class AdminPcDao extends Repository<AdminPc> {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AdminPc>> {
     const qb = this.createQueryBuilder('adminPc')
-      .leftJoinAndSelect('adminPc.line', 'line')
+      .leftJoinAndSelect('adminPc.centre', 'centre')
       .where('adminPc.is_deleted = :is_deleted', { is_deleted: false });
 
     const options = buildTypeOrmPaginationOptions<AdminPc, AdminPc>(query, {
-      searchFields: ['adminPc.name', 'adminPc.code', 'adminPc.ip_address', 'adminPc.status'],
+      searchFields: ['adminPc.name', 'adminPc.code', 'adminPc.ip_address', 'adminPc.status', 'centre.name', 'centre.code'],
       allowedSortFields: ['admin_pc_id', 'name', 'code', 'ip_address', 'status', 'created_at'],
       defaultSort: { created_at: 'DESC' },
     });

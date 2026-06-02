@@ -11,6 +11,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AdminPc } from '../../../database/entity/admin-pc.entity';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
+import { CentreDao } from '../../../database/dao/centre.dao';
 
 @Injectable()
 export class AdminPcService {
@@ -18,6 +19,7 @@ export class AdminPcService {
 
   constructor(
     private readonly adminPcDao: AdminPcDao,
+    private readonly centreDao: CentreDao,
     private readonly logger: AppLogger,
   ) {}
 
@@ -28,6 +30,11 @@ export class AdminPcService {
       const existingCode = await this.adminPcDao.findByCode(createAdminPcDto.code);
       if (existingCode) {
         throw new DuplicateResourceException('AdminPc', 'code', createAdminPcDto.code);
+      }
+
+      const centre = await this.centreDao.findActiveById(createAdminPcDto.centre_id);
+      if (!centre) {
+        throw new ResourceNotFoundException('Centre', createAdminPcDto.centre_id);
       }
 
       let admin_pc_id = createAdminPcDto.admin_pc_id;
@@ -51,7 +58,7 @@ export class AdminPcService {
       this.logger.log(`Admin PC created with ID: ${savedAdminPc.id}`, AdminPcService.context);
       return savedAdminPc;
     } catch (error) {
-      if (error instanceof DuplicateResourceException) {
+      if (error instanceof DuplicateResourceException || error instanceof ResourceNotFoundException) {
         throw error;
       }
       this.logger.error(
@@ -110,6 +117,13 @@ export class AdminPcService {
         const existingCode = await this.adminPcDao.findByCode(updateAdminPcDto.code);
         if (existingCode) {
           throw new DuplicateResourceException('AdminPc', 'code', updateAdminPcDto.code);
+        }
+      }
+
+      if (updateAdminPcDto.centre_id) {
+        const centre = await this.centreDao.findActiveById(updateAdminPcDto.centre_id);
+        if (!centre) {
+          throw new ResourceNotFoundException('Centre', updateAdminPcDto.centre_id);
         }
       }
 

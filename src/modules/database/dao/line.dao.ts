@@ -20,7 +20,7 @@ export class LineDao extends Repository<Line> implements ILineDao {
   }
 
   async findActiveById(id: string): Promise<Line | null> {
-    return this.findOne({ where: { id, is_deleted: false } });
+    return this.findOne({ where: { id, is_deleted: false }, relations: { centre: true } });
   }
 
   async findByCode(code: string): Promise<Line | null> {
@@ -32,14 +32,17 @@ export class LineDao extends Repository<Line> implements ILineDao {
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Line>> {
+    const qb = this.createQueryBuilder('line')
+      .leftJoinAndSelect('line.centre', 'centre')
+      .where('line.is_deleted = :is_deleted', { is_deleted: false });
+
     const options = buildTypeOrmPaginationOptions<Line, Line>(query, {
-      searchFields: ['name', 'code', 'status'],
+      searchFields: ['line.name', 'line.code', 'line.status', 'centre.name', 'centre.code'],
       allowedSortFields: ['line_id', 'name', 'code', 'display_order', 'status', 'created_at', 'updated_at'],
       defaultSort: { created_at: 'DESC' },
-      baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginate(this, 'line', options);
+    const response = await this.paginationService.paginateQueryBuilder(qb, 'line', options);
     return toPaginatedResult(response);
   }
 

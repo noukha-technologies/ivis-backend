@@ -3,9 +3,13 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  JoinColumn,
+  ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
+import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { Centre } from './centre.entity';
 
 @Entity({ name: 'lines', schema: 'master' })
 export class Line {
@@ -22,6 +26,14 @@ export class Line {
   @Column({ type: 'varchar', unique: true, nullable: false })
   @Index('IDX_LINE_CODE', { unique: true })
   code!: string;
+
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Index('IDX_LINE_CENTRE_ID')
+  centre_id!: string;
+
+  @ManyToOne(() => Centre, { nullable: false })
+  @JoinColumn({ name: 'centre_id' })
+  centre!: Centre;
 
   @Column({ type: 'integer', default: 1, nullable: false })
   display_order!: number;

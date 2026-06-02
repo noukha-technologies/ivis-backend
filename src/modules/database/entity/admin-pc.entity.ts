@@ -7,8 +7,9 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
+import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Line } from './line.entity';
+import { Centre } from './centre.entity';
 
 @Entity({ name: 'admin_pcs', schema: 'master' })
 export class AdminPc {
@@ -29,12 +30,13 @@ export class AdminPc {
   @Column({ type: 'varchar', nullable: false })
   ip_address!: string;
 
-  @Column({ type: 'bigint' })
-  line_id!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Index('IDX_ADMIN_PC_CENTRE_ID')
+  centre_id!: string;
 
-  @ManyToOne(() => Line, { nullable: false })
-  @JoinColumn({ name: 'line_id' })
-  line!: Line;
+  @ManyToOne(() => Centre, { nullable: false })
+  @JoinColumn({ name: 'centre_id' })
+  centre!: Centre;
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;

@@ -22,7 +22,7 @@ export class PermissionService implements IPermissionsService {
   constructor(
     private readonly roleAccessDao: RoleAccessDao,
     private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
   async create(dto: CreateRoleAccessDto): Promise<RoleAccessDto> {
     this.logger.log(`Creating role access: ${dto.role_name}`, PermissionService.context);

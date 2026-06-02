@@ -28,7 +28,6 @@ import {
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { PermissionService } from './service/permission.service';
-import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Permissions')
 @Controller('permissions')
@@ -48,7 +47,6 @@ export class PermissionsController {
     };
   }
 
-  @Public()
   @Post()
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.CREATED)

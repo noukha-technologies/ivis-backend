@@ -7,6 +7,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { VEHICLE_MASTER_STATUSES } from '../enums/vehicle-master.constants';
 
 export class CreateVehicleDto {
   @ApiPropertyOptional({
@@ -34,20 +35,14 @@ export class CreateVehicleDto {
   vin_no?: string;
 
   @ApiPropertyOptional({
-    description: 'Vehicle type description',
-    example: 'Light vehicle category for sedan inspections',
-  })
-  @IsString({ message: 'description must be a string' })
-  @IsOptional()
-  description?: string;
-
-  @ApiPropertyOptional({
     description: 'Vehicle master status',
     example: 'Active',
-    enum: ['Active', 'Inactive'],
+    enum: VEHICLE_MASTER_STATUSES,
   })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(VEHICLE_MASTER_STATUSES, {
+    message: 'status must be Active, Inactive, or Suspended',
+  })
   @IsOptional()
   status?: string;
 
@@ -59,4 +54,4 @@ export class CreateVehicleDto {
 
 export class UpdateVehicleDto extends PartialType(
   OmitType(CreateVehicleDto, ['vehicle_id'] as const),
-) {}
+) { }

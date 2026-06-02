@@ -33,7 +33,7 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Vehicle>> {
     const options = buildTypeOrmPaginationOptions<Vehicle, Vehicle>(query, {
-      searchFields: ['name', 'code', 'vin_no', 'description', 'status'],
+      searchFields: ['name', 'code', 'vin_no', 'status'],
       allowedSortFields: [
         'vehicle_id',
         'name',

@@ -46,7 +46,7 @@ export class VehicleController {
     name: 'search',
     required: false,
     type: String,
-    description: 'name, code, vin_no, description, status',
+    description: 'name, code, vin_no, status',
   })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })

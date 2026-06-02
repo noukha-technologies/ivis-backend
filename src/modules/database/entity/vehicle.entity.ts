@@ -26,9 +26,6 @@ export class Vehicle {
   @Column({ type: 'varchar', length: 64, nullable: true })
   vin_no?: string;
 
-  @Column({ type: 'varchar', length: 512, nullable: true })
-  description?: string;
-
   @Column({ type: 'varchar', length: 32, default: 'Active', nullable: false })
   status!: string;
 

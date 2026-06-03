@@ -70,6 +70,12 @@ export class UsersDao extends Repository<User> implements IUserDao {
     });
   }
 
+  async findActiveByCenterId(centerId: string): Promise<User | null> {
+    return this.findOne({
+      where: { center_id: centerId, is_deleted: false },
+    });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.createQueryBuilder('user')
       .leftJoinAndSelect('user.role', 'role')

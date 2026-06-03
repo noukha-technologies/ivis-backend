@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
@@ -23,6 +23,24 @@ export class LineDao extends Repository<Line> implements ILineDao {
     return this.findOne({ where: { id, is_deleted: false }, relations: { centre: true } });
   }
 
+  async findActiveByIds(ids: string[]): Promise<Line[]> {
+    if (!ids.length) {
+      return [];
+    }
+    return this.find({
+      where: { id: In(ids), is_deleted: false },
+      relations: { centre: true },
+    });
+  }
+
+  async findActiveByCentreId(centreId: string): Promise<Line[]> {
+    return this.find({
+      where: { centre_id: centreId, is_deleted: false },
+      relations: { centre: true },
+      order: { display_order: 'ASC', line_id: 'ASC' },
+    });
+  }
+
   async findByCode(code: string): Promise<Line | null> {
     return this.findOne({ where: { code, is_deleted: false } });
   }
@@ -31,10 +49,17 @@ export class LineDao extends Repository<Line> implements ILineDao {
     return this.findOne({ where: { line_id: lineId, is_deleted: false } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Line>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+    centreId?: string,
+  ): Promise<PaginatedResult<Line>> {
     const qb = this.createQueryBuilder('line')
       .leftJoinAndSelect('line.centre', 'centre')
       .where('line.is_deleted = :is_deleted', { is_deleted: false });
+
+    if (centreId) {
+      qb.andWhere('line.centre_id = :centreId', { centreId });
+    }
 
     const options = buildTypeOrmPaginationOptions<Line, Line>(query, {
       searchFields: ['line.name', 'line.code', 'line.status', 'centre.name', 'centre.code'],

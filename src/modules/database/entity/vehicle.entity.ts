@@ -6,8 +6,9 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { DATABASE_SCHEMAS } from '../../../common/enums/common.enums';
 
-@Entity({ name: 'vehicles', schema: 'master' })
+@Entity({ name: 'vehicles', schema: DATABASE_SCHEMAS.MASTER })
 @Index('IDX_VEHICLE_VEHICLE_ID', ['vehicle_id'], { unique: true })
 @Index('IDX_VEHICLE_CODE', ['code'], { unique: true })
 export class Vehicle {

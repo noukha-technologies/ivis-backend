@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import type { PaymentTransactionStatus } from '../../../common/enums/payment-transaction.enums';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { AdminPc } from './admin-pc.entity';
 import { AnprCapture } from './anpr-capture.entity';

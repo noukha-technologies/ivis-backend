@@ -5,11 +5,16 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
+  OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
+import { Camera } from './camera.entity';
+import { AdminPc } from './admin-pc.entity';
+import { UserLineMapping } from './user-line-mapping.entity';
 
 @Entity({ name: 'lines', schema: 'master' })
 export class Line {
@@ -55,4 +60,13 @@ export class Line {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
+
+  @OneToMany(() => UserLineMapping, (mapping) => mapping.line)
+  userMappings?: UserLineMapping[];
+
+  @OneToOne(() => Camera, (camera) => camera.line)
+  camera?: Camera;
+
+  @OneToOne(() => AdminPc, (adminPc) => adminPc.line)
+  adminPc?: AdminPc;
 }

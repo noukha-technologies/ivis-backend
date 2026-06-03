@@ -30,6 +30,10 @@ export class CameraDao extends Repository<Camera> {
     return this.findOne({ where: { camera_id: cameraId, is_deleted: false } });
   }
 
+  async findActiveByLineId(lineId: string): Promise<Camera | null> {
+    return this.findOne({ where: { line_id: lineId, is_deleted: false } });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Camera>> {
     const qb = this.createQueryBuilder('camera')
       .leftJoinAndSelect('camera.line', 'line')

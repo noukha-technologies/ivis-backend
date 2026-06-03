@@ -10,6 +10,7 @@ import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { UsersModule } from './modules/users/users.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
+import { MasterScopeModule } from './common/services/master-scope.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
@@ -30,6 +31,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
     LoggerModule,
     PaginationModule,
     DatabaseModule,
+    MasterScopeModule,
     UsersModule,
     MastersModule,
     TransactionsModule,

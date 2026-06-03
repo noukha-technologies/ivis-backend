@@ -7,7 +7,7 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Vehicle } from './vehicle.entity';
 

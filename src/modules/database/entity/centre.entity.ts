@@ -3,9 +3,13 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  OneToMany,
+  OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { Line } from './line.entity';
+import { User } from './user.entity';
 
 @Entity({ name: 'centres', schema: 'master' })
 export class Centre {
@@ -40,4 +44,10 @@ export class Centre {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
+
+  @OneToMany(() => Line, (line) => line.centre)
+  lines?: Line[];
+
+  @OneToOne(() => User, (user) => user.assignedCentre)
+  assignedUser?: User;
 }

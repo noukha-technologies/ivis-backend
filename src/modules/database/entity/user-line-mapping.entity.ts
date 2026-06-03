@@ -7,7 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { User } from './user.entity';
 import { Line } from './line.entity';

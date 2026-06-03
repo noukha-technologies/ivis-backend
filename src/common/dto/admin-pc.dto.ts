@@ -26,10 +26,10 @@ export class CreateAdminPcDto {
   @IsNotEmpty({ message: 'ip_address is required' })
   ip_address!: string;
 
-  @ApiProperty({ description: 'Assigned centre snowflake ID', example: '2058858609483202561' })
-  @IsString({ message: 'centre_id must be a string' })
-  @IsNotEmpty({ message: 'centre_id is required' })
-  centre_id!: string;
+  @ApiProperty({ description: 'Assigned line snowflake ID (master.lines.id)', example: '2058858609483202561' })
+  @IsString({ message: 'line_id must be a string' })
+  @IsNotEmpty({ message: 'line_id is required' })
+  line_id!: string;
 
   @ApiPropertyOptional({ description: 'Description details', example: 'Reception PC' })
   @IsString({ message: 'description must be a string' })

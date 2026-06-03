@@ -3,3 +3,9 @@ export const enum USER_ROLES {
     SYSTEM_ADMIN = 'system_admin',
     CLIENT_ADMIN = 'client_admin',
 }
+
+export const enum DATABASE_SCHEMAS {
+    CORE = 'core',
+    MASTER = 'master',
+    TRANSACTION = 'transaction',
+}

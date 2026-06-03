@@ -24,9 +24,10 @@ import { PaymentTransaction } from './entity/payment-transaction.entity';
 
 dotenv.config();
 
+const databaseOptions = buildDatabaseOptions();
+
 export const AppDataSource = new DataSource({
-  ...buildDatabaseOptions(),
-  logging: buildDatabaseOptions().logging ?? true,
+  ...databaseOptions,
   entities: [
     User,
     UserLineMapping,

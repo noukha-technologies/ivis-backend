@@ -11,7 +11,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AdminPc } from '../../../database/entity/admin-pc.entity';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
-import { CentreDao } from '../../../database/dao/centre.dao';
+import { MasterScopeService } from '../../../../common/services/master-scope.service';
 
 @Injectable()
 export class AdminPcService {
@@ -19,7 +19,7 @@ export class AdminPcService {
 
   constructor(
     private readonly adminPcDao: AdminPcDao,
-    private readonly centreDao: CentreDao,
+    private readonly masterScope: MasterScopeService,
     private readonly logger: AppLogger,
   ) {}
 
@@ -32,10 +32,8 @@ export class AdminPcService {
         throw new DuplicateResourceException('AdminPc', 'code', createAdminPcDto.code);
       }
 
-      const centre = await this.centreDao.findActiveById(createAdminPcDto.centre_id);
-      if (!centre) {
-        throw new ResourceNotFoundException('Centre', createAdminPcDto.centre_id);
-      }
+      await this.masterScope.assertLineExists(createAdminPcDto.line_id);
+      await this.masterScope.assertLineHasNoAdminPc(createAdminPcDto.line_id);
 
       let admin_pc_id = createAdminPcDto.admin_pc_id;
       if (!admin_pc_id) {
@@ -120,11 +118,9 @@ export class AdminPcService {
         }
       }
 
-      if (updateAdminPcDto.centre_id) {
-        const centre = await this.centreDao.findActiveById(updateAdminPcDto.centre_id);
-        if (!centre) {
-          throw new ResourceNotFoundException('Centre', updateAdminPcDto.centre_id);
-        }
+      if (updateAdminPcDto.line_id) {
+        await this.masterScope.assertLineExists(updateAdminPcDto.line_id);
+        await this.masterScope.assertLineHasNoAdminPc(updateAdminPcDto.line_id, id);
       }
 
       const mergedAdminPc = this.adminPcDao.merge(adminPc, updateAdminPcDto);

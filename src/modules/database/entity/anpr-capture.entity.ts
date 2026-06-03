@@ -8,7 +8,7 @@ import {
   OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';

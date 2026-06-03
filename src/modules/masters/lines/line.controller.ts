@@ -19,7 +19,7 @@ import {
 } from '@nestjs/swagger';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreateLineDto, UpdateLineDto } from '../../../common/dto/line.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { LineListQueryDto } from '../../../common/dto/line-list-query.dto';
 import { LineService } from './services/line.service';
 
 @ApiTags('Masters / Lines')
@@ -52,8 +52,14 @@ export class LineController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
+  @ApiQuery({
+    name: 'centre_id',
+    required: false,
+    type: String,
+    description: 'Filter by centre snowflake ID',
+  })
   @ApiResponse({ status: 200, description: 'Lines list retrieved.' })
-  async findAll(@Query() query: PaginationQueryDto) {
+  async findAll(@Query() query: LineListQueryDto) {
     const result = await this.lineService.findAll(query);
     return { message: 'Lines retrieved successfully', ...result };
   }

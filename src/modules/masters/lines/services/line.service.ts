@@ -1,6 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateLineDto, UpdateLineDto } from '../../../../common/dto/line.dto';
-import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { LineListQueryDto } from '../../../../common/dto/line-list-query.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
   DatabaseException,
@@ -12,6 +12,10 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { Line } from '../../../database/entity/line.entity';
 import { LineDao } from '../../../database/dao/line.dao';
 import { CentreDao } from '../../../database/dao/centre.dao';
+import { CameraDao } from '../../../database/dao/camera.dao';
+import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
+import { UserLineMappingDao } from '../../../database/dao/user-line-mapping.dao';
+import { MasterScopeService } from '../../../../common/services/master-scope.service';
 import { ILineService } from './line.service.interface';
 
 @Injectable()
@@ -21,6 +25,10 @@ export class LineService implements ILineService {
   constructor(
     private readonly lineDao: LineDao,
     private readonly centreDao: CentreDao,
+    private readonly cameraDao: CameraDao,
+    private readonly adminPcDao: AdminPcDao,
+    private readonly userLineMappingDao: UserLineMappingDao,
+    private readonly masterScope: MasterScopeService,
     private readonly logger: AppLogger,
   ) {}
 
@@ -71,11 +79,15 @@ export class LineService implements ILineService {
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Line>> {
+  async findAll(query: LineListQueryDto): Promise<PaginatedResult<Line>> {
     this.logger.log(`Fetching lines — page: ${query.page}, limit: ${query.limit}`, LineService.context);
 
     try {
-      return await this.lineDao.findPaginated(query);
+      let centreFilterId: string | undefined;
+      if (query.centre_id) {
+        centreFilterId = await this.masterScope.resolveCentreId(query.centre_id);
+      }
+      return await this.lineDao.findPaginated(query, centreFilterId);
     } catch (error) {
       this.logger.error(
         `Failed to fetch lines: ${(error as Error).message}`,
@@ -166,11 +178,12 @@ export class LineService implements ILineService {
 
     try {
       const line = await this.findOne(id);
+      await this.assertLineHasNoDependents(id);
       line.is_deleted = true;
       await this.lineDao.save(line);
       this.logger.log(`Line soft-deleted ID: ${id}`, LineService.context);
     } catch (error) {
-      if (error instanceof ResourceNotFoundException) {
+      if (error instanceof ResourceNotFoundException || error instanceof BadRequestException) {
         throw error;
       }
       this.logger.error(
@@ -179,6 +192,21 @@ export class LineService implements ILineService {
         LineService.context,
       );
       throw new DatabaseException('Failed to delete line. Please try again.');
+    }
+  }
+
+  private async assertLineHasNoDependents(lineId: string): Promise<void> {
+    const camera = await this.cameraDao.findActiveByLineId(lineId);
+    if (camera) {
+      throw new BadRequestException('Cannot delete line: an active camera is assigned to this line.');
+    }
+    const adminPc = await this.adminPcDao.findActiveByLineId(lineId);
+    if (adminPc) {
+      throw new BadRequestException('Cannot delete line: an active admin PC is assigned to this line.');
+    }
+    const mappings = await this.userLineMappingDao.findActiveByLineIds([lineId]);
+    if (mappings.length > 0) {
+      throw new BadRequestException('Cannot delete line: one or more users are assigned to this line.');
     }
   }
 }

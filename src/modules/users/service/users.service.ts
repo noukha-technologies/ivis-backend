@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
@@ -9,12 +9,11 @@ import {
 } from '../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { CentreDao } from '../../database/dao/centre.dao';
-import { LineDao } from '../../database/dao/line.dao';
 import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
 import { UsersDao } from '../../database/dao/users.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
+import { MasterScopeService } from '../../../common/services/master-scope.service';
 import { IUsersService } from './user.service.interface';
 
 @Injectable()
@@ -23,8 +22,7 @@ export class UsersService implements IUsersService {
   constructor(
     private readonly usersDao: UsersDao,
     private readonly roleDao: RoleDao,
-    private readonly centreDao: CentreDao,
-    private readonly lineDao: LineDao,
+    private readonly masterScope: MasterScopeService,
     private readonly userLineMappingDao: UserLineMappingDao,
     private readonly logger: AppLogger,
   ) { }
@@ -50,26 +48,19 @@ export class UsersService implements IUsersService {
       }
 
       const lineIds = this.normalizeLineIds(createUserDto.line_ids);
-      await this.validateLineIds(lineIds);
+      const centreFkId = await this.masterScope.resolveCentreId(createUserDto.center_id);
+      await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId);
+      await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
       await this.assertLinesAvailable(lineIds);
 
       const {
         password,
         role_id: _roleId,
-        center_id,
+        center_id: _centerId,
         line_ids: _lineIds,
         user_code: _userCode,
         ...userFields
       } = createUserDto;
-
-      let centreFkId: string | undefined;
-      if (center_id) {
-        const centre = await this.centreDao.findActiveById(center_id);
-        if (!centre) {
-          throw new ResourceNotFoundException('Centre', center_id);
-        }
-        centreFkId = centre.id;
-      }
 
       const nextUserId = await this.usersDao.getNextUserId();
 
@@ -97,7 +88,8 @@ export class UsersService implements IUsersService {
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
-        error instanceof ResourceNotFoundException
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
       ) {
         throw error;
       }
@@ -213,24 +205,24 @@ export class UsersService implements IUsersService {
         roleId = role.id;
       }
 
-      let centreFkId: string | null | undefined;
+      let centreFkId: string | undefined;
       if (center_id !== undefined) {
         if (center_id === null || center_id === '') {
-          centreFkId = null;
-        } else {
-          const centre = await this.centreDao.findActiveById(center_id);
-          if (!centre) {
-            throw new ResourceNotFoundException('Centre', center_id);
-          }
-          centreFkId = centre.id;
+          throw new BadRequestException('center_id cannot be cleared; every user must belong to a centre.');
         }
+        centreFkId = await this.masterScope.resolveCentreId(center_id);
+        await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId, id);
       }
+
+      const effectiveCentreId = centreFkId ?? user.center_id;
 
       if (line_ids !== undefined) {
         const normalizedLineIds = this.normalizeLineIds(line_ids);
-        await this.validateLineIds(normalizedLineIds);
+        await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
         await this.assertLinesAvailable(normalizedLineIds, id);
         await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, user.created_by);
+      } else if (centreFkId !== undefined && centreFkId !== user.center_id) {
+        await this.userLineMappingDao.replaceForUser(id, [], user.created_by);
       }
 
       const mergedUser = this.usersDao.merge(user, {
@@ -246,7 +238,8 @@ export class UsersService implements IUsersService {
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||
-        error instanceof DuplicateResourceException
+        error instanceof DuplicateResourceException ||
+        error instanceof BadRequestException
       ) {
         throw error;
       }
@@ -289,15 +282,6 @@ export class UsersService implements IUsersService {
       return [];
     }
     return [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
-  }
-
-  private async validateLineIds(lineIds: string[]): Promise<void> {
-    for (const lineId of lineIds) {
-      const line = await this.lineDao.findActiveById(lineId);
-      if (!line) {
-        throw new ResourceNotFoundException('Line', lineId);
-      }
-    }
   }
 
   private async assertLinesAvailable(lineIds: string[], excludeUserId?: string): Promise<void> {

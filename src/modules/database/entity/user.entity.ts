@@ -6,13 +6,14 @@ import {
   Index,
   ManyToOne,
   OneToMany,
+  OneToOne,
   JoinColumn,
   BeforeInsert,
   BeforeUpdate,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
 import { Role } from './role.entity';
@@ -49,12 +50,13 @@ export class User {
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  center_id?: string | null;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Index('UQ_USER_CENTER_ID', { unique: true, where: '"is_deleted" = false' })
+  center_id!: string;
 
-  @ManyToOne(() => Centre, { nullable: true })
+  @OneToOne(() => Centre, (centre) => centre.assignedUser, { nullable: false })
   @JoinColumn({ name: 'center_id' })
-  assignedCentre?: Centre;
+  assignedCentre!: Centre;
 
   @OneToMany(() => UserLineMapping, (mapping) => mapping.user)
   lineMappings?: UserLineMapping[];

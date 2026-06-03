@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { MasterScopeService } from '../../../../common/services/master-scope.service';
 import { CreateCameraDto, UpdateCameraDto } from '../../../../common/dto/camera.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
@@ -18,6 +19,7 @@ export class CameraService {
 
   constructor(
     private readonly cameraDao: CameraDao,
+    private readonly masterScope: MasterScopeService,
     private readonly logger: AppLogger,
   ) {}
 
@@ -39,6 +41,9 @@ export class CameraService {
           throw new DuplicateResourceException('Camera', 'camera_id', camera_id);
         }
       }
+
+      await this.masterScope.assertLineExists(createCameraDto.line_id);
+      await this.masterScope.assertLineHasNoCamera(createCameraDto.line_id);
 
       const camera = this.cameraDao.create({
         id: generateSnowflakeId(),
@@ -113,7 +118,16 @@ export class CameraService {
         }
       }
 
-      const mergedCamera = this.cameraDao.merge(camera, updateCameraDto);
+      const targetLineId = updateCameraDto.line_id ?? camera.line_id;
+      if (updateCameraDto.line_id) {
+        await this.masterScope.assertLineExists(updateCameraDto.line_id);
+        await this.masterScope.assertLineHasNoCamera(updateCameraDto.line_id, id);
+      }
+
+      const mergedCamera = this.cameraDao.merge(camera, {
+        ...updateCameraDto,
+        line_id: targetLineId,
+      });
       const savedCamera = await this.cameraDao.save(mergedCamera);
 
       this.logger.log(`Camera updated ID: ${savedCamera.id}`, CameraService.context);

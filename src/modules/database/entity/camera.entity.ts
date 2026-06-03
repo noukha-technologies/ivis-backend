@@ -4,7 +4,7 @@ import {
   Entity,
   Index,
   JoinColumn,
-  ManyToOne,
+  OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
@@ -30,9 +30,10 @@ export class Camera {
   type!: string;
 
   @Column({ type: 'bigint' })
+  @Index('UQ_CAMERA_LINE_ID', { unique: true, where: '"is_deleted" = false' })
   line_id!: string;
 
-  @ManyToOne(() => Line, { nullable: false })
+  @OneToOne(() => Line, (line) => line.camera, { nullable: false })
   @JoinColumn({ name: 'line_id' })
   line!: Line;
 

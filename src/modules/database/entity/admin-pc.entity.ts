@@ -4,12 +4,12 @@ import {
   Entity,
   Index,
   JoinColumn,
-  ManyToOne,
+  OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Centre } from './centre.entity';
+import { Line } from './line.entity';
 
 @Entity({ name: 'admin_pcs', schema: 'master' })
 export class AdminPc {
@@ -31,12 +31,12 @@ export class AdminPc {
   ip_address!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('IDX_ADMIN_PC_CENTRE_ID')
-  centre_id!: string;
+  @Index('UQ_ADMIN_PC_LINE_ID', { unique: true, where: '"is_deleted" = false' })
+  line_id!: string;
 
-  @ManyToOne(() => Centre, { nullable: false })
-  @JoinColumn({ name: 'centre_id' })
-  centre!: Centre;
+  @OneToOne(() => Line, (line) => line.adminPc, { nullable: false })
+  @JoinColumn({ name: 'line_id' })
+  line!: Line;
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;

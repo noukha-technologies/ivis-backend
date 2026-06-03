@@ -42,13 +42,13 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'role_id is required' })
   role_id!: string;
 
-  @ApiPropertyOptional({
-    description: 'Assigned centre snowflake ID (master.centres.id)',
+  @ApiProperty({
+    description: 'Assigned centre snowflake ID (master.centres.id); one user per centre',
     example: '2058858609483202561',
   })
   @IsString({ message: 'center_id must be a string' })
-  @IsOptional()
-  center_id?: string;
+  @IsNotEmpty({ message: 'center_id is required' })
+  center_id!: string;
 
   @ApiPropertyOptional({
     description: 'Assigned line snowflake IDs (master.lines.id)',

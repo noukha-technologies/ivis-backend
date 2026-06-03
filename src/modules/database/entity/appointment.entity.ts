@@ -8,7 +8,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import type { AppointmentStatus } from '../../../common/enums/appointment.enums';
-import { bigintAsStringTransformer } from '../bigint-string.transformer';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { AnprCapture } from './anpr-capture.entity';
 import { Centre } from './centre.entity';

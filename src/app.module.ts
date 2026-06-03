@@ -16,6 +16,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 
@@ -36,6 +37,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
     AppointmentsModule,
     AuthModule,
     PermissionsModule,
+    RolesModule,
   ],
   controllers: [AppController],
   providers: [

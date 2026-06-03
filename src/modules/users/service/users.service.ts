@@ -13,7 +13,7 @@ import { CentreDao } from '../../database/dao/centre.dao';
 import { LineDao } from '../../database/dao/line.dao';
 import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
 import { UsersDao } from '../../database/dao/users.dao';
-import { RoleAccessDao } from '../../database/dao/role-access.dao';
+import { RoleDao } from '../../database/dao/role.dao';
 import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
 import { IUsersService } from './user.service.interface';
 
@@ -22,7 +22,7 @@ export class UsersService implements IUsersService {
   private static readonly context = 'UsersService';
   constructor(
     private readonly usersDao: UsersDao,
-    private readonly roleAccessDao: RoleAccessDao,
+    private readonly roleDao: RoleDao,
     private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
     private readonly userLineMappingDao: UserLineMappingDao,
@@ -44,9 +44,9 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'user_code', normalizedUserCode);
       }
 
-      const roleAccess = await this.roleAccessDao.findActiveById(createUserDto.role_access_id);
-      if (!roleAccess) {
-        throw new ResourceNotFoundException('RoleAccess', createUserDto.role_access_id);
+      const role = await this.roleDao.findActiveById(createUserDto.role_id);
+      if (!role) {
+        throw new ResourceNotFoundException('Role', createUserDto.role_id);
       }
 
       const lineIds = this.normalizeLineIds(createUserDto.line_ids);
@@ -55,7 +55,7 @@ export class UsersService implements IUsersService {
 
       const {
         password,
-        role_access_id,
+        role_id: _roleId,
         center_id,
         line_ids: _lineIds,
         user_code: _userCode,
@@ -78,7 +78,7 @@ export class UsersService implements IUsersService {
         ...userFields,
         user_id: nextUserId,
         user_code: normalizedUserCode,
-        role_access_id: roleAccess.id,
+        role_id: role.id,
         center_id: centreFkId,
         password,
       });
@@ -198,19 +198,19 @@ export class UsersService implements IUsersService {
       }
 
       const {
-        role_access_id: updatedRoleAccessId,
+        role_id: updatedRoleId,
         center_id,
         line_ids,
         user_code: _userCode,
         ...updateFields
       } = updateUserDto;
-      let roleAccessId: string | undefined;
-      if (updatedRoleAccessId !== undefined) {
-        const roleAccess = await this.roleAccessDao.findActiveById(updatedRoleAccessId);
-        if (!roleAccess) {
-          throw new ResourceNotFoundException('RoleAccess', updatedRoleAccessId);
+      let roleId: string | undefined;
+      if (updatedRoleId !== undefined) {
+        const role = await this.roleDao.findActiveById(updatedRoleId);
+        if (!role) {
+          throw new ResourceNotFoundException('Role', updatedRoleId);
         }
-        roleAccessId = roleAccess.id;
+        roleId = role.id;
       }
 
       let centreFkId: string | null | undefined;
@@ -235,7 +235,7 @@ export class UsersService implements IUsersService {
 
       const mergedUser = this.usersDao.merge(user, {
         ...updateFields,
-        ...(roleAccessId !== undefined ? { role_access_id: roleAccessId } : {}),
+        ...(roleId !== undefined ? { role_id: roleId } : {}),
         ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
         ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
       });

@@ -23,7 +23,13 @@ export class AuthUserDto {
   @ApiProperty()
   role!: string;
 
-  @ApiProperty({ description: 'Role access snowflake ID (core.role_access.id)' })
+  @ApiProperty({ description: 'Role snowflake ID (core.roles.id)' })
+  role_id!: string;
+
+  @ApiProperty({
+    description: 'Deprecated alias for role_id (backward compatibility)',
+    deprecated: true,
+  })
   role_access_id!: string;
 
   @ApiPropertyOptional({ description: 'Centre display name' })
@@ -88,7 +94,7 @@ export class LoginResponseDto {
   user!: AuthUserDto;
 
   @ApiProperty({
-    description: 'Flat permission keys resolved from role_access.access (guard vocabulary)',
+    description: 'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],
   })
   permissions!: string[];

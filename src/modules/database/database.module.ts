@@ -4,7 +4,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
 import { User } from './entity/user.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
-import { RoleAccess } from './entity/role-access.entity';
+import { Permission } from './entity/permission.entity';
+import { Role } from './entity/role.entity';
 import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { Test } from './entity/test.entity';
@@ -22,7 +23,8 @@ import { Appointment } from './entity/appointment.entity';
 import { PaymentTransaction } from './entity/payment-transaction.entity';
 import { UsersDao } from './dao/users.dao';
 import { UserLineMappingDao } from './dao/user-line-mapping.dao';
-import { RoleAccessDao } from './dao/role-access.dao';
+import { PermissionDao } from './dao/permission.dao';
+import { RoleDao } from './dao/role.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
 import { VehicleDao } from './dao/vehicle.dao';
 import { TestDao } from './dao/test.dao';
@@ -57,7 +59,8 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     TypeOrmModule.forFeature([
       User,
       UserLineMapping,
-      RoleAccess,
+      Permission,
+      Role,
       UserSession,
       Vehicle,
       Test,
@@ -78,7 +81,8 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
   providers: [
     UsersDao,
     UserLineMappingDao,
-    RoleAccessDao,
+    PermissionDao,
+    RoleDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -99,7 +103,8 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     TypeOrmModule,
     UsersDao,
     UserLineMappingDao,
-    RoleAccessDao,
+    PermissionDao,
+    RoleDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,

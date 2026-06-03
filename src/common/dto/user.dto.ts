@@ -21,10 +21,6 @@ export class CreateUserDto {
     example: 'USR1001',
   })
   @IsString({ message: 'user_code must be a string' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toUpperCase() : value))
-  @Matches(USER_CODE_PATTERN, { message: 'user_code must contain only letters and numbers' })
-  @MinLength(2, { message: 'user_code must be at least 2 characters' })
-  @MaxLength(32, { message: 'user_code must be at most 32 characters' })
   @IsNotEmpty({ message: 'user_code is required' })
   user_code!: string;
 
@@ -39,12 +35,12 @@ export class CreateUserDto {
   email!: string;
 
   @ApiProperty({
-    description: 'Role access snowflake ID (core.role_access.id)',
+    description: 'Role snowflake ID (core.roles.id)',
     example: '2058858609483202561',
   })
-  @IsString({ message: 'role_access_id must be a string' })
-  @IsNotEmpty({ message: 'role_access_id is required' })
-  role_access_id!: string;
+  @IsString({ message: 'role_id must be a string' })
+  @IsNotEmpty({ message: 'role_id is required' })
+  role_id!: string;
 
   @ApiPropertyOptional({
     description: 'Assigned centre snowflake ID (master.centres.id)',

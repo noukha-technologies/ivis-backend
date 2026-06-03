@@ -8,17 +8,20 @@ import {
 import type { RoleAccessMatrix } from '../../../common/types/role-access.types';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 
-@Entity({ name: 'role_access', schema: 'core' })
-@Index('IDX_ROLE_ACCESS_ROLE_NAME', ['role_name'], { unique: true })
-export class RoleAccess {
+@Entity({ name: 'permissions', schema: 'core' })
+@Index('IDX_PERMISSION_PROFILE_NAME', ['name'], { unique: true })
+export class Permission {
   @SnowflakePrimaryColumn()
   id!: string;
 
-  @Column({ type: 'varchar', length: 64, nullable: false })
-  role_name!: string;
+  @Column({ type: 'varchar', length: 128, nullable: false })
+  name!: string;
 
   @Column({ type: 'jsonb', nullable: false, default: () => "'{}'" })
   access!: RoleAccessMatrix;
+
+  @Column({ type: 'boolean', default: true })
+  is_active!: boolean;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

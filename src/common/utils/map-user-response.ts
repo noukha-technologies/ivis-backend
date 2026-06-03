@@ -1,33 +1,23 @@
 import { User } from '../../modules/database/entity/user.entity';
+import { UserResponseInterface } from '../interfaces/user.interface';
 
-export interface UserLineSummary {
-  id: string;
-  line_id: number;
-  name: string;
-  code: string;
-}
-
-export type UserResponse = Omit<User, 'password' | 'lineMappings' | 'hashPassword'> & {
-  line_ids: string[];
-  lines: UserLineSummary[];
-};
+export type UserResponse = UserResponseInterface;
 
 export function mapUserToResponse(user: User): UserResponse {
   const activeMappings = (user.lineMappings ?? []).filter((m) => !m.is_deleted);
   const line_ids = activeMappings.map((m) => m.line_id);
-  const lines: UserLineSummary[] = activeMappings
-    .filter((m) => m.line)
-    .map((m) => ({
-      id: m.line.id,
-      line_id: m.line.line_id,
-      name: m.line.name,
-      code: m.line.code,
-    }));
 
-  const { password: _password, lineMappings: _lineMappings, ...rest } = user;
   return {
-    ...rest,
-    line_ids,
-    lines,
+    id: user.id,
+    user_code: user.user_code,
+    user_name: user.user_name,
+    email: user.email,
+    role_id: user.role_id,
+    roleName: user.role?.role_name ?? '',
+    center_id: user.center_id ?? undefined,
+    line_ids: line_ids.length > 0 ? line_ids : undefined,
+    created_at: user.created_at instanceof Date ? user.created_at.toISOString() : new Date(user.created_at).toISOString(),
+    updated_at: user.updated_at instanceof Date ? user.updated_at.toISOString() : new Date(user.updated_at).toISOString(),
+    deleted_at: undefined,
   };
 }

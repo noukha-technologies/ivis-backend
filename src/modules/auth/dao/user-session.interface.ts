@@ -24,4 +24,5 @@ export interface IUserSessionDao {
     refreshJti: string,
   ): Promise<UserSession | null>;
   deleteUserSession(userId: string, accessTokenJti: string): Promise<void>;
+  deleteByPermissionId(permissionId: string): Promise<void>;
 }

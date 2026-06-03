@@ -15,7 +15,7 @@ import * as bcrypt from 'bcrypt';
 import { bigintAsStringTransformer } from '../bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
-import { RoleAccess } from './role-access.entity';
+import { Role } from './role.entity';
 import { UserLineMapping } from './user-line-mapping.entity';
 
 @Entity({ name: 'users', schema: 'core' })
@@ -42,12 +42,12 @@ export class User {
   password!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('IDX_USER_ROLE_ACCESS_ID')
-  role_access_id!: string;
+  @Index('IDX_USER_ROLE_ID')
+  role_id!: string;
 
-  @ManyToOne(() => RoleAccess, { nullable: false })
-  @JoinColumn({ name: 'role_access_id' })
-  roleAccess!: RoleAccess;
+  @ManyToOne(() => Role, { nullable: false })
+  @JoinColumn({ name: 'role_id' })
+  role!: Role;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   center_id?: string | null;

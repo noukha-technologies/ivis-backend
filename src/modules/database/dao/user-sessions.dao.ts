@@ -82,4 +82,18 @@ export class UserSessionsDao extends Repository<UserSession> implements IUserSes
   async deleteUserSession(userId: string, accessTokenJti: string): Promise<void> {
     await this.deactivateSession(userId, accessTokenJti);
   }
+
+  async deleteByPermissionId(permissionId: string): Promise<void> {
+    await this.manager.query(
+      `
+        DELETE FROM core.user_sessions
+        WHERE user_id IN (
+          SELECT u.id FROM core.users u
+          INNER JOIN core.roles r ON r.id = u.role_id
+          WHERE r.permission_id = $1
+        )
+      `,
+      [permissionId],
+    );
+  }
 }

@@ -17,18 +17,22 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { Public } from '../../common/decorators/public.decorator';
+import { PermissionKeys } from '../../common/constants/permissions';
+import { Permissions } from '../../common/decorators/permissions.decorator';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { UsersService } from './service/users.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
+  @Public()
   @Post()
+  @Permissions(PermissionKeys.USER_CREATE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new user' })
   @ApiResponse({ status: 201, description: 'User created successfully.' })
@@ -40,6 +44,7 @@ export class UsersController {
   }
 
   @Get()
+  @Permissions(PermissionKeys.USER_VIEW)
   @ApiOperation({ summary: 'Retrieve all users (paginated, filterable, sortable)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -55,6 +60,7 @@ export class UsersController {
   }
 
   @Get(':id')
+  @Permissions(PermissionKeys.USER_VIEW)
   @ApiOperation({ summary: 'Retrieve a user by UUID' })
   @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User retrieved successfully.' })
@@ -65,6 +71,7 @@ export class UsersController {
   }
 
   @Patch(':id')
+  @Permissions(PermissionKeys.USER_EDIT)
   @ApiOperation({ summary: 'Update user details' })
   @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully.' })
@@ -79,6 +86,7 @@ export class UsersController {
   }
 
   @Delete(':id')
+  @Permissions(PermissionKeys.USER_DELETE)
   @ApiOperation({ summary: 'Soft-delete a user' })
   @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully.' })

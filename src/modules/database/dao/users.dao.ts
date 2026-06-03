@@ -12,7 +12,7 @@ import { User } from '../entity/user.entity';
 
 const USER_RELATIONS = {
   assignedCentre: true,
-  roleAccess: true,
+  role: { permission: true },
   lineMappings: { line: true },
 } as const;
 
@@ -44,7 +44,8 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findByEmailWithPassword(email: string): Promise<User | null> {
     return this.createQueryBuilder('user')
-      .leftJoinAndSelect('user.roleAccess', 'roleAccess')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('role.permission', 'permission')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
       .leftJoinAndSelect(
         'user.lineMappings',
@@ -71,7 +72,8 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.createQueryBuilder('user')
-      .leftJoinAndSelect('user.roleAccess', 'roleAccess')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('role.permission', 'permission')
       .leftJoinAndSelect('user.assignedCentre', 'centre')
       .leftJoinAndSelect(
         'user.lineMappings',
@@ -88,7 +90,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
         'user_code',
         'user_name',
         'email',
-        'role_access_id',
+        'role_id',
         'center_id',
         'created_at',
         'updated_at',

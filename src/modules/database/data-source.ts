@@ -8,7 +8,8 @@ import { Camera } from './entity/camera.entity';
 import { Centre } from './entity/centre.entity';
 import { Line } from './entity/line.entity';
 import { Payment } from './entity/payment.entity';
-import { RoleAccess } from './entity/role-access.entity';
+import { Permission } from './entity/permission.entity';
+import { Role } from './entity/role.entity';
 import { RopVerification } from './entity/rop-verification.entity';
 import { Test } from './entity/test.entity';
 import { User } from './entity/user.entity';
@@ -29,7 +30,8 @@ export const AppDataSource = new DataSource({
   entities: [
     User,
     UserLineMapping,
-    RoleAccess,
+    Permission,
+    Role,
     UserSession,
     Vehicle,
     Test,

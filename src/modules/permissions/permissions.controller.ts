@@ -21,18 +21,19 @@ import {
 import { PermissionKeys } from '../../common/constants/permissions';
 import { Permissions } from '../../common/decorators/permissions.decorator';
 import {
-  CreateRoleAccessDto,
-  RoleAccessDto,
-  UpdateRoleAccessDto,
-} from '../../common/dto/role-access.dto';
+  CreatePermissionProfileDto,
+  PermissionProfileDto,
+  UpdatePermissionProfileDto,
+} from '../../common/dto/permission-profile.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
-import { PermissionService } from './service/permission.service';
+import { PermissionProfileService } from './service/permission-profile.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Permissions')
 @Controller('permissions')
 export class PermissionsController {
-  constructor(private readonly permissionService: PermissionService) { }
+  constructor(private readonly permissionProfileService: PermissionProfileService) { }
 
   @Get('keys')
   @Permissions(PermissionKeys.PERMISSIONS_VIEW)
@@ -43,19 +44,20 @@ export class PermissionsController {
   listPermissionKeys() {
     return {
       message: 'Permission keys retrieved successfully',
-      data: this.permissionService.listPermissionKeys(),
+      data: this.permissionProfileService.listPermissionKeys(),
     };
   }
 
+  @Public()
   @Post()
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create role with access matrix' })
+  @ApiOperation({ summary: 'Create permission access profile (create before role)' })
   @ApiBearerAuth('jwt')
-  @ApiCreatedResponse({ description: 'Role access created', type: RoleAccessDto })
-  create(@Body() body: CreateRoleAccessDto) {
-    return this.permissionService.create(body).then((data) => ({
-      message: 'Role access created successfully',
+  @ApiCreatedResponse({ description: 'Permission profile created', type: PermissionProfileDto })
+  create(@Body() body: CreatePermissionProfileDto) {
+    return this.permissionProfileService.create(body).then((data) => ({
+      message: 'Permission profile created successfully',
       data,
     }));
   }
@@ -63,38 +65,24 @@ export class PermissionsController {
   @Get()
   @Permissions(PermissionKeys.PERMISSIONS_VIEW)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'List roles with access matrix (paginated)' })
+  @ApiOperation({ summary: 'List permission access profiles (paginated)' })
   @ApiBearerAuth('jwt')
-  @ApiOkResponse({ description: 'Role access list' })
   findAll(@Query() query: PaginationQueryDto) {
-    return this.permissionService.findAll(query).then((result) => ({
-      message: 'Role access list retrieved successfully',
+    return this.permissionProfileService.findAll(query).then((result) => ({
+      message: 'Permission profiles retrieved successfully',
       ...result,
-    }));
-  }
-
-  @Get('by-name/:roleName')
-  @Permissions(PermissionKeys.PERMISSIONS_VIEW)
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get role access by role name' })
-  @ApiParam({ name: 'roleName', type: String })
-  @ApiBearerAuth('jwt')
-  findByRoleName(@Param('roleName') roleName: string) {
-    return this.permissionService.findByRoleName(roleName).then((data) => ({
-      message: 'Role access retrieved successfully',
-      data,
     }));
   }
 
   @Get(':id')
   @Permissions(PermissionKeys.PERMISSIONS_VIEW)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get role access by id' })
+  @ApiOperation({ summary: 'Get permission access profile by id' })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
   findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    return this.permissionService.findOne(id).then((data) => ({
-      message: 'Role access retrieved successfully',
+    return this.permissionProfileService.findOne(id).then((data) => ({
+      message: 'Permission profile retrieved successfully',
       data,
     }));
   }
@@ -102,15 +90,15 @@ export class PermissionsController {
   @Patch(':id')
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update role name and/or access matrix' })
+  @ApiOperation({ summary: 'Update permission access profile (invalidates affected sessions)' })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
   update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
-    @Body() body: UpdateRoleAccessDto,
+    @Body() body: UpdatePermissionProfileDto,
   ) {
-    return this.permissionService.update(id, body).then((data) => ({
-      message: 'Role access updated successfully',
+    return this.permissionProfileService.update(id, body).then((data) => ({
+      message: 'Permission profile updated successfully',
       data,
     }));
   }
@@ -118,11 +106,11 @@ export class PermissionsController {
   @Delete(':id')
   @Permissions(PermissionKeys.PERMISSIONS_DELETE)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Soft-delete role access' })
+  @ApiOperation({ summary: 'Soft-delete permission access profile' })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.permissionService.remove(id);
-    return { message: 'Role access deleted successfully', data: null };
+    await this.permissionProfileService.remove(id);
+    return { message: 'Permission profile deleted successfully', data: null };
   }
 }

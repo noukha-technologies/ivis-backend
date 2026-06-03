@@ -13,7 +13,7 @@ import {
 import {
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
-import { RoleAccessDao } from '../../database/dao/role-access.dao';
+import { RoleDao } from '../../database/dao/role.dao';
 import {
   decrypt,
   encrypt,
@@ -42,7 +42,7 @@ export class AuthService implements IAuthService {
   constructor(
     private readonly usersDao: UsersDao,
     private readonly userSessionsDao: UserSessionsDao,
-    private readonly roleAccessDao: RoleAccessDao,
+    private readonly roleDao: RoleDao,
     private readonly configService: ConfigService,
   ) {
     this.accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
@@ -137,14 +137,15 @@ export class AuthService implements IAuthService {
   }
 
   private async resolveUserPermissions(user: User): Promise<string[]> {
-    if (user.roleAccess?.access) {
-      return resolveFlatPermissionsFromMatrix(user.roleAccess.access);
+    const access = user.role?.permission?.access;
+    if (access && user.role?.permission?.is_active !== false) {
+      return resolveFlatPermissionsFromMatrix(access);
     }
 
-    if (user.role_access_id) {
-      const roleAccess = await this.roleAccessDao.findActiveById(user.role_access_id);
-      if (roleAccess?.access) {
-        return resolveFlatPermissionsFromMatrix(roleAccess.access);
+    if (user.role_id) {
+      const role = await this.roleDao.findActiveByIdWithPermission(user.role_id);
+      if (role?.permission?.access && role.permission.is_active) {
+        return resolveFlatPermissionsFromMatrix(role.permission.access);
       }
     }
 
@@ -159,7 +160,7 @@ export class AuthService implements IAuthService {
     );
 
     const accessToken = signAccessToken(
-      { sub: user.id, jti: accessJti, role: user.roleAccess?.role_name ?? '' },
+      { sub: user.id, jti: accessJti, role: user.role?.role_name ?? '' },
       this.accessSecret,
       this.accessExpiresIn,
     );
@@ -210,8 +211,9 @@ export class AuthService implements IAuthService {
       user_code: user.user_code,
       user_name: user.user_name,
       email: user.email,
-      role: user.roleAccess?.role_name ?? '',
-      role_access_id: user.role_access_id,
+      role: user.role?.role_name ?? '',
+      role_id: user.role_id,
+      role_access_id: user.role_id,
       center: user.assignedCentre?.name,
       line: lines[0]?.name,
       center_id: user.center_id ?? undefined,

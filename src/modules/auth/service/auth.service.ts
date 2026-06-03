@@ -5,14 +5,20 @@ import { randomUUID } from 'crypto';
 import { ErrorException } from '../../../common/errors/custom-error.exception';
 import {
   AuthUserDto,
+  BootstrapAdminDto,
+  BootstrapAdminResponseDto,
   LoginRequestDto,
   LoginResponseDto,
   TokenPair,
   UserContext,
 } from '../../../common/dto/auth.dto';
 import {
+  matrixFromFlatPermissions,
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
+import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import {
   decrypt,
@@ -43,6 +49,7 @@ export class AuthService implements IAuthService {
     private readonly usersDao: UsersDao,
     private readonly userSessionsDao: UserSessionsDao,
     private readonly roleDao: RoleDao,
+    private readonly permissionDao: PermissionDao,
     private readonly configService: ConfigService,
   ) {
     this.accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
@@ -73,6 +80,76 @@ export class AuthService implements IAuthService {
       expiresAt: tokens.accessExpiresAt,
       user: this.toAuthUser(user),
       permissions,
+    };
+  }
+
+  /**
+   * One-time bootstrap: creates the first admin user and an `admin` role granted
+   * every permission. Allowed only while the system has no users, so it cannot be
+   * abused once anyone exists.
+   */
+  async bootstrapAdmin(dto: BootstrapAdminDto): Promise<BootstrapAdminResponseDto> {
+    const userCount = await this.usersDao.count({ where: { is_deleted: false } });
+    if (userCount > 0) {
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'Bootstrap is disabled: the system already has users',
+      );
+    }
+
+    const roleName = (dto.role_name || 'admin').trim();
+    const access = matrixFromFlatPermissions(ALL_PERMISSION_KEYS);
+
+    // Ensure an admin role backed by a full-access permission profile.
+    let role = await this.roleDao.findByRoleName(roleName);
+    if (!role) {
+      const profileName = `${roleName} Access`;
+      let permission = await this.permissionDao.findByName(profileName);
+      if (permission) {
+        permission.access = access;
+        permission.is_active = true;
+        permission.is_deleted = false;
+      } else {
+        permission = this.permissionDao.create({
+          id: generateSnowflakeId(),
+          name: profileName,
+          access,
+          is_active: true,
+        });
+      }
+      permission = await this.permissionDao.save(permission);
+
+      role = this.roleDao.create({
+        id: generateSnowflakeId(),
+        role_name: roleName,
+        permission_id: permission.id,
+        description: 'Bootstrap admin role',
+      });
+      role = await this.roleDao.save(role);
+    }
+
+    const nextUserId = await this.usersDao.getNextUserId();
+    const user = this.usersDao.create({
+      id: generateSnowflakeId(),
+      user_id: nextUserId,
+      user_code: (dto.user_code || 'ADMIN').trim().toUpperCase(),
+      user_name: dto.user_name || 'System Admin',
+      email: dto.email.trim().toLowerCase(),
+      password: dto.password, // hashed by the User entity @BeforeInsert hook
+      role_id: role.id,
+    });
+    const saved = await this.usersDao.save(user);
+
+    return {
+      id: saved.id,
+      user_id: saved.user_id,
+      user_code: saved.user_code,
+      user_name: saved.user_name,
+      email: saved.email,
+      role_name: role.role_name,
+      role_id: role.id,
+      role_access_id: role.id, // deprecated alias for backward compatibility
+      permissions: resolveFlatPermissionsFromMatrix(access),
     };
   }
 

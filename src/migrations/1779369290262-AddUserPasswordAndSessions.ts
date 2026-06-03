@@ -16,7 +16,7 @@ export class AddUserPasswordAndSessions1779369290262 implements MigrationInterfa
 
     await queryRunner.query(`
       ALTER TABLE "core"."users"
-      ADD COLUMN IF NOT EXISTS "password_hash" character varying
+      ADD COLUMN IF NOT EXISTS "password" character varying
     `);
 
     await queryRunner.query(`
@@ -126,7 +126,7 @@ export class AddUserPasswordAndSessions1779369290262 implements MigrationInterfa
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_user_sessions_user_jti"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."user_sessions"`);
     await queryRunner.query(`
-      ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "password_hash"
+      ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "password"
     `);
   }
 }

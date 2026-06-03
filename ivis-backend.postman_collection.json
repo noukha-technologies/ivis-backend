@@ -1,0 +1,737 @@
+{
+  "info": {
+    "name": "IVIS Backend API",
+    "description": "Complete API collection for the IVIS backend (NestJS). Base path: api/ivis/v1.\n\nUsage:\n1. Set the `base_url` variable (default http://localhost:3000/api/ivis/v1).\n2. Run Auth > Login — the access & refresh tokens are saved automatically to collection variables.\n3. All protected requests use Bearer {{access_token}} via collection-level auth.\n\nNote: Most create/update bodies reference snowflake IDs (e.g. role_access_id, centre_id). Replace the placeholder IDs with real ones from the corresponding list endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{access_token}}", "type": "string" }
+    ]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000/api/ivis/v1", "type": "string" },
+    { "key": "access_token", "value": "", "type": "string" },
+    { "key": "refresh_token", "value": "", "type": "string" },
+    { "key": "id", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "App",
+      "item": [
+        {
+          "name": "Health / Hello",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/", "host": ["{{base_url}}"], "path": [""] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "const data = res.data || res;",
+                  "if (data.accessToken) { pm.collectionVariables.set('access_token', data.accessToken); }",
+                  "if (data.refreshToken) { pm.collectionVariables.set('refresh_token', data.refreshToken); }",
+                  "pm.test('Login succeeded', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john.doe@example.com\",\n  \"password\": \"P@ssw0rd123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/login", "host": ["{{base_url}}"], "path": ["auth", "login"] }
+          }
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "const data = res.data || res;",
+                  "if (data.accessToken) { pm.collectionVariables.set('access_token', data.accessToken); }",
+                  "if (data.refreshToken) { pm.collectionVariables.set('refresh_token', data.refreshToken); }"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refresh_token}}\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/refresh", "host": ["{{base_url}}"], "path": ["auth", "refresh"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_code\": \"USR1001\",\n  \"user_name\": \"John Doe\",\n  \"email\": \"john.doe@example.com\",\n  \"role_access_id\": \"2058858609483202561\",\n  \"center_id\": \"2058858609483202561\",\n  \"line_ids\": [\"2058858609483202562\"],\n  \"password\": \"P@ssw0rd123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/users", "host": ["{{base_url}}"], "path": ["users"] }
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/users?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "sortBy", "value": "", "disabled": true },
+                { "key": "sortOrder", "value": "ASC", "disabled": true },
+                { "key": "filters", "value": "", "disabled": true },
+                { "key": "nonPaginated", "value": "false", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/users/{{id}}", "host": ["{{base_url}}"], "path": ["users", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_name\": \"John Doe Updated\",\n  \"email\": \"john.doe@example.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/users/{{id}}", "host": ["{{base_url}}"], "path": ["users", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/users/{{id}}", "host": ["{{base_url}}"], "path": ["users", "{{id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Permissions",
+      "item": [
+        {
+          "name": "List Permission Keys",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/permissions/keys", "host": ["{{base_url}}"], "path": ["permissions", "keys"] }
+          }
+        },
+        {
+          "name": "Create Role Access",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role_name\": \"Receptionist\",\n  \"access\": {\n    \"job_management\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"vehicle_customer\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"appointments\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"payments\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"vehicle_records\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"file_processing\": { \"create\": false, \"edit\": false, \"view\": true },\n    \"rop_integration\": { \"create\": false, \"edit\": false, \"view\": true },\n    \"user_roles\": { \"create\": false, \"edit\": false, \"view\": false },\n    \"reports_analytics\": { \"create\": false, \"edit\": false, \"view\": true }\n  }\n}"
+            },
+            "url": { "raw": "{{base_url}}/permissions", "host": ["{{base_url}}"], "path": ["permissions"] }
+          }
+        },
+        {
+          "name": "List Role Access",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/permissions?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["permissions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Role Access by Role Name",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/permissions/by-name/Receptionist", "host": ["{{base_url}}"], "path": ["permissions", "by-name", "Receptionist"] }
+          }
+        },
+        {
+          "name": "Get Role Access by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/permissions/{{id}}", "host": ["{{base_url}}"], "path": ["permissions", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Update Role Access",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role_name\": \"Senior Receptionist\",\n  \"access\": {\n    \"job_management\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"vehicle_customer\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"appointments\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"payments\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"vehicle_records\": { \"create\": true, \"edit\": true, \"view\": true },\n    \"file_processing\": { \"create\": false, \"edit\": false, \"view\": true },\n    \"rop_integration\": { \"create\": false, \"edit\": false, \"view\": true },\n    \"user_roles\": { \"create\": false, \"edit\": false, \"view\": false },\n    \"reports_analytics\": { \"create\": false, \"edit\": false, \"view\": true }\n  }\n}"
+            },
+            "url": { "raw": "{{base_url}}/permissions/{{id}}", "host": ["{{base_url}}"], "path": ["permissions", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Role Access",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": { "raw": "{{base_url}}/permissions/{{id}}", "host": ["{{base_url}}"], "path": ["permissions", "{{id}}"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Centres",
+      "item": [
+        {
+          "name": "Create Centre",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Muscat\",\n  \"code\": \"CM001\",\n  \"description\": \"Main hub\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/centres", "host": ["{{base_url}}"], "path": ["masters", "centres"] }
+          }
+        },
+        {
+          "name": "List Centres",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/masters/centres?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "centres"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Centre by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/centres/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "centres", "{{id}}"] } }
+        },
+        {
+          "name": "Update Centre",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Muscat Central\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/centres/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "centres", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Centre",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/centres/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "centres", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Lines",
+      "item": [
+        {
+          "name": "Create Line",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Line 1\",\n  \"code\": \"0093\",\n  \"centre_id\": \"2058858609483202561\",\n  \"display_order\": 1,\n  \"description\": \"Light vehicle lane\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/lines", "host": ["{{base_url}}"], "path": ["masters", "lines"] }
+          }
+        },
+        {
+          "name": "List Lines",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/lines?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "lines"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Line by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/lines/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "lines", "{{id}}"] } }
+        },
+        {
+          "name": "Update Line",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Line 1 - Light\",\n  \"display_order\": 2\n}" },
+            "url": { "raw": "{{base_url}}/masters/lines/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "lines", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Line",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/lines/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "lines", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Admin PCs",
+      "item": [
+        {
+          "name": "Create Admin PC",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"MCT-RECP-01\",\n  \"code\": \"PC-01\",\n  \"ip_address\": \"192.168.10.15\",\n  \"centre_id\": \"2058858609483202561\",\n  \"description\": \"Reception PC\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/admin-pcs", "host": ["{{base_url}}"], "path": ["masters", "admin-pcs"] }
+          }
+        },
+        {
+          "name": "List Admin PCs",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/admin-pcs?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "admin-pcs"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Admin PC by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/admin-pcs/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "admin-pcs", "{{id}}"] } }
+        },
+        {
+          "name": "Update Admin PC",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"ip_address\": \"192.168.10.16\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/admin-pcs/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "admin-pcs", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Admin PC",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/admin-pcs/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "admin-pcs", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Cameras",
+      "item": [
+        {
+          "name": "Create Camera",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"ANPR-MCT-IN-1\",\n  \"code\": \"CAM01\",\n  \"type\": \"ANPR\",\n  \"line_id\": \"2058858609483202561\",\n  \"description\": \"Main entrance ANPR\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/cameras", "host": ["{{base_url}}"], "path": ["masters", "cameras"] }
+          }
+        },
+        {
+          "name": "List Cameras",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/cameras?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "cameras"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Camera by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/cameras/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "cameras", "{{id}}"] } }
+        },
+        {
+          "name": "Update Camera",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"ANPR-MCT-IN-1A\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/cameras/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "cameras", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Camera",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/cameras/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "cameras", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Payments",
+      "item": [
+        {
+          "name": "Create Payment Mode",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Cash\",\n  \"code\": \"PM-CSH\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/payments", "host": ["{{base_url}}"], "path": ["masters", "payments"] }
+          }
+        },
+        {
+          "name": "List Payment Modes",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/payments?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "payments"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Payment Mode by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/payments/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "payments", "{{id}}"] } }
+        },
+        {
+          "name": "Update Payment Mode",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Cash Payment\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/payments/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "payments", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Payment Mode",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/payments/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "payments", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Tests",
+      "item": [
+        {
+          "name": "Create Test",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Brake System\",\n  \"code\": \"VT-BRK\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/tests", "host": ["{{base_url}}"], "path": ["masters", "tests"] }
+          }
+        },
+        {
+          "name": "List Tests",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/tests?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "tests"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Test by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/tests/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "tests", "{{id}}"] } }
+        },
+        {
+          "name": "Update Test",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Brake System Test\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/tests/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "tests", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Test",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/tests/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "tests", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Masters - Vehicles",
+      "item": [
+        {
+          "name": "Create Vehicle Master",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Sedan Light\",\n  \"code\": \"VT-SED-LIGHT\",\n  \"vin_no\": \"JN1AZ32E90U123456\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/vehicles", "host": ["{{base_url}}"], "path": ["masters", "vehicles"] }
+          }
+        },
+        {
+          "name": "List Vehicle Masters",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/vehicles?page=1&limit=10", "host": ["{{base_url}}"], "path": ["masters", "vehicles"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Vehicle Master by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/masters/vehicles/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "vehicles", "{{id}}"] } }
+        },
+        {
+          "name": "Update Vehicle Master",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Sedan Light Updated\",\n  \"status\": \"Active\"\n}" },
+            "url": { "raw": "{{base_url}}/masters/vehicles/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "vehicles", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Vehicle Master",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/masters/vehicles/{{id}}", "host": ["{{base_url}}"], "path": ["masters", "vehicles", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Transactions - ANPR Captures",
+      "item": [
+        {
+          "name": "Create ANPR Capture",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"plate_number\": \"OM-1024\",\n  \"normalized_plate\": \"OM1024\",\n  \"plate_confidence\": 98.4,\n  \"capture_time\": \"2026-05-05T10:32:00.000Z\",\n  \"camera_id\": \"2058858609483202561\",\n  \"lane\": \"Line 1\",\n  \"direction\": \"forward\",\n  \"country_code\": \"OM\",\n  \"plate_color\": \"white\",\n  \"vehicle_type\": \"car\",\n  \"vehicle_color\": \"silver\",\n  \"verification_status\": \"Pending\",\n  \"simulate_rop\": false\n}" },
+            "url": { "raw": "{{base_url}}/transactions/anpr-captures", "host": ["{{base_url}}"], "path": ["transactions", "anpr-captures"] }
+          }
+        },
+        {
+          "name": "List ANPR Captures",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/anpr-captures?page=1&limit=10", "host": ["{{base_url}}"], "path": ["transactions", "anpr-captures"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get ANPR Capture by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/anpr-captures/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "anpr-captures", "{{id}}"] } }
+        },
+        {
+          "name": "Update ANPR Capture",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"verification_status\": \"Verified\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/anpr-captures/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "anpr-captures", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete ANPR Capture",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/transactions/anpr-captures/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "anpr-captures", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Transactions - ROP Verifications",
+      "item": [
+        {
+          "name": "Create ROP Verification",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"anpr_capture_id\": \"2058858609483202561\",\n  \"owner_name\": \"Ahmed Al Balushi\",\n  \"vehicle_make\": \"Toyota\",\n  \"vehicle_model\": \"Corolla\",\n  \"reg_no\": \"OM-1024\",\n  \"chassis_no\": \"JTDBR32E720067894\",\n  \"insurance\": \"Valid until 2026-12-31\",\n  \"reg_expiry\": \"2026-12-31\",\n  \"fetch_status\": \"Not Fetched\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/rop-verifications", "host": ["{{base_url}}"], "path": ["transactions", "rop-verifications"] }
+          }
+        },
+        {
+          "name": "List ROP Verifications",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/rop-verifications?page=1&limit=10", "host": ["{{base_url}}"], "path": ["transactions", "rop-verifications"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get ROP Verification by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/rop-verifications/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "rop-verifications", "{{id}}"] } }
+        },
+        {
+          "name": "Update ROP Verification",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"fetch_status\": \"Fetched\",\n  \"insurance\": \"Valid until 2027-01-31\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/rop-verifications/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "rop-verifications", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete ROP Verification",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/transactions/rop-verifications/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "rop-verifications", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Transactions - Customers",
+      "item": [
+        {
+          "name": "Create Customer",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Ahmed Al-Said\",\n  \"phone\": \"+968 91000000\",\n  \"owner_name\": \"Ahmed Al-Said\",\n  \"id_number\": \"ID20000000\",\n  \"plate_number\": \"OM-1000\",\n  \"plate_color\": \"Green\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/customers", "host": ["{{base_url}}"], "path": ["transactions", "customers"] }
+          }
+        },
+        {
+          "name": "List Customers",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/customers?page=1&limit=10", "host": ["{{base_url}}"], "path": ["transactions", "customers"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Customer by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/customers/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "customers", "{{id}}"] } }
+        },
+        {
+          "name": "Update Customer",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"+968 91000001\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/customers/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "customers", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Customer",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/transactions/customers/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "customers", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Appointments",
+      "item": [
+        {
+          "name": "Create Appointment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customer_name\": \"Ahmed Al-Said\",\n  \"customer_phone\": \"+96891000000\",\n  \"id_number\": \"ID20000000\",\n  \"plate_number\": \"OM-1000\",\n  \"appointment_at\": \"2026-05-28T10:00:00.000Z\",\n  \"status\": \"Scheduled\",\n  \"sync_customer\": true,\n  \"notes\": \"Walk-in booking\"\n}" },
+            "url": { "raw": "{{base_url}}/appointments", "host": ["{{base_url}}"], "path": ["appointments"] }
+          }
+        },
+        {
+          "name": "List Appointments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/appointments?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["appointments"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Appointment by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/appointments/{{id}}", "host": ["{{base_url}}"], "path": ["appointments", "{{id}}"] } }
+        },
+        {
+          "name": "Update Appointment",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Completed\",\n  \"notes\": \"Inspection done\"\n}" },
+            "url": { "raw": "{{base_url}}/appointments/{{id}}", "host": ["{{base_url}}"], "path": ["appointments", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Appointment",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/appointments/{{id}}", "host": ["{{base_url}}"], "path": ["appointments", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Transactions - Payment Transactions",
+      "item": [
+        {
+          "name": "Create Payment Transaction",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"customer_id\": \"2058858609483202561\",\n  \"vehicle_record_id\": \"2058858609483202562\",\n  \"payment_type\": \"Mix\",\n  \"status\": \"Pending\",\n  \"charges\": 30,\n  \"vat\": 1.5,\n  \"grand_total\": 31.5,\n  \"pay_date\": \"2026-05-28T11:00:00.000Z\",\n  \"auto_create_job\": true,\n  \"job_source\": \"Booked\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/payment-transactions", "host": ["{{base_url}}"], "path": ["transactions", "payment-transactions"] }
+          }
+        },
+        {
+          "name": "List Payment Transactions",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/payment-transactions?page=1&limit=10", "host": ["{{base_url}}"], "path": ["transactions", "payment-transactions"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "10" }] } }
+        },
+        {
+          "name": "Get Payment Transaction by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/transactions/payment-transactions/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "payment-transactions", "{{id}}"] } }
+        },
+        {
+          "name": "Update Payment Transaction",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Paid\",\n  \"auto_create_job\": true,\n  \"job_source\": \"Booked\"\n}" },
+            "url": { "raw": "{{base_url}}/transactions/payment-transactions/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "payment-transactions", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Payment Transaction",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/transactions/payment-transactions/{{id}}", "host": ["{{base_url}}"], "path": ["transactions", "payment-transactions", "{{id}}"] } }
+        }
+      ]
+    },
+    {
+      "name": "Jobs",
+      "item": [
+        {
+          "name": "Create Job",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"source\": \"Booked\",\n  \"status\": \"Pending\",\n  \"customer_id\": \"2058858609483202561\",\n  \"vehicle_record_id\": \"2058858609483202562\"\n}" },
+            "url": { "raw": "{{base_url}}/jobs", "host": ["{{base_url}}"], "path": ["jobs"] }
+          }
+        },
+        {
+          "name": "List Jobs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/jobs?page=1&limit=10",
+              "host": ["{{base_url}}"],
+              "path": ["jobs"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "sortBy", "value": "", "disabled": true },
+                { "key": "sortOrder", "value": "ASC", "disabled": true },
+                { "key": "filters", "value": "", "disabled": true },
+                { "key": "nonPaginated", "value": "false", "disabled": true }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Job by ID",
+          "request": { "method": "GET", "header": [], "url": { "raw": "{{base_url}}/jobs/{{id}}", "host": ["{{base_url}}"], "path": ["jobs", "{{id}}"] } }
+        },
+        {
+          "name": "Update Job",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"Completed\",\n  \"overall_result\": \"Pass\",\n  \"completed_at\": \"2026-05-28T12:00:00.000Z\"\n}" },
+            "url": { "raw": "{{base_url}}/jobs/{{id}}", "host": ["{{base_url}}"], "path": ["jobs", "{{id}}"] }
+          }
+        },
+        {
+          "name": "Delete Job",
+          "request": { "method": "DELETE", "header": [], "url": { "raw": "{{base_url}}/jobs/{{id}}", "host": ["{{base_url}}"], "path": ["jobs", "{{id}}"] } }
+        }
+      ]
+    }
+  ]
+}

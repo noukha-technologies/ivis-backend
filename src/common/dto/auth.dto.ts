@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { UserSession } from '../../modules/database/entity/user-session.entity';
 
 
@@ -97,6 +97,69 @@ export class LoginResponseDto {
     description: 'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],
   })
+  permissions!: string[];
+}
+
+export class BootstrapAdminDto {
+  @ApiProperty({ example: 'admin@ivis.local', description: 'Admin login email' })
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @ApiProperty({ example: 'Admin@12345', minLength: 8, description: 'Admin password' })
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @ApiPropertyOptional({ example: 'System Admin', default: 'System Admin' })
+  @IsOptional()
+  @IsString()
+  user_name?: string;
+
+  @ApiPropertyOptional({ example: 'ADMIN', default: 'ADMIN', description: 'Unique alphanumeric user code' })
+  @IsOptional()
+  @IsString()
+  user_code?: string;
+
+  @ApiPropertyOptional({
+    example: 'admin',
+    default: 'admin',
+    description: 'Role name to create/grant full access to',
+  })
+  @IsOptional()
+  @IsString()
+  role_name?: string;
+}
+
+export class BootstrapAdminResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  user_id!: number;
+
+  @ApiProperty()
+  user_code!: string;
+
+  @ApiProperty()
+  user_name!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  role_name!: string;
+
+  @ApiProperty({ description: 'Role snowflake ID (core.roles.id)' })
+  role_id!: string;
+
+  @ApiProperty({
+    description: 'Deprecated alias for role_id (backward compatibility)',
+    deprecated: true,
+  })
+  role_access_id!: string;
+
+  @ApiProperty({ description: 'All flat permission keys granted to the admin', type: [String] })
   permissions!: string[];
 }
 

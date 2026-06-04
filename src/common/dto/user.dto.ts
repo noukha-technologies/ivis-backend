@@ -1,24 +1,17 @@
 import {
   IsArray,
   IsEmail,
-  IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
-  MaxLength,
-  Min,
   MinLength,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
-import { Transform } from 'class-transformer';
-
-const USER_CODE_PATTERN = /^[A-Za-z0-9]+$/;
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'Unique alphanumeric user code',
-    example: 'USR1001',
+    description: 'Unique user code (any string)',
+    example: 'iv-01',
   })
   @IsString({ message: 'user_code must be a string' })
   @IsNotEmpty({ message: 'user_code is required' })
@@ -42,13 +35,14 @@ export class CreateUserDto {
   @IsNotEmpty({ message: 'role_id is required' })
   role_id!: string;
 
-  @ApiProperty({
-    description: 'Assigned centre snowflake ID (master.centres.id); one user per centre',
+  @ApiPropertyOptional({
+    description:
+      'Assigned centre snowflake ID (master.centres.id); optional — line_ids required when set',
     example: '2058858609483202561',
   })
   @IsString({ message: 'center_id must be a string' })
-  @IsNotEmpty({ message: 'center_id is required' })
-  center_id!: string;
+  @IsOptional()
+  center_id?: string;
 
   @ApiPropertyOptional({
     description: 'Assigned line snowflake IDs (master.lines.id)',

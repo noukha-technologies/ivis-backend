@@ -38,10 +38,10 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'email', createUserDto.email);
       }
 
-      const normalizedUserCode = createUserDto.user_code.trim().toUpperCase();
-      const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
+      const trimmedUserCode = createUserDto.user_code.trim();
+      const existingCode = await this.usersDao.findByUserCode(trimmedUserCode);
       if (existingCode) {
-        throw new DuplicateResourceException('User', 'user_code', normalizedUserCode);
+        throw new DuplicateResourceException('User', 'user_code', trimmedUserCode);
       }
 
       const role = await this.roleDao.findActiveById(createUserDto.role_id);
@@ -50,10 +50,12 @@ export class UsersService implements IUsersService {
       }
 
       const lineIds = this.normalizeLineIds(createUserDto.line_ids);
-      const centreFkId = await this.masterScope.resolveCentreId(createUserDto.center_id);
-      await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId);
-      await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
-      await this.assertLinesAvailable(lineIds);
+      const centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
+      if (centreFkId) {
+        await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId);
+        await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
+        await this.assertLinesAvailable(lineIds);
+      }
 
       const {
         password,
@@ -72,9 +74,9 @@ export class UsersService implements IUsersService {
         id: generateSnowflakeId(),
         ...userFields,
         user_id: nextUserId,
-        user_code: normalizedUserCode,
+        user_code: trimmedUserCode,
         role_id: role.id,
-        center_id: centreFkId,
+        center_id: centreFkId ?? null,
         password,
         created_by: createdBy,
       });
@@ -181,7 +183,7 @@ export class UsersService implements IUsersService {
 
       let normalizedUserCode: string | undefined;
       if (updateUserDto.user_code !== undefined) {
-        normalizedUserCode = updateUserDto.user_code.trim().toUpperCase();
+        normalizedUserCode = updateUserDto.user_code.trim();
         if (normalizedUserCode !== user.user_code) {
           const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
           if (existingCode && existingCode.id !== id) {
@@ -206,23 +208,34 @@ export class UsersService implements IUsersService {
         roleId = role.id;
       }
 
-      let centreFkId: string | undefined;
+      let centreFkId: string | null | undefined;
       if (center_id !== undefined) {
-        if (center_id === null || center_id === '') {
-          throw new BadRequestException('center_id cannot be cleared; every user must belong to a centre.');
+        const normalizedLineIds =
+          line_ids !== undefined ? this.normalizeLineIds(line_ids) : undefined;
+        centreFkId = await this.resolveCentreForUser(center_id, normalizedLineIds ?? []);
+        if (centreFkId) {
+          await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId, id);
         }
-        centreFkId = await this.masterScope.resolveCentreId(center_id);
-        await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId, id);
       }
 
-      const effectiveCentreId = centreFkId ?? user.center_id;
+      const effectiveCentreId =
+        centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
 
       const createdBy = getCreatedById(actor);
 
       if (line_ids !== undefined) {
         const normalizedLineIds = this.normalizeLineIds(line_ids);
-        await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
-        await this.assertLinesAvailable(normalizedLineIds, id);
+        if (effectiveCentreId) {
+          if (normalizedLineIds.length === 0) {
+            throw new BadRequestException(
+              'At least one line is required when a centre is assigned.',
+            );
+          }
+          await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
+          await this.assertLinesAvailable(normalizedLineIds, id);
+        } else if (normalizedLineIds.length > 0) {
+          throw new BadRequestException('Centre is required when assigning lines.');
+        }
         await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, createdBy);
       } else if (centreFkId !== undefined && centreFkId !== user.center_id) {
         await this.userLineMappingDao.replaceForUser(id, [], createdBy);
@@ -278,6 +291,23 @@ export class UsersService implements IUsersService {
       );
       throw new DatabaseException('Failed to delete user. Please try again.');
     }
+  }
+
+  private async resolveCentreForUser(
+    centerId: string | null | undefined,
+    lineIds: string[],
+  ): Promise<string | null> {
+    const trimmed = centerId?.trim();
+    if (!trimmed) {
+      if (lineIds.length > 0) {
+        throw new BadRequestException('Centre is required when assigning lines.');
+      }
+      return null;
+    }
+    if (lineIds.length === 0) {
+      throw new BadRequestException('At least one line is required when a centre is assigned.');
+    }
+    return this.masterScope.resolveCentreId(trimmed);
   }
 
   private normalizeLineIds(lineIds?: string[]): string[] {

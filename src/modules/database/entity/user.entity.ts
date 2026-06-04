@@ -50,11 +50,14 @@ export class User {
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('UQ_USER_CENTER_ID', { unique: true, where: '"is_deleted" = false' })
-  center_id!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Index('UQ_USER_CENTER_ID', {
+    unique: true,
+    where: '"is_deleted" = false AND "center_id" IS NOT NULL',
+  })
+  center_id?: string | null;
 
-  @OneToOne(() => Centre, (centre) => centre.assignedUser, { nullable: false })
+  @OneToOne(() => Centre, (centre) => centre.assignedUser, { nullable: true })
   @JoinColumn({ name: 'center_id' })
   assignedCentre!: Centre;
 

@@ -10,12 +10,6 @@ import { PaginationService } from '../../../common/shared/pagination/pagination.
 import { IUserDao } from '../../users/dao/user.dao.interface';
 import { User } from '../entity/user.entity';
 
-const USER_RELATIONS = {
-  assignedCentre: true,
-  role: { permission: true },
-  lineMappings: { line: true },
-} as const;
-
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {
   constructor(
@@ -25,21 +19,31 @@ export class UsersDao extends Repository<User> implements IUserDao {
     super(User, dataSource.createEntityManager());
   }
 
+  private activeUserQueryBuilder() {
+    return this.createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
+      .leftJoinAndSelect('role.permission', 'permission')
+      .leftJoinAndSelect('user.assignedCentre', 'centre')
+      .leftJoinAndSelect(
+        'user.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = :mappingDeleted',
+        { mappingDeleted: false },
+      )
+      .leftJoinAndSelect('lineMapping.line', 'line')
+      .andWhere('user.is_deleted = :isDeleted', { isDeleted: false });
+  }
+
   async findActiveById(id: string): Promise<User | null> {
-    return this.findOne({
-      where: { id, is_deleted: false },
-      relations: USER_RELATIONS,
-    });
+    return this.activeUserQueryBuilder()
+      .andWhere('user.id = :id', { id })
+      .getOne();
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.findOne({
-      where: {
-        email: email.trim().toLowerCase(),
-        is_deleted: false,
-      },
-      relations: USER_RELATIONS,
-    });
+    return this.activeUserQueryBuilder()
+      .andWhere('user.email = :email', { email: email.trim().toLowerCase() })
+      .getOne();
   }
 
   async findByEmailWithPassword(email: string): Promise<User | null> {

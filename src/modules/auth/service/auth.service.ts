@@ -94,7 +94,7 @@ export class AuthService implements IAuthService {
 
     const user = await this.usersDao.findActiveById(payload.sub);
     if (!user) {
-      throw new ErrorException('INVALID_USER');
+      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Session user is inactive or not found');
     }
 
     const tokens = await this.issueTokens(user, metadata, session.id);

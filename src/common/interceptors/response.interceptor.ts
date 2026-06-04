@@ -14,7 +14,6 @@ export interface ApiSuccessResponse<T = unknown> {
   path: string;
   message: string;
   data: T;
-  [key: string]: unknown;
 }
 
 @Injectable()
@@ -45,15 +44,6 @@ export class ResponseInterceptor implements NestInterceptor {
           data = body;
         }
 
-        const extra: Record<string, unknown> = {};
-        if (body && typeof body === 'object') {
-          for (const key of Object.keys(body)) {
-            if (key !== 'message' && key !== 'data' && key !== 'result') {
-              extra[key] = (body as Record<string, unknown>)[key];
-            }
-          }
-        }
-
         return {
           success: true as const,
           statusCode: response.statusCode,
@@ -62,7 +52,6 @@ export class ResponseInterceptor implements NestInterceptor {
           path: request.url,
           message,
           data: data ?? null,
-          ...extra,
         };
       }),
     );

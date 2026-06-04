@@ -61,7 +61,7 @@ export class AuthService implements IAuthService {
     this.refreshTokenEncryptKey = hashRefreshTokenKey(encryptKey);
   }
 
-  async login(request: LoginRequestDto, metadata: RequestMetadata): Promise<LoginResponseDto> {
+  async login(request: LoginRequestDto): Promise<LoginResponseDto> {
     const user = await this.usersDao.findByEmailWithPassword(request.email);
     if (!user?.password) {
       throw new ErrorException('INVALID_USER');
@@ -72,7 +72,7 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_USER');
     }
 
-    const tokens = await this.issueTokens(user, metadata);
+    const tokens = await this.issueTokens(user);
     const permissions = await this.resolveUserPermissions(user);
     return {
       accessToken: tokens.accessToken,
@@ -153,7 +153,7 @@ export class AuthService implements IAuthService {
     };
   }
 
-  async refresh(refreshToken: string, metadata: RequestMetadata,): Promise<LoginResponseDto> {
+  async refresh(refreshToken: string): Promise<LoginResponseDto> {
     const payload = verifyRefreshToken(refreshToken, this.refreshSecret);
     const session = await this.userSessionsDao.getActiveSessionByRefreshJti(
       payload.sub,
@@ -174,7 +174,7 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Session user is inactive or not found');
     }
 
-    const tokens = await this.issueTokens(user, metadata, session.id);
+    const tokens = await this.issueTokens(user, session.id);
     const permissions = await this.resolveUserPermissions(user);
     return {
       accessToken: tokens.accessToken,
@@ -229,7 +229,7 @@ export class AuthService implements IAuthService {
     return [];
   }
 
-  private async issueTokens(user: User, metadata: RequestMetadata, sessionId?: string): Promise<TokenPair> {
+  private async issueTokens(user: User, sessionId?: string): Promise<TokenPair> {
     const accessJti = randomUUID();
     const refreshJti = randomUUID();
     const refreshExpiresAt = new Date(
@@ -255,7 +255,6 @@ export class AuthService implements IAuthService {
       accessTokenJti: accessJti,
       refreshTokenJti: refreshJti,
       refreshToken: encrypt(refreshToken, this.refreshTokenEncryptKey),
-      metadata,
       isActive: true,
       expiredAt: refreshExpiresAt,
       lastRefreshedAt: new Date(),

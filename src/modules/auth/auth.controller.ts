@@ -29,7 +29,7 @@ import { AuthService } from './service/auth.service';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(private readonly authService: AuthService) { }
 
   @Public()
   @Post('bootstrap')
@@ -50,11 +50,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiBody({ type: LoginRequestDto })
   @ApiOkResponse({ type: LoginResponseDto })
-  async login(
-    @Body() body: LoginRequestDto,
-    @RequestMetadata() metadata: RequestMetadataType,
-  ): Promise<LoginResponseDto> {
-    return this.authService.login(body, metadata);
+  async login(@Body() body: LoginRequestDto): Promise<LoginResponseDto> {
+    return await this.authService.login(body);
   }
 
   @Public()
@@ -63,11 +60,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiBody({ type: RefreshTokenRequestDto })
   @ApiOkResponse({ type: LoginResponseDto })
-  async refresh(
-    @Body() body: RefreshTokenRequestDto,
-    @RequestMetadata() metadata: RequestMetadataType,
-  ): Promise<LoginResponseDto> {
-    return this.authService.refresh(body.refreshToken, metadata);
+  async refresh(@Body() body: RefreshTokenRequestDto): Promise<LoginResponseDto> {
+    return await this.authService.refresh(body.refreshToken);
   }
 
   @Post('logout')

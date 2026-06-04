@@ -1,4 +1,3 @@
-import { RequestMetadata } from '../../../common/utils/request-metadata.util';
 import { UserSession } from '../../database/entity/user-session.entity';
 
 export interface UpsertUserSessionData {
@@ -7,7 +6,6 @@ export interface UpsertUserSessionData {
   accessTokenJti: string;
   refreshTokenJti: string;
   refreshToken: string;
-  metadata: RequestMetadata;
   isActive: boolean;
   expiredAt: Date;
   lastRefreshedAt?: Date;

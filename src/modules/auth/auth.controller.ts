@@ -16,6 +16,8 @@ import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequestMetadata } from '../../common/decorators/request-metadata.decorator';
 import {
+  BootstrapAdminDto,
+  BootstrapAdminResponseDto,
   LoginRequestDto,
   LoginResponseDto,
   RefreshTokenRequestDto,
@@ -28,6 +30,19 @@ import { AuthService } from './service/auth.service';
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Public()
+  @Post('bootstrap')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Bootstrap the first admin user with all permissions (one-time, only on an empty system)',
+  })
+  @ApiBody({ type: BootstrapAdminDto })
+  @ApiOkResponse({ type: BootstrapAdminResponseDto })
+  async bootstrap(@Body() body: BootstrapAdminDto) {
+    const data = await this.authService.bootstrapAdmin(body);
+    return { message: 'Admin bootstrapped successfully', data };
+  }
 
   @Public()
   @Post('login')

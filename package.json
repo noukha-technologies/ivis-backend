@@ -12,6 +12,9 @@
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
+    "db:up": "sh -c \"docker start ivis-backend-postgres 2>/dev/null || docker run -d --name ivis-backend-postgres --env-file .env -p 5433:5432 --mount source=ivis_backend_postgres_data,target=/var/lib/postgresql/data postgres:16-alpine\"",
+    "db:down": "sh -c \"docker stop ivis-backend-postgres 2>/dev/null || true\"",
+    "db:reset": "sh -c \"docker rm -f ivis-backend-postgres 2>/dev/null || true && docker volume rm ivis_backend_postgres_data 2>/dev/null || true\"",
     "typeorm": "ts-node -r tsconfig-paths/register ./node_modules/typeorm/cli.js",
     "migration:generate": "node -e \"if(!process.env.npm_config_name){console.error('Usage: npm run migration:generate --name=YourMigrationName');process.exit(1)}\" && npm run typeorm -- -d src/modules/database/data-source.ts migration:generate src/migrations/%npm_config_name%",
     "migration:run": "npm run typeorm -- -d src/modules/database/data-source.ts migration:run",
@@ -24,6 +27,8 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:api": "bash scripts/run-api-tests.sh",
+    "test:lifecycle": "node scripts/lifecycle-test.mjs",
     "db:erd": "cross-env NODE_OPTIONS=\"-r ts-node/register -r tsconfig-paths/register\" erdia build -d src/modules/database/data-source.ts -o docs --format md",
     "db:erd:html": "cross-env NODE_OPTIONS=\"-r ts-node/register -r tsconfig-paths/register\" erdia build -d src/modules/database/data-source.ts -o docs --format html"
   },

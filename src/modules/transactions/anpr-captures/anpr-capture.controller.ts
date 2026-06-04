@@ -23,6 +23,8 @@ import {
 } from '../../../common/dto/anpr-capture.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { AnprCaptureService } from './services/anpr-capture.service';
 
 @ApiTags('Transactions / ANPR Captures')
@@ -34,8 +36,8 @@ export class AnprCaptureController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an ANPR capture record' })
   @ApiResponse({ status: 201, description: 'ANPR capture created successfully.' })
-  async create(@Body() createDto: CreateAnprCaptureDto) {
-    const data = await this.anprCaptureService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAnprCaptureDto) {
+    const data = await this.anprCaptureService.create(createDto, actor);
     return { message: 'ANPR capture created successfully', data };
   }
 

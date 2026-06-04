@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreateVehicleDto, UpdateVehicleDto } from '../../../common/dto/vehicle.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,8 +35,11 @@ export class VehicleController {
   @ApiResponse({ status: 201, description: 'Vehicle master created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or vehicle_id.' })
-  async create(@Body() createVehicleDto: CreateVehicleDto) {
-    const vehicle = await this.vehicleService.create(createVehicleDto);
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createVehicleDto: CreateVehicleDto,
+  ) {
+    const vehicle = await this.vehicleService.create(createVehicleDto, actor);
     return { message: 'Vehicle master created successfully', data: vehicle };
   }
 

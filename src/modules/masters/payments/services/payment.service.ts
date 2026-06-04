@@ -8,6 +8,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Payment } from '../../../database/entity/payment.entity';
 import { PaymentDao } from '../../../database/dao/payment.dao';
@@ -21,7 +23,7 @@ export class PaymentService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createPaymentDto: CreatePaymentDto): Promise<Payment> {
+  async create(createPaymentDto: CreatePaymentDto, actor: UserContext): Promise<Payment> {
     this.logger.log(`Creating Payment with code: ${createPaymentDto.code}`, PaymentService.context);
 
     try {
@@ -45,6 +47,7 @@ export class PaymentService {
         ...createPaymentDto,
         payment_id,
         status: createPaymentDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedPayment = await this.paymentDao.save(payment);
 

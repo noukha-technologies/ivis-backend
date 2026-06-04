@@ -8,6 +8,8 @@ import {
   ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../common/logger/app.logger';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
@@ -35,7 +37,7 @@ export class JobService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateJobDto): Promise<Job> {
+  async create(createDto: CreateJobDto, actor: UserContext): Promise<Job> {
     this.logger.log(
       `Creating job for customer: ${createDto.customer_id}`,
       JobService.context,
@@ -66,7 +68,7 @@ export class JobService {
         line_id: createDto.line_id,
         admin_pc_id: createDto.admin_pc_id,
         camera_id: createDto.camera_id,
-        created_by: createDto.created_by,
+        created_by: getCreatedById(actor),
       });
 
       const saved = await this.jobDao.save(job);

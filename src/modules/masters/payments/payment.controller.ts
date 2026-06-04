@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreatePaymentDto, UpdatePaymentDto } from '../../../common/dto/payment.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,8 +35,11 @@ export class PaymentController {
   @ApiResponse({ status: 201, description: 'Payment mode created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or payment_id.' })
-  async create(@Body() createPaymentDto: CreatePaymentDto) {
-    const payment = await this.paymentService.create(createPaymentDto);
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createPaymentDto: CreatePaymentDto,
+  ) {
+    const payment = await this.paymentService.create(createPaymentDto, actor);
     return { message: 'Payment created successfully', data: payment };
   }
 

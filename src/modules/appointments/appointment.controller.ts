@@ -17,6 +17,8 @@ import {
 } from '../../common/dto/appointment.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../common/dto/auth.dto';
 import { AppointmentService } from './services/appointment.service';
 
 @ApiTags('Appointments')
@@ -27,8 +29,8 @@ export class AppointmentController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create appointment (syncs customer from ANPR/ROP when linked)' })
-  async create(@Body() createDto: CreateAppointmentDto) {
-    const data = await this.appointmentService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAppointmentDto) {
+    const data = await this.appointmentService.create(createDto, actor);
     return { message: 'Appointment created successfully', data };
   }
 
@@ -53,10 +55,11 @@ export class AppointmentController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update appointment' })
   async update(
+    @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdateAppointmentDto,
   ) {
-    const data = await this.appointmentService.update(id, updateDto);
+    const data = await this.appointmentService.update(id, updateDto, actor);
     return { message: 'Appointment updated successfully', data };
   }
 

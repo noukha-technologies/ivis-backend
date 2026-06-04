@@ -11,6 +11,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
@@ -27,7 +29,7 @@ export class CustomerService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateCustomerDto): Promise<Customer> {
+  async create(createDto: CreateCustomerDto, actor: UserContext): Promise<Customer> {
     this.logger.log(`Creating customer: ${createDto.name}`, CustomerService.context);
 
     try {
@@ -41,7 +43,7 @@ export class CustomerService {
         }
       }
 
-      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(createDto);
+      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(createDto, undefined, actor);
 
       const customer = this.customerDao.create({
         id: generateSnowflakeId(),
@@ -51,7 +53,7 @@ export class CustomerService {
         owner_name: createDto.owner_name,
         id_number: createDto.id_number,
         primary_vehicle_record_id: primaryVehicleRecordId,
-        created_by: createDto.created_by,
+        created_by: getCreatedById(actor),
       });
 
       const saved = await this.customerDao.save(customer);
@@ -113,19 +115,18 @@ export class CustomerService {
     }
   }
 
-  async update(id: string, updateDto: UpdateCustomerDto): Promise<Customer> {
+  async update(id: string, updateDto: UpdateCustomerDto, actor: UserContext): Promise<Customer> {
     this.logger.log(`Updating customer ID: ${id}`, CustomerService.context);
 
     try {
       const customer = await this.findOne(id);
-      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(updateDto, customer);
+      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(updateDto, customer, actor);
 
       const merged = this.customerDao.merge(customer, {
         name: updateDto.name,
         phone: updateDto.phone,
         owner_name: updateDto.owner_name,
         id_number: updateDto.id_number,
-        created_by: updateDto.created_by,
         ...(primaryVehicleRecordId !== undefined
           ? { primary_vehicle_record_id: primaryVehicleRecordId }
           : {}),
@@ -170,7 +171,8 @@ export class CustomerService {
 
   private async resolvePrimaryVehicleRecord(
     dto: CreateCustomerDto | UpdateCustomerDto,
-    existing?: Customer,
+    existing: Customer | undefined,
+    actor?: UserContext,
   ): Promise<string | null | undefined> {
     if (dto.primary_vehicle_record_id) {
       const vehicleRecord = await this.vehicleRecordDao.findActiveById(
@@ -199,13 +201,21 @@ export class CustomerService {
       return vehicleRecord.id;
     }
 
-    const createdRecord = await this.createVehicleRecordFromPlate(normalizedPlate, dto.plate_color);
+    if (!actor) {
+      throw new DatabaseException('Authenticated user is required to create a vehicle record.');
+    }
+    const createdRecord = await this.createVehicleRecordFromPlate(
+      normalizedPlate,
+      dto.plate_color,
+      actor,
+    );
     return createdRecord.id;
   }
 
   private async createVehicleRecordFromPlate(
     plateNumber: string,
-    plateColor?: string,
+    plateColor: string | undefined,
+    actor: UserContext,
   ): Promise<VehicleRecord> {
     const vehicleRecordId = await this.vehicleRecordDao.getNextVehicleRecordId();
     const vehicleRecord = this.vehicleRecordDao.create({
@@ -213,6 +223,7 @@ export class CustomerService {
       vehicle_record_id: vehicleRecordId,
       plate_number: plateNumber,
       plate_color: plateColor?.trim(),
+      created_by: getCreatedById(actor),
     });
 
     return this.vehicleRecordDao.save(vehicleRecord);

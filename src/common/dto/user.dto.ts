@@ -70,13 +70,6 @@ export class CreateUserDto {
   @IsNotEmpty()
   password!: string;
 
-  @ApiPropertyOptional({
-    description: 'Creator user snowflake ID',
-    example: '2058858609483202561',
-  })
-  @IsString({ message: 'created_by must be a string' })
-  @IsOptional()
-  created_by?: string;
 }
 
 /** All fields optional. */

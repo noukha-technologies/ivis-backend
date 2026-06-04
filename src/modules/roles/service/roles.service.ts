@@ -9,6 +9,8 @@ import {
 import { ErrorException } from '../../../common/errors/custom-error.exception';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import { AppLogger } from '../../../common/logger/app.logger';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
@@ -24,7 +26,7 @@ export class RolesService {
     private readonly logger: AppLogger,
   ) { }
 
-  async create(dto: CreateRoleDto): Promise<RoleDto> {
+  async create(dto: CreateRoleDto, actor: UserContext): Promise<RoleDto> {
     this.logger.log(`Creating role: ${dto.role_name}`, RolesService.context);
 
     try {
@@ -52,7 +54,7 @@ export class RolesService {
         role_name: dto.role_name.trim(),
         permission_id: permission.id,
         description: dto.description?.trim(),
-        created_by: dto.created_by,
+        created_by: getCreatedById(actor),
       });
       const saved = await this.roleDao.save(role);
       return this.findOne(saved.id);
@@ -128,7 +130,6 @@ export class RolesService {
       ...(dto.role_name !== undefined ? { role_name: dto.role_name.trim() } : {}),
       ...(dto.permission_id !== undefined ? { permission_id: dto.permission_id } : {}),
       ...(dto.description !== undefined ? { description: dto.description?.trim() } : {}),
-      ...(dto.created_by !== undefined ? { created_by: dto.created_by } : {}),
     });
     await this.roleDao.save(merged);
     return this.findOne(id);

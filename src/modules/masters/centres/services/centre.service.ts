@@ -8,6 +8,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Centre } from '../../../database/entity/centre.entity';
 import { CentreDao } from '../../../database/dao/centre.dao';
@@ -22,7 +24,7 @@ export class CentreService implements ICentreService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createCentreDto: CreateCentreDto): Promise<Centre> {
+  async create(createCentreDto: CreateCentreDto, actor: UserContext): Promise<Centre> {
     this.logger.log(`Creating centre with code: ${createCentreDto.code}`, CentreService.context);
 
     try {
@@ -46,6 +48,7 @@ export class CentreService implements ICentreService {
         ...createCentreDto,
         centre_id,
         status: createCentreDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedCentre = await this.centreDao.save(centre);
 

@@ -11,6 +11,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
@@ -26,7 +28,7 @@ export class RopVerificationService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateRopVerificationDto): Promise<RopVerification> {
+  async create(createDto: CreateRopVerificationDto, actor: UserContext): Promise<RopVerification> {
     this.logger.log(
       `Creating ROP verification for ANPR capture: ${createDto.anpr_capture_id}`,
       RopVerificationService.context,
@@ -59,6 +61,7 @@ export class RopVerificationService {
         rop_verification_id: ropVerificationId,
         reg_expiry: createDto.reg_expiry ? new Date(createDto.reg_expiry) : undefined,
         fetch_status: createDto.fetch_status || 'Not Fetched',
+        created_by: getCreatedById(actor),
       });
 
       const saved = await this.ropVerificationDao.save(ropVerification);

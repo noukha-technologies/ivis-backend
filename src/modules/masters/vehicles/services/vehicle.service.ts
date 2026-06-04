@@ -8,6 +8,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Vehicle } from '../../../database/entity/vehicle.entity';
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
@@ -22,7 +24,7 @@ export class VehicleService implements IVehicleService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createVehicleDto: CreateVehicleDto): Promise<Vehicle> {
+  async create(createVehicleDto: CreateVehicleDto, actor: UserContext): Promise<Vehicle> {
     this.logger.log(
       `Creating vehicle master with code: ${createVehicleDto.code}`,
       VehicleService.context,
@@ -49,6 +51,7 @@ export class VehicleService implements IVehicleService {
         ...createVehicleDto,
         vehicle_id,
         status: createVehicleDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedVehicle = await this.vehicleDao.save(vehicle);
 

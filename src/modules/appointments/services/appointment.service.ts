@@ -11,6 +11,8 @@ import {
   ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../common/logger/app.logger';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
@@ -34,7 +36,7 @@ export class AppointmentService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateAppointmentDto): Promise<Appointment> {
+  async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
     this.logger.log('Creating appointment', AppointmentService.context);
 
     try {
@@ -63,7 +65,7 @@ export class AppointmentService {
       }
 
       if (createDto.sync_customer !== false) {
-        const synced = await this.syncCustomerFromAppointment(createDto, plateNumber);
+        const synced = await this.syncCustomerFromAppointment(createDto, plateNumber, actor);
         customerId = synced.customerId;
         vehicleRecordId = synced.vehicleRecordId;
       }
@@ -83,7 +85,7 @@ export class AppointmentService {
         appointment_at: new Date(createDto.appointment_at),
         status: createDto.status || 'Scheduled',
         notes: createDto.notes,
-        created_by: createDto.created_by,
+        created_by: getCreatedById(actor),
       });
 
       const saved = await this.appointmentDao.save(appointment);
@@ -126,7 +128,7 @@ export class AppointmentService {
     return appointment;
   }
 
-  async update(id: string, updateDto: UpdateAppointmentDto): Promise<Appointment> {
+  async update(id: string, updateDto: UpdateAppointmentDto, actor: UserContext): Promise<Appointment> {
     const appointment = await this.findOne(id);
     await this.validateReferences(updateDto);
 
@@ -140,6 +142,7 @@ export class AppointmentService {
           customer_phone: updateDto.customer_phone ?? appointment.customer_phone ?? '',
         },
         updateDto.plate_number ?? appointment.plate_number,
+        actor,
       );
     }
 
@@ -168,7 +171,8 @@ export class AppointmentService {
       | 'id_number'
       | 'vehicle_record_id'
     >,
-    plateNumber?: string,
+    plateNumber: string | undefined,
+    actor: UserContext,
   ): Promise<{ customerId: string; vehicleRecordId?: string }> {
     let vehicleRecordId = dto.vehicle_record_id;
 
@@ -176,7 +180,7 @@ export class AppointmentService {
       const rop = await this.vehicleIntakeService.findLatestRopByCaptureId(dto.anpr_capture_id);
       const capture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
       if (rop && capture) {
-        const record = await this.vehicleIntakeService.upsertVehicleRecordFromRop(rop, capture);
+        const record = await this.vehicleIntakeService.upsertVehicleRecordFromRop(rop, capture, actor);
         vehicleRecordId = record.id;
       }
     }
@@ -211,6 +215,7 @@ export class AppointmentService {
       owner_name: dto.customer_name,
       id_number: dto.id_number,
       primary_vehicle_record_id: vehicleRecordId,
+      created_by: getCreatedById(actor),
     });
     const saved = await this.customerDao.save(customer);
     return { customerId: saved.id, vehicleRecordId };

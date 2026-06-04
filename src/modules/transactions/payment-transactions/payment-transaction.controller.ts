@@ -17,6 +17,8 @@ import {
 } from '../../../common/dto/payment-transaction.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaymentTransactionService } from './services/payment-transaction.service';
 
 @ApiTags('Transactions / Payment Transactions')
@@ -29,8 +31,8 @@ export class PaymentTransactionController {
   @ApiOperation({
     summary: 'Create payment transaction (auto-creates job when status is Paid)',
   })
-  async create(@Body() createDto: CreatePaymentTransactionDto) {
-    const data = await this.paymentTransactionService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreatePaymentTransactionDto) {
+    const data = await this.paymentTransactionService.create(createDto, actor);
     return { message: 'Payment transaction created successfully', data };
   }
 
@@ -54,10 +56,11 @@ export class PaymentTransactionController {
   @Patch(':id')
   @ApiOperation({ summary: 'Update payment transaction (Paid triggers job if missing)' })
   async update(
+    @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdatePaymentTransactionDto,
   ) {
-    const data = await this.paymentTransactionService.update(id, updateDto);
+    const data = await this.paymentTransactionService.update(id, updateDto, actor);
     return { message: 'Payment transaction updated successfully', data };
   }
 

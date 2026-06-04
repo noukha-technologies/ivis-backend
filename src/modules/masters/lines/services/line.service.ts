@@ -15,7 +15,9 @@ import { CentreDao } from '../../../database/dao/centre.dao';
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
 import { UserLineMappingDao } from '../../../database/dao/user-line-mapping.dao';
+import type { UserContext } from '../../../../common/dto/auth.dto';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { ILineService } from './line.service.interface';
 
 @Injectable()
@@ -32,7 +34,7 @@ export class LineService implements ILineService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createLineDto: CreateLineDto): Promise<Line> {
+  async create(createLineDto: CreateLineDto, actor: UserContext): Promise<Line> {
     this.logger.log(`Creating line with code: ${createLineDto.code}`, LineService.context);
 
     try {
@@ -61,6 +63,7 @@ export class LineService implements ILineService {
         ...createLineDto,
         line_id,
         status: createLineDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedLine = await this.lineDao.save(line);
 

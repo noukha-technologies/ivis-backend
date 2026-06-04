@@ -110,11 +110,6 @@ export class CreatePaymentTransactionDto {
   @IsString()
   @IsIn([...JOB_SOURCES])
   job_source?: (typeof JOB_SOURCES)[number];
-
-  @ApiPropertyOptional({ description: 'Creator user snowflake ID' })
-  @IsOptional()
-  @IsString()
-  created_by?: string;
 }
 
 export class UpdatePaymentTransactionDto extends PartialType(

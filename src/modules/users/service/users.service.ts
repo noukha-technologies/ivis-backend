@@ -12,6 +12,8 @@ import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneratio
 import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
 import { UsersDao } from '../../database/dao/users.dao';
 import { RoleDao } from '../../database/dao/role.dao';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
 import { MasterScopeService } from '../../../common/services/master-scope.service';
 import { IUsersService } from './user.service.interface';
@@ -27,7 +29,7 @@ export class UsersService implements IUsersService {
     private readonly logger: AppLogger,
   ) { }
 
-  async create(createUserDto: CreateUserDto): Promise<UserResponse> {
+  async create(createUserDto: CreateUserDto, actor: UserContext): Promise<UserResponse> {
     this.logger.log(`Creating user with email: ${createUserDto.email}`, UsersService.context);
 
     try {
@@ -64,6 +66,8 @@ export class UsersService implements IUsersService {
 
       const nextUserId = await this.usersDao.getNextUserId();
 
+      const createdBy = getCreatedById(actor);
+
       const user = this.usersDao.create({
         id: generateSnowflakeId(),
         ...userFields,
@@ -72,15 +76,12 @@ export class UsersService implements IUsersService {
         role_id: role.id,
         center_id: centreFkId,
         password,
+        created_by: createdBy,
       });
       const savedUser = await this.usersDao.save(user);
 
       if (lineIds.length > 0) {
-        await this.userLineMappingDao.replaceForUser(
-          savedUser.id,
-          lineIds,
-          createUserDto.created_by,
-        );
+        await this.userLineMappingDao.replaceForUser(savedUser.id, lineIds, createdBy);
       }
 
       this.logger.log(`User created with ID: ${savedUser.id}`, UsersService.context);
@@ -162,7 +163,7 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponse> {
+  async update(id: string, updateUserDto: UpdateUserDto, actor: UserContext): Promise<UserResponse> {
     this.logger.log(`Updating user ID: ${id}`, UsersService.context);
 
     try {
@@ -216,13 +217,15 @@ export class UsersService implements IUsersService {
 
       const effectiveCentreId = centreFkId ?? user.center_id;
 
+      const createdBy = getCreatedById(actor);
+
       if (line_ids !== undefined) {
         const normalizedLineIds = this.normalizeLineIds(line_ids);
         await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
         await this.assertLinesAvailable(normalizedLineIds, id);
-        await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, user.created_by);
+        await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, createdBy);
       } else if (centreFkId !== undefined && centreFkId !== user.center_id) {
-        await this.userLineMappingDao.replaceForUser(id, [], user.created_by);
+        await this.userLineMappingDao.replaceForUser(id, [], createdBy);
       }
 
       const mergedUser = this.usersDao.merge(user, {

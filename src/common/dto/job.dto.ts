@@ -74,11 +74,6 @@ export class CreateJobDto {
   @IsOptional()
   @IsString()
   camera_id?: string;
-
-  @ApiPropertyOptional({ description: 'Creator user snowflake ID' })
-  @IsOptional()
-  @IsString()
-  created_by?: string;
 }
 
 export class UpdateJobDto extends PartialType(

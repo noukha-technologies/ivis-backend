@@ -32,11 +32,6 @@ export class CreatePermissionProfileDto {
   @IsBoolean()
   @IsOptional()
   is_active?: boolean;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  created_by?: string;
 }
 
 export class UpdatePermissionProfileDto extends PartialType(CreatePermissionProfileDto) {}

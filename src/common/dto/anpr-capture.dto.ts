@@ -89,10 +89,6 @@ export class CreateAnprCaptureDto {
   verification_status?: string;
 
   @ApiPropertyOptional({ description: 'Creator user snowflake ID', example: '2058858609483202561' })
-  @IsOptional()
-  @IsString()
-  created_by?: string;
-
   @ApiPropertyOptional({
     description: 'Simulate ROP fetch and upsert vehicle record after capture (demo)',
     default: false,

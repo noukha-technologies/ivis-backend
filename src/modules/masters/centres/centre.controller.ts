@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreateCentreDto, UpdateCentreDto } from '../../../common/dto/centre.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,8 +35,11 @@ export class CentreController {
   @ApiResponse({ status: 201, description: 'Centre created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or centre_id.' })
-  async create(@Body() createCentreDto: CreateCentreDto) {
-    const centre = await this.centreService.create(createCentreDto);
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createCentreDto: CreateCentreDto,
+  ) {
+    const centre = await this.centreService.create(createCentreDto, actor);
     return { message: 'Centre created successfully', data: centre };
   }
 

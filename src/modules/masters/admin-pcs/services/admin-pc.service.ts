@@ -8,6 +8,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AdminPc } from '../../../database/entity/admin-pc.entity';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
@@ -23,7 +25,7 @@ export class AdminPcService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createAdminPcDto: CreateAdminPcDto): Promise<AdminPc> {
+  async create(createAdminPcDto: CreateAdminPcDto, actor: UserContext): Promise<AdminPc> {
     this.logger.log(`Creating Admin PC with code: ${createAdminPcDto.code}`, AdminPcService.context);
 
     try {
@@ -50,6 +52,7 @@ export class AdminPcService {
         ...createAdminPcDto,
         admin_pc_id,
         status: createAdminPcDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedAdminPc = await this.adminPcDao.save(adminPc);
 

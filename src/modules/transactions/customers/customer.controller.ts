@@ -23,6 +23,8 @@ import {
 } from '../../../common/dto/customer.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { CustomerService } from './services/customer.service';
 
 @ApiTags('Transactions / Customers')
@@ -34,8 +36,8 @@ export class CustomerController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a customer record' })
   @ApiResponse({ status: 201, description: 'Customer created successfully.' })
-  async create(@Body() createDto: CreateCustomerDto) {
-    const data = await this.customerService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateCustomerDto) {
+    const data = await this.customerService.create(createDto, actor);
     return { message: 'Customer created successfully', data };
   }
 
@@ -68,10 +70,11 @@ export class CustomerController {
   @ApiParam({ name: 'id', type: String, description: 'Customer snowflake ID' })
   @ApiResponse({ status: 200, description: 'Customer updated successfully.' })
   async update(
+    @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdateCustomerDto,
   ) {
-    const data = await this.customerService.update(id, updateDto);
+    const data = await this.customerService.update(id, updateDto, actor);
     return { message: 'Customer updated successfully', data };
   }
 

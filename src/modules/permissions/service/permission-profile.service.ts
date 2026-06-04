@@ -14,6 +14,8 @@ import {
 import { ErrorException } from '../../../common/errors/custom-error.exception';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import { AppLogger } from '../../../common/logger/app.logger';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { validateAccessMatrix } from '../../../common/utils/validate-access-matrix';
 import { PermissionDao } from '../../database/dao/permission.dao';
@@ -32,7 +34,7 @@ export class PermissionProfileService {
     private readonly logger: AppLogger,
   ) { }
 
-  async create(dto: CreatePermissionProfileDto): Promise<PermissionProfileDto> {
+  async create(dto: CreatePermissionProfileDto, actor: UserContext): Promise<PermissionProfileDto> {
     this.logger.log(`Creating permission profile: ${dto.name}`, PermissionProfileService.context);
 
     try {
@@ -47,7 +49,7 @@ export class PermissionProfileService {
         name: dto.name.trim(),
         access,
         is_active: dto.is_active ?? true,
-        created_by: dto.created_by,
+        created_by: getCreatedById(actor),
       });
       const saved = await this.permissionDao.save(permission);
       return this.toDto(saved);
@@ -100,7 +102,6 @@ export class PermissionProfileService {
       ...(dto.description !== undefined ? { description: dto.description?.trim() } : {}),
       ...(dto.access !== undefined ? { access } : {}),
       ...(dto.is_active !== undefined ? { is_active: dto.is_active } : {}),
-      ...(dto.created_by !== undefined ? { created_by: dto.created_by } : {}),
     });
     const saved = await this.permissionDao.save(merged);
 

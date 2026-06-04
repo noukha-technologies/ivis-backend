@@ -9,6 +9,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Camera } from '../../../database/entity/camera.entity';
 import { CameraDao } from '../../../database/dao/camera.dao';
@@ -23,7 +25,7 @@ export class CameraService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createCameraDto: CreateCameraDto): Promise<Camera> {
+  async create(createCameraDto: CreateCameraDto, actor: UserContext): Promise<Camera> {
     this.logger.log(`Creating Camera with code: ${createCameraDto.code}`, CameraService.context);
 
     try {
@@ -50,6 +52,7 @@ export class CameraService {
         ...createCameraDto,
         camera_id,
         status: createCameraDto.status || 'Active',
+        created_by: getCreatedById(actor),
       });
       const savedCamera = await this.cameraDao.save(camera);
 

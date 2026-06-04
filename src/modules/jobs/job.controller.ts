@@ -20,6 +20,8 @@ import {
 import { CreateJobDto, UpdateJobDto } from '../../common/dto/job.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../common/dto/auth.dto';
 import { JobService } from './services/job.service';
 
 @ApiTags('Jobs')
@@ -31,8 +33,8 @@ export class JobController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a job' })
   @ApiResponse({ status: 201, description: 'Job created successfully.' })
-  async create(@Body() createDto: CreateJobDto) {
-    const data = await this.jobService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateJobDto) {
+    const data = await this.jobService.create(createDto, actor);
     return { message: 'Job created successfully', data };
   }
 

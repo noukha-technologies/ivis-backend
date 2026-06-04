@@ -27,8 +27,9 @@ import {
 } from '../../common/dto/permission-profile.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../common/dto/auth.dto';
 import { PermissionProfileService } from './service/permission-profile.service';
-import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Permissions')
 @Controller('permissions')
@@ -48,15 +49,14 @@ export class PermissionsController {
     };
   }
 
-  @Public()
   @Post()
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create permission access profile (create before role)' })
   @ApiBearerAuth('jwt')
   @ApiCreatedResponse({ description: 'Permission profile created', type: PermissionProfileDto })
-  create(@Body() body: CreatePermissionProfileDto) {
-    return this.permissionProfileService.create(body).then((data) => ({
+  create(@CurrentUser() actor: UserContext, @Body() body: CreatePermissionProfileDto) {
+    return this.permissionProfileService.create(body, actor).then((data) => ({
       message: 'Permission profile created successfully',
       data,
     }));

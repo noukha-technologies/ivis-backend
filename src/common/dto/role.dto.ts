@@ -20,11 +20,6 @@ export class CreateRoleDto {
   @IsString()
   @IsOptional()
   description?: string;
-
-  @ApiPropertyOptional()
-  @IsString()
-  @IsOptional()
-  created_by?: string;
 }
 
 export class UpdateRoleDto extends PartialType(CreateRoleDto) { }

@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { RopVerificationDao } from '../../database/dao/rop-verification.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
@@ -13,7 +15,7 @@ export class VehicleIntakeService {
     private readonly vehicleRecordDao: VehicleRecordDao,
   ) {}
 
-  async simulateRopForCapture(capture: AnprCapture): Promise<RopVerification> {
+  async simulateRopForCapture(capture: AnprCapture, actor: UserContext): Promise<RopVerification> {
     const ropVerificationId = await this.ropVerificationDao.getNextRopVerificationId();
 
     const rop = this.ropVerificationDao.create({
@@ -28,16 +30,18 @@ export class VehicleIntakeService {
       insurance: 'Valid',
       reg_expiry: new Date('2026-12-31'),
       fetch_status: 'Fetched',
+      created_by: getCreatedById(actor),
     });
 
     const saved = await this.ropVerificationDao.save(rop);
-    await this.upsertVehicleRecordFromRop(saved, capture);
+    await this.upsertVehicleRecordFromRop(saved, capture, actor);
     return saved;
   }
 
   async upsertVehicleRecordFromRop(
     rop: RopVerification,
-    capture?: AnprCapture,
+    capture: AnprCapture | undefined,
+    actor: UserContext,
   ): Promise<VehicleRecord> {
     const plateNumber = rop.reg_no || capture?.plate_number;
     if (!plateNumber) {
@@ -69,6 +73,7 @@ export class VehicleIntakeService {
       vehicle_type: capture?.vehicle_type ?? 'Sedan',
       plate_color: capture?.plate_color,
       vehicle_color: capture?.vehicle_color,
+      created_by: getCreatedById(actor),
     });
 
     return this.vehicleRecordDao.save(created);

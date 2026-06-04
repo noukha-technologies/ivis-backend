@@ -11,6 +11,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
@@ -32,7 +34,10 @@ export class PaymentTransactionService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreatePaymentTransactionDto): Promise<PaymentTransaction> {
+  async create(
+    createDto: CreatePaymentTransactionDto,
+    actor: UserContext,
+  ): Promise<PaymentTransaction> {
     this.logger.log('Creating payment transaction', PaymentTransactionService.context);
 
     try {
@@ -83,24 +88,26 @@ export class PaymentTransactionService {
         vat,
         grand_total: grandTotal,
         pay_date: payDate,
-        created_by: createDto.created_by,
+        created_by: getCreatedById(actor),
       });
 
       let saved = await this.paymentTransactionDao.save(payment);
 
       if (status === 'Paid' && createDto.auto_create_job !== false) {
-        const job = await this.jobService.create({
-          source: createDto.job_source || 'Booked',
-          status: 'Pending',
-          customer_id: resolved.customer_id,
-          vehicle_record_id: resolved.vehicle_record_id,
-          anpr_capture_id: resolved.anpr_capture_id,
-          centre_id: resolved.centre_id,
-          line_id: resolved.line_id,
-          admin_pc_id: resolved.admin_pc_id,
-          camera_id: resolved.camera_id,
-          created_by: createDto.created_by,
-        });
+        const job = await this.jobService.create(
+          {
+            source: createDto.job_source || 'Booked',
+            status: 'Pending',
+            customer_id: resolved.customer_id,
+            vehicle_record_id: resolved.vehicle_record_id,
+            anpr_capture_id: resolved.anpr_capture_id,
+            centre_id: resolved.centre_id,
+            line_id: resolved.line_id,
+            admin_pc_id: resolved.admin_pc_id,
+            camera_id: resolved.camera_id,
+          },
+          actor,
+        );
 
         saved.job_id = job.id;
         saved = await this.paymentTransactionDao.save(saved);
@@ -143,7 +150,11 @@ export class PaymentTransactionService {
     return payment;
   }
 
-  async update(id: string, updateDto: UpdatePaymentTransactionDto): Promise<PaymentTransaction> {
+  async update(
+    id: string,
+    updateDto: UpdatePaymentTransactionDto,
+    actor: UserContext,
+  ): Promise<PaymentTransaction> {
     const payment = await this.findOne(id);
     const previousStatus = payment.status;
     const resolved = await this.resolveFromAppointment({
@@ -175,17 +186,20 @@ export class PaymentTransactionService {
       !saved.job_id &&
       updateDto.auto_create_job !== false
     ) {
-      const job = await this.jobService.create({
-        source: updateDto.job_source || 'Booked',
-        status: 'Pending',
-        customer_id: saved.customer_id,
-        vehicle_record_id: saved.vehicle_record_id,
-        anpr_capture_id: saved.anpr_capture_id ?? undefined,
-        centre_id: saved.centre_id ?? undefined,
-        line_id: saved.line_id ?? undefined,
-        admin_pc_id: saved.admin_pc_id ?? undefined,
-        camera_id: saved.camera_id ?? undefined,
-      });
+      const job = await this.jobService.create(
+        {
+          source: updateDto.job_source || 'Booked',
+          status: 'Pending',
+          customer_id: saved.customer_id,
+          vehicle_record_id: saved.vehicle_record_id,
+          anpr_capture_id: saved.anpr_capture_id ?? undefined,
+          centre_id: saved.centre_id ?? undefined,
+          line_id: saved.line_id ?? undefined,
+          admin_pc_id: saved.admin_pc_id ?? undefined,
+          camera_id: saved.camera_id ?? undefined,
+        },
+        actor,
+      );
       saved.job_id = job.id;
       saved = await this.paymentTransactionDao.save(saved);
     }

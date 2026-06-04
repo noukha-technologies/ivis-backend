@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreateAdminPcDto, UpdateAdminPcDto } from '../../../common/dto/admin-pc.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,8 +35,11 @@ export class AdminPcController {
   @ApiResponse({ status: 201, description: 'Admin PC created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or admin_pc_id.' })
-  async create(@Body() createAdminPcDto: CreateAdminPcDto) {
-    const pc = await this.adminPcService.create(createAdminPcDto);
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createAdminPcDto: CreateAdminPcDto,
+  ) {
+    const pc = await this.adminPcService.create(createAdminPcDto, actor);
     return { message: 'Admin PC created successfully', data: pc };
   }
 

@@ -23,23 +23,23 @@ import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CreateRoleDto, RoleDto, UpdateRoleDto } from '../../common/dto/role.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../common/dto/auth.dto';
 import { RolesService } from './service/roles.service';
-import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Roles')
 @Controller('roles')
 export class RolesController {
   constructor(private readonly rolesService: RolesService) { }
 
-  @Public()
   @Post()
   @Permissions(PermissionKeys.ROLES_UPSERT)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create role (requires existing permission_id)' })
   @ApiBearerAuth('jwt')
   @ApiCreatedResponse({ description: 'Role created', type: RoleDto })
-  create(@Body() body: CreateRoleDto) {
-    return this.rolesService.create(body).then((data) => ({
+  create(@CurrentUser() actor: UserContext, @Body() body: CreateRoleDto) {
+    return this.rolesService.create(body, actor).then((data) => ({
       message: 'Role created successfully',
       data,
     }));

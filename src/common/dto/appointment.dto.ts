@@ -85,11 +85,6 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsString()
   notes?: string;
-
-  @ApiPropertyOptional({ description: 'Creator user snowflake ID' })
-  @IsOptional()
-  @IsString()
-  created_by?: string;
 }
 
 export class UpdateAppointmentDto extends PartialType(

@@ -11,6 +11,8 @@ import {
   ResourceNotFoundException,
 } from '../../../../common/exceptions/custom.exception';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import type { UserContext } from '../../../../common/dto/auth.dto';
+import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { CameraDao } from '../../../database/dao/camera.dao';
@@ -28,7 +30,7 @@ export class AnprCaptureService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateAnprCaptureDto): Promise<AnprCapture> {
+  async create(createDto: CreateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
     this.logger.log(
       `Creating ANPR capture for plate: ${createDto.plate_number}`,
       AnprCaptureService.context,
@@ -56,11 +58,12 @@ export class AnprCaptureService {
         anpr_capture_id: captureId,
         capture_time: new Date(createDto.capture_time),
         verification_status: createDto.verification_status || 'Pending',
+        created_by: getCreatedById(actor),
       });
       let saved = await this.anprCaptureDao.save(capture);
 
       if (createDto.simulate_rop) {
-        await this.vehicleIntakeService.simulateRopForCapture(saved);
+        await this.vehicleIntakeService.simulateRopForCapture(saved, actor);
         saved.verification_status = 'Verified';
         saved = await this.anprCaptureDao.save(saved);
         this.logger.log(

@@ -17,6 +17,8 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import { CreateCameraDto, UpdateCameraDto } from '../../../common/dto/camera.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,8 +35,11 @@ export class CameraController {
   @ApiResponse({ status: 201, description: 'Camera created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or camera_id.' })
-  async create(@Body() createCameraDto: CreateCameraDto) {
-    const camera = await this.cameraService.create(createCameraDto);
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createCameraDto: CreateCameraDto,
+  ) {
+    const camera = await this.cameraService.create(createCameraDto, actor);
     return { message: 'Camera created successfully', data: camera };
   }
 

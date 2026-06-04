@@ -51,11 +51,6 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   plate_color?: string;
-
-  @ApiPropertyOptional({ description: 'Creator user snowflake ID', example: '2058858609483202561' })
-  @IsOptional()
-  @IsString()
-  created_by?: string;
 }
 
 export class UpdateCustomerDto extends PartialType(

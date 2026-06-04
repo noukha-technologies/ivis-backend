@@ -23,6 +23,8 @@ import {
 } from '../../../common/dto/rop-verification.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { RopVerificationService } from './services/rop-verification.service';
 
 @ApiTags('Transactions / ROP Verifications')
@@ -34,8 +36,8 @@ export class RopVerificationController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a ROP verification record' })
   @ApiResponse({ status: 201, description: 'ROP verification created successfully.' })
-  async create(@Body() createDto: CreateRopVerificationDto) {
-    const data = await this.ropVerificationService.create(createDto);
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateRopVerificationDto) {
+    const data = await this.ropVerificationService.create(createDto, actor);
     return { message: 'ROP verification created successfully', data };
   }
 

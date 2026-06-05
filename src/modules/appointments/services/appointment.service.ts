@@ -19,6 +19,7 @@ import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
 import { LineDao } from '../../database/dao/line.dao';
+import { PaymentDao } from '../../database/dao/payment.dao';
 import { Appointment } from '../../database/entity/appointment.entity';
 import { VehicleIntakeService } from '../../transactions/shared/vehicle-intake.service';
 
@@ -32,6 +33,7 @@ export class AppointmentService {
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
+    private readonly paymentDao: PaymentDao,
     private readonly vehicleIntakeService: VehicleIntakeService,
     private readonly logger: AppLogger,
   ) {}
@@ -90,6 +92,30 @@ export class AppointmentService {
 
       const saved = await this.appointmentDao.save(appointment);
       this.logger.log(`Appointment created ID: ${saved.id}`, AppointmentService.context);
+
+      try {
+        const paymentId = await this.paymentDao.getNextId();
+        const code = `PM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+
+        const paymentRecord = this.paymentDao.create({
+          id: generateSnowflakeId(),
+          payment_id: paymentId,
+          name: saved.customer_name,
+          code,
+          customer_phone: saved.customer_phone || null,
+          status: 'Active',
+          created_by: getCreatedById(actor),
+        });
+        await this.paymentDao.save(paymentRecord);
+        this.logger.log(`Auto-created payment record for appointment: ${saved.id}`, AppointmentService.context);
+      } catch (payError) {
+        this.logger.error(
+          `Failed to auto-create payment record for appointment: ${(payError as Error).message}`,
+          (payError as Error).stack,
+          AppointmentService.context,
+        );
+      }
+
       return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (

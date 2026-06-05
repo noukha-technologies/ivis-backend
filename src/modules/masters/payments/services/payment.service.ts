@@ -45,6 +45,7 @@ export class PaymentService {
       const payment = this.paymentDao.create({
         id: generateSnowflakeId(),
         ...createPaymentDto,
+        customer_phone: createPaymentDto.phoneNo || null,
         payment_id,
         status: createPaymentDto.status || 'Active',
         created_by: getCreatedById(actor),
@@ -116,7 +117,10 @@ export class PaymentService {
         }
       }
 
-      const mergedPayment = this.paymentDao.merge(payment, updatePaymentDto);
+      const mergedPayment = this.paymentDao.merge(payment, {
+        ...updatePaymentDto,
+        customer_phone: updatePaymentDto.phoneNo !== undefined ? updatePaymentDto.phoneNo : payment.customer_phone,
+      });
       const savedPayment = await this.paymentDao.save(mergedPayment);
 
       this.logger.log(`Payment updated ID: ${savedPayment.id}`, PaymentService.context);

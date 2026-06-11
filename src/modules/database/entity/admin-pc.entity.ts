@@ -1,15 +1,14 @@
 import {
+  AfterLoad,
   Column,
   CreateDateColumn,
   Entity,
   Index,
-  JoinColumn,
-  OneToOne,
+  OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Line } from './line.entity';
+import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
 
 @Entity({ name: 'admin_pcs', schema: 'master' })
 export class AdminPc {
@@ -30,13 +29,32 @@ export class AdminPc {
   @Column({ type: 'varchar', nullable: false })
   ip_address!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('UQ_ADMIN_PC_LINE_ID', { unique: true, where: '"is_deleted" = false' })
-  line_id!: string;
+  @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.adminPc)
+  lineMappings?: AdminPcLineMapping[];
 
-  @OneToOne(() => Line, (line) => line.adminPc, { nullable: false })
-  @JoinColumn({ name: 'line_id' })
-  line!: Line;
+  line_ids?: string[];
+
+  lines?: Array<{
+    id: string;
+    line_id: number;
+    name: string;
+    code: string;
+  }>;
+
+  @AfterLoad()
+  populateLineFields(): void {
+    const activeMappings = (this.lineMappings ?? []).filter((mapping) => !mapping.is_deleted);
+    this.line_ids = activeMappings.map((mapping) => mapping.line_id);
+    this.lines = activeMappings
+      .map((mapping) => mapping.line)
+      .filter((line): line is NonNullable<typeof line> => Boolean(line))
+      .map((line) => ({
+        id: line.id,
+        line_id: line.line_id,
+        name: line.name,
+        code: line.code,
+      }));
+  }
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;

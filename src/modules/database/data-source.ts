@@ -3,6 +3,7 @@ import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
 import { buildDatabaseOptions } from './database.config';
 import { AdminPc } from './entity/admin-pc.entity';
+import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 import { AnprCapture } from './entity/anpr-capture.entity';
 import { Camera } from './entity/camera.entity';
 import { Centre } from './entity/centre.entity';
@@ -39,6 +40,7 @@ export const AppDataSource = new DataSource({
     Centre,
     Line,
     AdminPc,
+    AdminPcLineMapping,
     Camera,
     Payment,
     AnprCapture,

@@ -51,7 +51,7 @@ export class AdminPcController {
     name: 'search',
     required: false,
     type: String,
-    description: 'name, code, ip_address',
+    description: 'name, code, ip_address, line name/code',
   })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })

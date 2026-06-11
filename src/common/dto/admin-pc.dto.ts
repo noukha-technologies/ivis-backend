@@ -1,4 +1,13 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsIn } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  IsArray,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
 export class CreateAdminPcDto {
@@ -26,10 +35,15 @@ export class CreateAdminPcDto {
   @IsNotEmpty({ message: 'ip_address is required' })
   ip_address!: string;
 
-  @ApiProperty({ description: 'Assigned line snowflake ID (master.lines.id)', example: '2058858609483202561' })
-  @IsString({ message: 'line_id must be a string' })
-  @IsNotEmpty({ message: 'line_id is required' })
-  line_id!: string;
+  @ApiProperty({
+    description: 'Assigned line snowflake IDs (master.lines.id)',
+    example: ['2058858609483202561', '2058858609483202562'],
+    type: [String],
+  })
+  @IsArray({ message: 'line_ids must be an array' })
+  @ArrayNotEmpty({ message: 'At least one line_id is required' })
+  @IsString({ each: true, message: 'each line_id must be a string' })
+  line_ids!: string[];
 
   @ApiPropertyOptional({ description: 'Description details', example: 'Reception PC' })
   @IsString({ message: 'description must be a string' })
@@ -41,7 +55,6 @@ export class CreateAdminPcDto {
   @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
   @IsOptional()
   status?: string;
-
 }
 
 export class UpdateAdminPcDto extends PartialType(

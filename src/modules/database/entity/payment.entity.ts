@@ -1,4 +1,5 @@
 import {
+  AfterLoad,
   Column,
   CreateDateColumn,
   Entity,
@@ -26,6 +27,16 @@ export class Payment {
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
 
+  @Column({ type: 'varchar', name: 'customer_phone', nullable: true })
+  customer_phone?: string | null;
+
+  phoneNo?: string | null;
+
+  @AfterLoad()
+  populatePhoneNo() {
+    this.phoneNo = this.customer_phone || this.code;
+  }
+
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
 
@@ -38,3 +49,4 @@ export class Payment {
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
 }
+

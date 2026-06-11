@@ -27,8 +27,13 @@ export class CreatePaymentDto {
   @IsOptional()
   status?: string;
 
+  @ApiPropertyOptional({ description: 'Customer phone number', example: '9514066594' })
+  @IsString({ message: 'phoneNo must be a string' })
+  @IsOptional()
+  phoneNo?: string;
 }
 
 export class UpdatePaymentDto extends PartialType(
   OmitType(CreatePaymentDto, ['payment_id'] as const),
 ) {}
+

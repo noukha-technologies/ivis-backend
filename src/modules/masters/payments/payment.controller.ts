@@ -51,7 +51,7 @@ export class PaymentController {
     name: 'search',
     required: false,
     type: String,
-    description: 'name, code',
+    description: 'code, customer name, customer phone',
   })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })

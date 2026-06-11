@@ -37,6 +37,16 @@ export class CreateCustomerDto {
   @IsString()
   id_number?: string;
 
+  @ApiPropertyOptional({ description: 'Vehicle chassis number', example: 'JT2BF22K0W0123456' })
+  @IsOptional()
+  @IsString()
+  chassis_no?: string;
+
+  @ApiPropertyOptional({ description: 'Mulkiya (vehicle registration) ID', example: 'MK-123456' })
+  @IsOptional()
+  @IsString()
+  mulkiya_id?: string;
+
   @ApiPropertyOptional({ description: 'Existing vehicle record snowflake ID to link as primary vehicle' })
   @IsOptional()
   @IsString()

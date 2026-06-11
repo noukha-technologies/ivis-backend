@@ -52,6 +52,8 @@ export class CustomerService {
         phone: createDto.phone,
         owner_name: createDto.owner_name,
         id_number: createDto.id_number,
+        chassis_no: createDto.chassis_no,
+        mulkiya_id: createDto.mulkiya_id,
         primary_vehicle_record_id: primaryVehicleRecordId,
         created_by: getCreatedById(actor),
       });
@@ -127,6 +129,8 @@ export class CustomerService {
         phone: updateDto.phone,
         owner_name: updateDto.owner_name,
         id_number: updateDto.id_number,
+        chassis_no: updateDto.chassis_no,
+        mulkiya_id: updateDto.mulkiya_id,
         ...(primaryVehicleRecordId !== undefined
           ? { primary_vehicle_record_id: primaryVehicleRecordId }
           : {}),

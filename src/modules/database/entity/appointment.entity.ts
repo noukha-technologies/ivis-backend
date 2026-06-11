@@ -85,6 +85,12 @@ export class Appointment {
   @Column({ type: 'varchar', length: 512, nullable: true })
   notes?: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: false })
+  payment_mode!: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: false })
+  type!: string;
+
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
 

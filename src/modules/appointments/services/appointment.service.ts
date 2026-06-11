@@ -36,7 +36,7 @@ export class AppointmentService {
     private readonly paymentDao: PaymentDao,
     private readonly vehicleIntakeService: VehicleIntakeService,
     private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
   async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
     this.logger.log('Creating appointment', AppointmentService.context);
@@ -87,33 +87,39 @@ export class AppointmentService {
         appointment_at: new Date(createDto.appointment_at),
         status: createDto.status || 'Scheduled',
         notes: createDto.notes,
+        payment_mode: createDto.payment_mode,
+        type: createDto.type,
         created_by: getCreatedById(actor),
       });
 
       const saved = await this.appointmentDao.save(appointment);
       this.logger.log(`Appointment created ID: ${saved.id}`, AppointmentService.context);
 
-      try {
-        const paymentId = await this.paymentDao.getNextId();
-        const code = `PM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+      if (saved.customer_id) {
+        try {
+          const paymentId = await this.paymentDao.getNextId();
+          const code = `PM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
 
-        const paymentRecord = this.paymentDao.create({
-          id: generateSnowflakeId(),
-          payment_id: paymentId,
-          name: saved.customer_name,
-          code,
-          customer_phone: saved.customer_phone || null,
-          status: 'Active',
-          created_by: getCreatedById(actor),
-        });
-        await this.paymentDao.save(paymentRecord);
-        this.logger.log(`Auto-created payment record for appointment: ${saved.id}`, AppointmentService.context);
-      } catch (payError) {
-        this.logger.error(
-          `Failed to auto-create payment record for appointment: ${(payError as Error).message}`,
-          (payError as Error).stack,
-          AppointmentService.context,
-        );
+          const paymentRecord = this.paymentDao.create({
+            id: generateSnowflakeId(),
+            payment_id: paymentId,
+            customer_id: saved.customer_id,
+            code,
+            status: 'Active',
+            payment_mode: saved.payment_mode,
+            type: saved.type,
+            amount: createDto.amount,
+            created_by: getCreatedById(actor),
+          });
+          await this.paymentDao.save(paymentRecord);
+          this.logger.log(`Auto-created payment record for appointment: ${saved.id}`, AppointmentService.context);
+        } catch (payError) {
+          this.logger.error(
+            `Failed to auto-create payment record for appointment: ${(payError as Error).message}`,
+            (payError as Error).stack,
+            AppointmentService.context,
+          );
+        }
       }
 
       return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
@@ -166,6 +172,9 @@ export class AppointmentService {
           anpr_capture_id: updateDto.anpr_capture_id ?? appointment.anpr_capture_id ?? undefined,
           customer_name: updateDto.customer_name ?? appointment.customer_name ?? '',
           customer_phone: updateDto.customer_phone ?? appointment.customer_phone ?? '',
+          id_number: updateDto.id_number ?? appointment.id_number,
+          chassis_no: updateDto.chassis_no,
+          mulkiya_id: updateDto.mulkiya_id,
         },
         updateDto.plate_number ?? appointment.plate_number,
         actor,
@@ -195,6 +204,8 @@ export class AppointmentService {
       | 'customer_name'
       | 'customer_phone'
       | 'id_number'
+      | 'chassis_no'
+      | 'mulkiya_id'
       | 'vehicle_record_id'
     >,
     plateNumber: string | undefined,
@@ -221,6 +232,8 @@ export class AppointmentService {
         name: dto.customer_name,
         phone: dto.customer_phone,
         id_number: dto.id_number,
+        chassis_no: dto.chassis_no,
+        mulkiya_id: dto.mulkiya_id,
         owner_name: dto.customer_name,
         primary_vehicle_record_id: vehicleRecordId ?? customer.primary_vehicle_record_id,
       });
@@ -240,6 +253,8 @@ export class AppointmentService {
       phone: dto.customer_phone,
       owner_name: dto.customer_name,
       id_number: dto.id_number,
+      chassis_no: dto.chassis_no,
+      mulkiya_id: dto.mulkiya_id,
       primary_vehicle_record_id: vehicleRecordId,
       created_by: getCreatedById(actor),
     });

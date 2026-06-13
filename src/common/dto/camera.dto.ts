@@ -1,4 +1,12 @@
-import { IsInt, IsNotEmpty, IsOptional, IsString, Min, IsIn } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  Matches,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
 export class CreateCameraDto {
@@ -11,29 +19,35 @@ export class CreateCameraDto {
   @IsOptional()
   camera_id?: number;
 
-  @ApiProperty({ description: 'Camera Name', example: 'ANPR-MCT-IN-1' })
+  @ApiProperty({ description: 'Camera name (alphabets only)', example: 'ANPR Main Entrance' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
+  @Matches(/^[A-Za-z\s'-]+$/, {
+    message: 'name must contain only alphabets',
+  })
   name!: string;
 
-  @ApiProperty({ description: 'Unique code identifier', example: 'CAM01' })
+  @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'CAM01' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
+  @Matches(/^[A-Za-z0-9]+$/, {
+    message: 'code must be alphanumeric',
+  })
   code!: string;
 
-  @ApiProperty({ description: 'Camera type: CCTV or ANPR', example: 'ANPR' })
+  @ApiProperty({ description: 'Camera type', example: 'ANPR' })
   @IsString({ message: 'type must be a string' })
   @IsNotEmpty({ message: 'type is required' })
   type!: string;
 
-  @ApiProperty({ description: 'Assigned line Snowflake ID', example: '2058858609483202561' })
+  @ApiProperty({ description: 'Assigned line snowflake ID', example: '2058858609483202561' })
   @IsString({ message: 'line_id must be a string' })
-  @IsNotEmpty({ message: 'line_id is required' })
+  @IsNotEmpty({ message: 'A line must be selected' })
   line_id!: string;
 
   @ApiPropertyOptional({ description: 'Description details', example: 'Main entrance ANPR' })
-  @IsString({ message: 'description must be a string' })
   @IsOptional()
+  @IsString({ message: 'description must be a string' })
   description?: string;
 
   @ApiPropertyOptional({ description: 'Camera status', example: 'Active', enum: ['Active', 'Inactive'] })
@@ -41,7 +55,6 @@ export class CreateCameraDto {
   @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
   @IsOptional()
   status?: string;
-
 }
 
 export class UpdateCameraDto extends PartialType(

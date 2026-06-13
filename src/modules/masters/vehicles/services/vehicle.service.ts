@@ -36,6 +36,11 @@ export class VehicleService implements IVehicleService {
         throw new DuplicateResourceException('Vehicle', 'code', createVehicleDto.code);
       }
 
+      const existingVin = await this.vehicleDao.findByVinNo(createVehicleDto.vin_no);
+      if (existingVin) {
+        throw new DuplicateResourceException('Vehicle', 'vin_no', createVehicleDto.vin_no);
+      }
+
       let vehicle_id = createVehicleDto.vehicle_id;
       if (!vehicle_id) {
         vehicle_id = await this.vehicleDao.getNextVehicleId();
@@ -120,6 +125,13 @@ export class VehicleService implements IVehicleService {
         const existingCode = await this.vehicleDao.findByCode(updateVehicleDto.code);
         if (existingCode) {
           throw new DuplicateResourceException('Vehicle', 'code', updateVehicleDto.code);
+        }
+      }
+
+      if (updateVehicleDto.vin_no && updateVehicleDto.vin_no !== vehicle.vin_no) {
+        const existingVin = await this.vehicleDao.findByVinNo(updateVehicleDto.vin_no);
+        if (existingVin) {
+          throw new DuplicateResourceException('Vehicle', 'vin_no', updateVehicleDto.vin_no);
         }
       }
 

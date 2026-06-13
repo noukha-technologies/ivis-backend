@@ -7,10 +7,19 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Length,
+  Matches,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { APPOINTMENT_STATUSES } from '../enums/appointment.enums';
+import {
+  APPOINTMENT_PAYMENT_MODES,
+  APPOINTMENT_STATUSES,
+  APPOINTMENT_TYPES,
+} from '../enums/appointment.enums';
+
+const PAYMENT_MODE_OPTIONS = APPOINTMENT_PAYMENT_MODES.join(', ');
+const APPOINTMENT_TYPE_OPTIONS = APPOINTMENT_TYPES.join(', ');
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -52,14 +61,20 @@ export class CreateAppointmentDto {
   @IsString()
   plate_number?: string;
 
-  @ApiProperty({ description: 'Customer full name', example: 'Ahmed Al-Said' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Customer full name (alphabets only)', example: 'Ahmed Al Said' })
+  @IsString({ message: 'customer_name must be a string' })
+  @IsNotEmpty({ message: 'customer_name is required' })
+  @Matches(/^[A-Za-z\s'-]+$/, {
+    message: 'customer_name must contain only alphabets',
+  })
   customer_name!: string;
 
-  @ApiProperty({ description: 'Customer phone', example: '+96891000000' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Customer phone (8 digits)', example: '+968 91234567' })
+  @IsString({ message: 'customer_phone must be a string' })
+  @IsNotEmpty({ message: 'customer_phone is required' })
+  @Matches(/^(\+968\s?)?\d{8}$/, {
+    message: 'customer_phone must be an 8-digit number (example: +968 91234567)',
+  })
   customer_phone!: string;
 
   @ApiPropertyOptional({ description: 'National ID number', example: 'ID20000000' })
@@ -67,24 +82,38 @@ export class CreateAppointmentDto {
   @IsString()
   id_number?: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle chassis number', example: 'JT2BF22K0W0123456' })
-  @IsOptional()
-  @IsString()
-  chassis_no?: string;
+  @ApiProperty({
+    description: 'Vehicle VIN / chassis number (17-character alphanumeric)',
+    example: 'JT2BF22K0W0123456',
+  })
+  @IsString({ message: 'chassis_no must be a string' })
+  @IsNotEmpty({ message: 'chassis_no is required' })
+  @Length(17, 17, { message: 'chassis_no must be exactly 17 characters' })
+  @Matches(/^[A-Za-z0-9]{17}$/, {
+    message: 'chassis_no must be a 17-character alphanumeric VIN code',
+  })
+  chassis_no!: string;
 
-  @ApiPropertyOptional({ description: 'Mulkiya (vehicle registration) ID', example: 'MK-123456' })
+  @ApiPropertyOptional({
+    description: 'Oman Mulkiya ID (10 digits and 1 letter)',
+    example: '1234567890A',
+  })
   @IsOptional()
-  @IsString()
+  @Matches(/^(?=(?:.*\d){10}(?:.*[A-Za-z]){1}$)[A-Za-z0-9]{11}$/, {
+    message: 'mulkiya_id must contain 10 digits and 1 letter',
+  })
   mulkiya_id?: string;
 
   @ApiProperty({ description: 'Appointment date/time', example: '2026-05-28T10:00:00.000Z' })
-  @IsDateString()
+  @IsDateString({}, { message: 'appointment_at must be a valid ISO date string' })
   appointment_at!: string;
 
   @ApiPropertyOptional({ enum: APPOINTMENT_STATUSES, default: 'Scheduled' })
   @IsOptional()
   @IsString()
-  @IsIn([...APPOINTMENT_STATUSES])
+  @IsIn([...APPOINTMENT_STATUSES], {
+    message: `status must be one of: ${APPOINTMENT_STATUSES.join(', ')}`,
+  })
   status?: (typeof APPOINTMENT_STATUSES)[number];
 
   @ApiPropertyOptional({ description: 'Sync customer record from ANPR/ROP on create', default: true })
@@ -97,22 +126,28 @@ export class CreateAppointmentDto {
   @IsString()
   notes?: string;
 
-  @ApiProperty({ description: 'Payment mode', example: 'Cash' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Payment mode', example: 'Cash', enum: APPOINTMENT_PAYMENT_MODES })
+  @IsString({ message: 'payment_mode must be a string' })
+  @IsNotEmpty({ message: 'payment_mode is required' })
+  @IsIn([...APPOINTMENT_PAYMENT_MODES], {
+    message: `payment_mode must be one of: ${PAYMENT_MODE_OPTIONS}`,
+  })
   payment_mode!: string;
 
-  @ApiProperty({ description: 'Appointment type', example: 'Standard' })
-  @IsString()
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Appointment type', example: 'Paid', enum: APPOINTMENT_TYPES })
+  @IsString({ message: 'type must be a string' })
+  @IsNotEmpty({ message: 'type is required' })
+  @IsIn([...APPOINTMENT_TYPES], {
+    message: `type must be one of: ${APPOINTMENT_TYPE_OPTIONS}`,
+  })
   type!: string;
 
-  @ApiProperty({ description: 'Payment amount stored on linked payment master record', example: 150.5 })
-  @IsNumber({}, { message: 'amount must be a number' })
-  @Min(0, { message: 'amount must be greater than or equal to 0' })
+  @ApiProperty({ description: 'Payment amount', example: 150.5 })
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'amount must be a valid number' })
+  @Min(1, { message: 'amount must be at least 1' })
   amount!: number;
 }
 
 export class UpdateAppointmentDto extends PartialType(
   OmitType(CreateAppointmentDto, ['appointment_id'] as const),
-) { }
+) {}

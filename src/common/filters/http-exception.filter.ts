@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { QueryFailedError } from 'typeorm';
+import type { FieldValidationError } from '../utils/validation-error.util';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -21,6 +22,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error: string | string[] | null = null;
+    let errors: FieldValidationError[] | undefined;
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -30,12 +32,19 @@ export class HttpExceptionFilter implements ExceptionFilter {
         message = resContent;
       } else if (typeof resContent === 'object' && resContent !== null) {
         const body = resContent as Record<string, unknown>;
-        message = Array.isArray(body.message)
-          ? 'Validation failed'
-          : String(body.message || exception.message);
-        error = Array.isArray(body.message)
-          ? (body.message as string[])
-          : String(body.error || null);
+        const bodyMessage = body.message;
+
+        if (Array.isArray(body.errors)) {
+          errors = body.errors as FieldValidationError[];
+          message = 'Validation failed';
+          error = errors.map((item) => item.message);
+        } else if (Array.isArray(bodyMessage)) {
+          message = 'Validation failed';
+          error = bodyMessage as string[];
+        } else {
+          message = String(bodyMessage || exception.message);
+          error = String(body.error || null);
+        }
       }
     } else if (exception instanceof QueryFailedError) {
       const driverError = (exception as QueryFailedError & { driverError?: { code?: string; detail?: string } })
@@ -61,6 +70,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       statusCode: status,
       message,
       error: error || message,
+      ...(errors ? { errors } : {}),
       path: request.url,
       timestamp: new Date().toISOString(),
     };

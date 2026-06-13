@@ -11,6 +11,7 @@ import { DATABASE_SCHEMAS } from '../../../common/enums/common.enums';
 @Entity({ name: 'vehicles', schema: DATABASE_SCHEMAS.MASTER })
 @Index('IDX_VEHICLE_VEHICLE_ID', ['vehicle_id'], { unique: true })
 @Index('IDX_VEHICLE_CODE', ['code'], { unique: true })
+@Index('IDX_VEHICLE_VIN_NO', ['vin_no'], { unique: true })
 export class Vehicle {
   @SnowflakePrimaryColumn()
   id!: string;

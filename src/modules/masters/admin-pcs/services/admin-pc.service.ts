@@ -36,7 +36,11 @@ export class AdminPcService {
         throw new DuplicateResourceException('AdminPc', 'code', createAdminPcDto.code);
       }
 
-      const lineIds = this.normalizeLineIds(createAdminPcDto.line_ids);
+      const lineIds = this.normalizeLineIds(
+        createAdminPcDto.line_ids?.length
+          ? createAdminPcDto.line_ids
+          : [createAdminPcDto.line_id],
+      );
       await this.validateLineAssignments(lineIds);
 
       let admin_pc_id = createAdminPcDto.admin_pc_id;
@@ -51,6 +55,7 @@ export class AdminPcService {
 
       const {
         line_ids: _lineIds,
+        line_id: _lineId,
         ...adminPcFields
       } = createAdminPcDto;
 
@@ -137,8 +142,11 @@ export class AdminPcService {
         }
       }
 
-      if (updateAdminPcDto.line_ids) {
-        const lineIds = this.normalizeLineIds(updateAdminPcDto.line_ids);
+      if (updateAdminPcDto.line_ids || updateAdminPcDto.line_id) {
+        const lineIds = this.normalizeLineIds(
+          updateAdminPcDto.line_ids ??
+            (updateAdminPcDto.line_id ? [updateAdminPcDto.line_id] : []),
+        );
         await this.validateLineAssignments(lineIds, id);
         await this.adminPcLineMappingDao.replaceForAdminPc(
           id,
@@ -149,6 +157,7 @@ export class AdminPcService {
 
       const {
         line_ids: _lineIds,
+        line_id: _lineId,
         ...updateFields
       } = updateAdminPcDto;
 

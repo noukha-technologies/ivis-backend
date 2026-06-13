@@ -1,10 +1,11 @@
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
-  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
@@ -18,19 +19,25 @@ export class CreateCentreDto {
   @IsOptional()
   centre_id?: number;
 
-  @ApiProperty({ description: 'Centre name', example: 'Muscat' })
+  @ApiProperty({ description: 'Centre name (alphabets only)', example: 'Muscat' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
+  @Matches(/^[A-Za-z\s'-]+$/, {
+    message: 'name must contain only alphabets',
+  })
   name!: string;
 
-  @ApiProperty({ description: 'Centre unique code', example: 'CM001' })
+  @ApiProperty({ description: 'Centre unique code (alphanumeric)', example: 'CM001' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
+  @Matches(/^[A-Za-z0-9]+$/, {
+    message: 'code must be alphanumeric',
+  })
   code!: string;
 
   @ApiPropertyOptional({ description: 'Centre details description', example: 'Main hub' })
-  @IsString({ message: 'description must be a string' })
   @IsOptional()
+  @IsString({ message: 'description must be a string' })
   description?: string;
 
   @ApiPropertyOptional({ description: 'Centre status', example: 'Active', enum: ['Active', 'Inactive'] })

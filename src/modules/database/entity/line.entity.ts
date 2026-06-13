@@ -13,7 +13,7 @@ import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.t
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Centre } from './centre.entity';
 import { Camera } from './camera.entity';
-import { AdminPc } from './admin-pc.entity';
+import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
 import { UserLineMapping } from './user-line-mapping.entity';
 
 @Entity({ name: 'lines', schema: 'master' })
@@ -67,6 +67,6 @@ export class Line {
   @OneToOne(() => Camera, (camera) => camera.line)
   camera?: Camera;
 
-  @OneToOne(() => AdminPc, (adminPc) => adminPc.line)
-  adminPc?: AdminPc;
+  @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.line)
+  adminPcMappings?: AdminPcLineMapping[];
 }

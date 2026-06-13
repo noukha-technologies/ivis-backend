@@ -7,7 +7,7 @@ import { CentreDao } from '../../modules/database/dao/centre.dao';
 import { LineDao } from '../../modules/database/dao/line.dao';
 import { UsersDao } from '../../modules/database/dao/users.dao';
 import { CameraDao } from '../../modules/database/dao/camera.dao';
-import { AdminPcDao } from '../../modules/database/dao/admin-pc.dao';
+import { AdminPcLineMappingDao } from '../../modules/database/dao/admin-pc-line-mapping.dao';
 
 @Injectable()
 export class MasterScopeService {
@@ -16,7 +16,7 @@ export class MasterScopeService {
     private readonly lineDao: LineDao,
     private readonly usersDao: UsersDao,
     private readonly cameraDao: CameraDao,
-    private readonly adminPcDao: AdminPcDao,
+    private readonly adminPcLineMappingDao: AdminPcLineMappingDao,
   ) {}
 
   async resolveCentreId(centreId: string): Promise<string> {
@@ -63,9 +63,20 @@ export class MasterScopeService {
   }
 
   async assertLineHasNoAdminPc(lineId: string, excludeAdminPcId?: string): Promise<void> {
-    const existing = await this.adminPcDao.findActiveByLineId(lineId);
-    if (existing && existing.id !== excludeAdminPcId) {
-      throw new DuplicateResourceException('AdminPc', 'line_id', lineId);
+    await this.assertLinesHaveNoAdminPc([lineId], excludeAdminPcId);
+  }
+
+  async assertLinesHaveNoAdminPc(lineIds: string[], excludeAdminPcId?: string): Promise<void> {
+    if (!lineIds.length) {
+      return;
+    }
+
+    const conflicts = await this.adminPcLineMappingDao.findActiveByLineIds(lineIds);
+    for (const mapping of conflicts) {
+      if (excludeAdminPcId && mapping.admin_pc_id === excludeAdminPcId) {
+        continue;
+      }
+      throw new DuplicateResourceException('AdminPc', 'line_id', mapping.line_id);
     }
   }
 

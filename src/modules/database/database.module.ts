@@ -12,6 +12,7 @@ import { Test } from './entity/test.entity';
 import { Centre } from './entity/centre.entity';
 import { Line } from './entity/line.entity';
 import { AdminPc } from './entity/admin-pc.entity';
+import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 import { Camera } from './entity/camera.entity';
 import { Payment } from './entity/payment.entity';
 import { AnprCapture } from './entity/anpr-capture.entity';
@@ -30,6 +31,7 @@ import { VehicleDao } from './dao/vehicle.dao';
 import { CentreDao } from './dao/centre.dao';
 import { LineDao } from './dao/line.dao';
 import { AdminPcDao } from './dao/admin-pc.dao';
+import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
 import { CameraDao } from './dao/camera.dao';
 import { PaymentDao } from './dao/payment.dao';
 import { AnprCaptureDao } from './dao/anpr-capture.dao';
@@ -66,6 +68,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
       Centre,
       Line,
       AdminPc,
+      AdminPcLineMapping,
       Camera,
       Payment,
       AnprCapture,
@@ -87,6 +90,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     CentreDao,
     LineDao,
     AdminPcDao,
+    AdminPcLineMappingDao,
     CameraDao,
     PaymentDao,
     AnprCaptureDao,
@@ -108,6 +112,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     CentreDao,
     LineDao,
     AdminPcDao,
+    AdminPcLineMappingDao,
     CameraDao,
     PaymentDao,
     AnprCaptureDao,

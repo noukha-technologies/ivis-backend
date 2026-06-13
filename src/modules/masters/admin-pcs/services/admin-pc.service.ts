@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateAdminPcDto, UpdateAdminPcDto } from '../../../../common/dto/admin-pc.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
@@ -11,6 +11,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { AdminPcLineMappingDao } from '../../../database/dao/admin-pc-line-mapping.dao';
 import { AdminPc } from '../../../database/entity/admin-pc.entity';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
@@ -21,6 +22,7 @@ export class AdminPcService {
 
   constructor(
     private readonly adminPcDao: AdminPcDao,
+    private readonly adminPcLineMappingDao: AdminPcLineMappingDao,
     private readonly masterScope: MasterScopeService,
     private readonly logger: AppLogger,
   ) {}
@@ -34,8 +36,8 @@ export class AdminPcService {
         throw new DuplicateResourceException('AdminPc', 'code', createAdminPcDto.code);
       }
 
-      await this.masterScope.assertLineExists(createAdminPcDto.line_id);
-      await this.masterScope.assertLineHasNoAdminPc(createAdminPcDto.line_id);
+      const lineIds = this.normalizeLineIds(createAdminPcDto.line_ids);
+      await this.validateLineAssignments(lineIds);
 
       let admin_pc_id = createAdminPcDto.admin_pc_id;
       if (!admin_pc_id) {
@@ -47,19 +49,33 @@ export class AdminPcService {
         }
       }
 
+      const {
+        line_ids: _lineIds,
+        ...adminPcFields
+      } = createAdminPcDto;
+
       const adminPc = this.adminPcDao.create({
         id: generateSnowflakeId(),
-        ...createAdminPcDto,
+        ...adminPcFields,
         admin_pc_id,
         status: createAdminPcDto.status || 'Active',
         created_by: getCreatedById(actor),
       });
       const savedAdminPc = await this.adminPcDao.save(adminPc);
+      await this.adminPcLineMappingDao.replaceForAdminPc(
+        savedAdminPc.id,
+        lineIds,
+        getCreatedById(actor),
+      );
 
       this.logger.log(`Admin PC created with ID: ${savedAdminPc.id}`, AdminPcService.context);
-      return savedAdminPc;
+      return (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc;
     } catch (error) {
-      if (error instanceof DuplicateResourceException || error instanceof ResourceNotFoundException) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -121,18 +137,32 @@ export class AdminPcService {
         }
       }
 
-      if (updateAdminPcDto.line_id) {
-        await this.masterScope.assertLineExists(updateAdminPcDto.line_id);
-        await this.masterScope.assertLineHasNoAdminPc(updateAdminPcDto.line_id, id);
+      if (updateAdminPcDto.line_ids) {
+        const lineIds = this.normalizeLineIds(updateAdminPcDto.line_ids);
+        await this.validateLineAssignments(lineIds, id);
+        await this.adminPcLineMappingDao.replaceForAdminPc(
+          id,
+          lineIds,
+          adminPc.created_by,
+        );
       }
 
-      const mergedAdminPc = this.adminPcDao.merge(adminPc, updateAdminPcDto);
+      const {
+        line_ids: _lineIds,
+        ...updateFields
+      } = updateAdminPcDto;
+
+      const mergedAdminPc = this.adminPcDao.merge(adminPc, updateFields);
       const savedAdminPc = await this.adminPcDao.save(mergedAdminPc);
 
       this.logger.log(`Admin PC updated ID: ${savedAdminPc.id}`, AdminPcService.context);
-      return savedAdminPc;
+      return (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -151,6 +181,7 @@ export class AdminPcService {
       const adminPc = await this.findOne(id);
       adminPc.is_deleted = true;
       await this.adminPcDao.save(adminPc);
+      await this.adminPcLineMappingDao.softDeleteByAdminPcId(id);
       this.logger.log(`Admin PC soft-deleted ID: ${id}`, AdminPcService.context);
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
@@ -163,5 +194,21 @@ export class AdminPcService {
       );
       throw new DatabaseException('Failed to delete Admin PC record. Please try again.');
     }
+  }
+
+  private normalizeLineIds(lineIds: string[]): string[] {
+    return [...new Set(lineIds.map((lineId) => lineId.trim()).filter(Boolean))];
+  }
+
+  private async validateLineAssignments(lineIds: string[], excludeAdminPcId?: string): Promise<void> {
+    if (!lineIds.length) {
+      throw new BadRequestException('At least one line is required.');
+    }
+
+    for (const lineId of lineIds) {
+      await this.masterScope.assertLineExists(lineId);
+    }
+
+    await this.masterScope.assertLinesHaveNoAdminPc(lineIds, excludeAdminPcId);
   }
 }

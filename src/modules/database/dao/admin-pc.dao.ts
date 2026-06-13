@@ -11,6 +11,10 @@ import { AdminPc } from '../entity/admin-pc.entity';
 
 @Injectable()
 export class AdminPcDao extends Repository<AdminPc> {
+  private static readonly lineRelations = {
+    lineMappings: { line: { centre: true } },
+  } as const;
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
@@ -21,12 +25,20 @@ export class AdminPcDao extends Repository<AdminPc> {
   async findActiveById(id: string): Promise<AdminPc | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { line: { centre: true } },
+      relations: AdminPcDao.lineRelations,
     });
   }
 
   async findActiveByLineId(lineId: string): Promise<AdminPc | null> {
-    return this.findOne({ where: { line_id: lineId, is_deleted: false } });
+    return this.createQueryBuilder('adminPc')
+      .innerJoin(
+        'adminPc.lineMappings',
+        'mapping',
+        'mapping.is_deleted = false AND mapping.line_id = :lineId',
+        { lineId },
+      )
+      .where('adminPc.is_deleted = false')
+      .getOne();
   }
 
   async findByCode(code: string): Promise<AdminPc | null> {
@@ -39,7 +51,8 @@ export class AdminPcDao extends Repository<AdminPc> {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AdminPc>> {
     const qb = this.createQueryBuilder('adminPc')
-      .leftJoinAndSelect('adminPc.line', 'line')
+      .leftJoinAndSelect('adminPc.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect('lineMapping.line', 'line')
       .leftJoinAndSelect('line.centre', 'centre')
       .where('adminPc.is_deleted = :is_deleted', { is_deleted: false });
 

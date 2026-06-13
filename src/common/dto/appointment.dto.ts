@@ -4,6 +4,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -66,6 +67,16 @@ export class CreateAppointmentDto {
   @IsString()
   id_number?: string;
 
+  @ApiPropertyOptional({ description: 'Vehicle chassis number', example: 'JT2BF22K0W0123456' })
+  @IsOptional()
+  @IsString()
+  chassis_no?: string;
+
+  @ApiPropertyOptional({ description: 'Mulkiya (vehicle registration) ID', example: 'MK-123456' })
+  @IsOptional()
+  @IsString()
+  mulkiya_id?: string;
+
   @ApiProperty({ description: 'Appointment date/time', example: '2026-05-28T10:00:00.000Z' })
   @IsDateString()
   appointment_at!: string;
@@ -85,8 +96,23 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiProperty({ description: 'Payment mode', example: 'Cash' })
+  @IsString()
+  @IsNotEmpty()
+  payment_mode!: string;
+
+  @ApiProperty({ description: 'Appointment type', example: 'Standard' })
+  @IsString()
+  @IsNotEmpty()
+  type!: string;
+
+  @ApiProperty({ description: 'Payment amount stored on linked payment master record', example: 150.5 })
+  @IsNumber({}, { message: 'amount must be a number' })
+  @Min(0, { message: 'amount must be greater than or equal to 0' })
+  amount!: number;
 }
 
 export class UpdateAppointmentDto extends PartialType(
   OmitType(CreateAppointmentDto, ['appointment_id'] as const),
-) {}
+) { }

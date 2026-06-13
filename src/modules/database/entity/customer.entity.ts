@@ -17,6 +17,8 @@ import { VehicleRecord } from './vehicle-record.entity';
 @Index('IDX_CUSTOMER_PHONE', ['phone'])
 @Index('IDX_CUSTOMER_ID_NUMBER', ['id_number'])
 @Index('IDX_CUSTOMER_PRIMARY_VEHICLE_RECORD_ID', ['primary_vehicle_record_id'])
+@Index('IDX_CUSTOMER_CHASSIS_NO', ['chassis_no'])
+@Index('IDX_CUSTOMER_MULKIYA_ID', ['mulkiya_id'])
 export class Customer {
   @SnowflakePrimaryColumn()
   id!: string;
@@ -35,6 +37,12 @@ export class Customer {
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  chassis_no?: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  mulkiya_id?: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   primary_vehicle_record_id?: string | null;

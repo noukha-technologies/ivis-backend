@@ -40,12 +40,22 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
     );
 
     const options = buildTypeOrmPaginationOptions<Customer, Customer>(query, {
-      searchFields: ['name', 'phone', 'id_number', 'owner_name', 'vehicleRecord.plate_number'],
+      searchFields: [
+        'name',
+        'phone',
+        'id_number',
+        'owner_name',
+        'chassis_no',
+        'mulkiya_id',
+        'vehicleRecord.plate_number',
+      ],
       allowedSortFields: [
         'customer_id',
         'name',
         'phone',
         'id_number',
+        'chassis_no',
+        'mulkiya_id',
         'created_at',
         'updated_at',
       ],

@@ -16,8 +16,8 @@ export class CreateVehicleDto {
     description: 'Unique numeric vehicle master identifier (auto-generated if omitted)',
     example: 1001,
   })
-  @IsInt({ message: 'vehicle_id must be a valid integer' })
-  @Min(1, { message: 'vehicle_id must be greater than 0' })
+  @IsInt({ message: 'vehicle id must be a valid integer' })
+  @Min(1, { message: 'vehicle id must be greater than 0' })
   @IsOptional()
   vehicle_id?: number;
 
@@ -41,11 +41,11 @@ export class CreateVehicleDto {
     description: 'Unique 17-character alphanumeric VIN number',
     example: 'JN1AZ32E90U123456',
   })
-  @IsString({ message: 'vin_no must be a string' })
-  @IsNotEmpty({ message: 'vin_no is required' })
-  @Length(17, 17, { message: 'vin_no must be exactly 17 characters' })
+  @IsString({ message: 'vin no must be a string' })
+  @IsNotEmpty({ message: 'vin no is required' })
+  @Length(17, 17, { message: 'vin no must be exactly 17 characters' })
   @Matches(/^[A-Za-z0-9]{17}$/, {
-    message: 'vin_no must be a 17-character alphanumeric VIN code',
+    message: 'vin No must be a 17-character alphanumeric VIN code',
   })
   vin_no!: string;
 

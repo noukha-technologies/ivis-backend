@@ -39,14 +39,14 @@ export class CreateLineDto {
     description: 'Parent centre snowflake ID (master.centres.id)',
     example: '2058858609483202561',
   })
-  @IsString({ message: 'centre_id must be a string' })
-  @IsNotEmpty({ message: 'centre_id is required' })
+  @IsString({ message: 'centre id must be a string' })
+  @IsNotEmpty({ message: 'centre id is required' })
   centre_id!: string;
 
   @ApiProperty({ description: 'Line display order', example: 1 })
   @IsInt({ message: 'display_order must be an integer' })
-  @IsNotEmpty({ message: 'display_order is required' })
-  @Min(1, { message: 'display_order must be at least 1' })
+  @IsNotEmpty({ message: 'display order is required' })
+  @Min(1, { message: 'display order must be at least 1' })
   display_order!: number;
 
   @ApiPropertyOptional({ description: 'Line details description', example: 'Light vehicle lane' })

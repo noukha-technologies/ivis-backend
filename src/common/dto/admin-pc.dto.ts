@@ -42,8 +42,8 @@ export class CreateAdminPcDto {
     description: 'IPv4 address in xxx.xxx.xxx.xxx format',
     example: '192.168.10.15',
   })
-  @IsString({ message: 'ip_address must be a string' })
-  @IsNotEmpty({ message: 'ip_address is required' })
+  @IsString({ message: 'ip address must be a string' })
+  @IsNotEmpty({ message: 'ip address is required' })
   @Matches(/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/, {
     message: 'ip_address must be a valid IPv4 address (example: 192.168.10.15)',
   })

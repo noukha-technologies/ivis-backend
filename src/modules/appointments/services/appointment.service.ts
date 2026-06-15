@@ -204,10 +204,11 @@ export class AppointmentService {
       | 'customer_name'
       | 'customer_phone'
       | 'id_number'
-      | 'chassis_no'
       | 'mulkiya_id'
       | 'vehicle_record_id'
-    >,
+    > & {
+      chassis_no?: string;
+    },
     plateNumber: string | undefined,
     actor: UserContext,
   ): Promise<{ customerId: string; vehicleRecordId?: string }> {

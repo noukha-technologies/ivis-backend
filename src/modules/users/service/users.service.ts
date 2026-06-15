@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
+import { resolveUserLineIds } from '../../../common/validators/user-centre-line.validator.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
@@ -49,7 +50,7 @@ export class UsersService implements IUsersService {
         throw new ResourceNotFoundException('Role', createUserDto.role_id);
       }
 
-      const lineIds = this.normalizeLineIds(createUserDto.line_ids);
+      const lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
       const centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
       if (centreFkId) {
         await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId);
@@ -62,6 +63,7 @@ export class UsersService implements IUsersService {
         role_id: _roleId,
         center_id: _centerId,
         line_ids: _lineIds,
+        line_id: _lineId,
         user_code: _userCode,
         ...userFields
       } = createUserDto;
@@ -196,9 +198,14 @@ export class UsersService implements IUsersService {
         role_id: updatedRoleId,
         center_id,
         line_ids,
+        line_id,
         user_code: _userCode,
         ...updateFields
       } = updateUserDto;
+      const hasLinesUpdate = line_ids !== undefined || line_id !== undefined;
+      const resolvedLineIds = hasLinesUpdate
+        ? this.normalizeLineIds(resolveUserLineIds({ line_ids, line_id }))
+        : undefined;
       let roleId: string | undefined;
       if (updatedRoleId !== undefined) {
         const role = await this.roleDao.findActiveById(updatedRoleId);
@@ -210,9 +217,7 @@ export class UsersService implements IUsersService {
 
       let centreFkId: string | null | undefined;
       if (center_id !== undefined) {
-        const normalizedLineIds =
-          line_ids !== undefined ? this.normalizeLineIds(line_ids) : undefined;
-        centreFkId = await this.resolveCentreForUser(center_id, normalizedLineIds ?? []);
+        centreFkId = await this.resolveCentreForUser(center_id, resolvedLineIds ?? []);
         if (centreFkId) {
           await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId, id);
         }
@@ -223,8 +228,8 @@ export class UsersService implements IUsersService {
 
       const createdBy = getCreatedById(actor);
 
-      if (line_ids !== undefined) {
-        const normalizedLineIds = this.normalizeLineIds(line_ids);
+      if (hasLinesUpdate) {
+        const normalizedLineIds = resolvedLineIds!;
         if (effectiveCentreId) {
           if (normalizedLineIds.length === 0) {
             throw new BadRequestException(

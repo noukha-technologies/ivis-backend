@@ -4,22 +4,35 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
+  Validate,
+  ValidateIf,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  UserCentreLinePairConstraint,
+  UserCreateCentreLineConstraint,
+} from '../validators/user-centre-line.validator.js';
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'Unique user code (any string)',
-    example: 'iv-01',
+    description: 'Unique user code (alphanumeric)',
+    example: 'USR1001',
   })
   @IsString({ message: 'user_code must be a string' })
   @IsNotEmpty({ message: 'user_code is required' })
+  @Matches(/^[A-Za-z0-9]+$/, {
+    message: 'user_code must be alphanumeric',
+  })
   user_code!: string;
 
-  @ApiProperty({ description: 'Full name of the user', example: 'John Doe' })
+  @ApiProperty({ description: 'Full name (alphabets only)', example: 'Ahmed Al Said' })
   @IsString({ message: 'user_name must be a string' })
   @IsNotEmpty({ message: 'user_name is required' })
+  @Matches(/^[A-Za-z\s'-]+$/, {
+    message: 'user_name must contain only alphabets',
+  })
   user_name!: string;
 
   @ApiProperty({ description: 'Email address (must be unique)', example: 'john.doe@example.com' })
@@ -32,39 +45,81 @@ export class CreateUserDto {
     example: '2058858609483202561',
   })
   @IsString({ message: 'role_id must be a string' })
-  @IsNotEmpty({ message: 'role_id is required' })
+  @IsNotEmpty({ message: 'Please select a role' })
   role_id!: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Assigned centre snowflake ID (master.centres.id); optional — line_ids required when set',
+  @ApiProperty({
+    description: 'Assigned centre snowflake ID (master.centres.id)',
     example: '2058858609483202561',
   })
+  @Validate(UserCreateCentreLineConstraint)
   @IsString({ message: 'center_id must be a string' })
+  @IsNotEmpty({ message: 'Please select a centre' })
+  center_id!: string;
+
+  @ApiPropertyOptional({
+    description: 'Single assigned line snowflake ID (alternative to line_ids)',
+    example: '2058858609483202562',
+  })
   @IsOptional()
+  @IsString({ message: 'line_id must be a string' })
+  line_id?: string;
+
+  @ApiProperty({
+    description: 'Assigned line snowflake IDs (master.lines.id)',
+    example: ['2058858609483202562'],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray({ message: 'line_ids must be an array' })
+  @IsString({ each: true, message: 'each line_id must be a string' })
+  line_ids?: string[];
+
+  @ApiProperty({
+    description:
+      'Login password (min 8 chars, uppercase, lowercase, number, special character)',
+    example: 'P@ssw0rd1',
+    minLength: 8,
+  })
+  @IsString({ message: 'password must be a string' })
+  @IsNotEmpty({ message: 'password is required' })
+  @MinLength(8, { message: 'password must be at least 8 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/, {
+    message:
+      'password must include uppercase, lowercase, number, and special character',
+  })
+  password!: string;
+}
+
+export class UpdateUserDto extends PartialType(
+  OmitType(CreateUserDto, ['password', 'center_id', 'line_id', 'line_ids'] as const),
+) {
+  @ValidateIf(
+    (dto: UpdateUserDto) =>
+      dto.center_id !== undefined ||
+      dto.line_ids !== undefined ||
+      dto.line_id !== undefined,
+  )
+  @Validate(UserCentreLinePairConstraint)
+  @IsOptional()
+  @IsString({ message: 'center_id must be a string' })
   center_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Single assigned line snowflake ID (alternative to line_ids)',
+    example: '2058858609483202562',
+  })
+  @IsOptional()
+  @IsString({ message: 'line_id must be a string' })
+  line_id?: string;
 
   @ApiPropertyOptional({
     description: 'Assigned line snowflake IDs (master.lines.id)',
     example: ['2058858609483202562'],
     type: [String],
   })
+  @IsOptional()
   @IsArray({ message: 'line_ids must be an array' })
   @IsString({ each: true, message: 'each line_id must be a string' })
-  @IsOptional()
   line_ids?: string[];
-
-  @ApiProperty({
-    description: 'Login password (stored as bcrypt hash)',
-    example: 'P@ssw0rd123',
-    minLength: 8,
-  })
-  @IsString()
-  @MinLength(8)
-  @IsNotEmpty()
-  password!: string;
-
 }
-
-/** All fields optional. */
-export class UpdateUserDto extends PartialType(CreateUserDto) { }

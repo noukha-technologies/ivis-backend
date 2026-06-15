@@ -7,6 +7,7 @@ import { AppModule } from './app.module';
 import { AppLogger } from './common/logger/app.logger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { buildValidationException } from './common/utils/validation-error.util.js';
 
 const NODE_ENV: string | undefined = process.env.NODE_ENV;
 const isDevelopment: boolean = NODE_ENV === 'development';
@@ -38,6 +39,7 @@ async function bootstrap() {
         skipMissingProperties: false,
         stopAtFirstError: false,
         errorHttpStatusCode: 422,
+        exceptionFactory: (errors) => buildValidationException(errors),
       }),
     );
 

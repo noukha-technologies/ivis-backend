@@ -1,10 +1,11 @@
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
-  IsIn,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
@@ -18,32 +19,39 @@ export class CreateLineDto {
   @IsOptional()
   line_id?: number;
 
-  @ApiProperty({ description: 'Line name', example: 'Line 1' })
+  @ApiProperty({ description: 'Line name (alphabets only)', example: 'Line One' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
+  @Matches(/^[A-Za-z\s'-]+$/, {
+    message: 'name must contain only alphabets',
+  })
   name!: string;
 
-  @ApiProperty({ description: 'Line unique code', example: '0093' })
+  @ApiProperty({ description: 'Line unique code (alphanumeric)', example: 'LN001' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
+  @Matches(/^[A-Za-z0-9]+$/, {
+    message: 'code must be alphanumeric',
+  })
   code!: string;
 
   @ApiProperty({
     description: 'Parent centre snowflake ID (master.centres.id)',
     example: '2058858609483202561',
   })
-  @IsString({ message: 'centre_id must be a string' })
-  @IsNotEmpty({ message: 'centre_id is required' })
+  @IsString({ message: 'centre id must be a string' })
+  @IsNotEmpty({ message: 'centre id is required' })
   centre_id!: string;
 
   @ApiProperty({ description: 'Line display order', example: 1 })
   @IsInt({ message: 'display_order must be an integer' })
-  @Min(1, { message: 'display_order must be at least 1' })
+  @IsNotEmpty({ message: 'display order is required' })
+  @Min(1, { message: 'display order must be at least 1' })
   display_order!: number;
 
   @ApiPropertyOptional({ description: 'Line details description', example: 'Light vehicle lane' })
-  @IsString({ message: 'description must be a string' })
   @IsOptional()
+  @IsString({ message: 'description must be a string' })
   description?: string;
 
   @ApiPropertyOptional({ description: 'Line status', example: 'Active', enum: ['Active', 'Inactive'] })

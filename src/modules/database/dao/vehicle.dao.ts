@@ -27,6 +27,10 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
     return this.findOne({ where: { code, is_deleted: false } });
   }
 
+  async findByVinNo(vinNo: string): Promise<Vehicle | null> {
+    return this.findOne({ where: { vin_no: vinNo, is_deleted: false } });
+  }
+
   async findByVehicleId(vehicleId: number): Promise<Vehicle | null> {
     return this.findOne({ where: { vehicle_id: vehicleId, is_deleted: false } });
   }

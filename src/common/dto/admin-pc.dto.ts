@@ -29,6 +29,7 @@ export class CreateAdminPcDto {
     message: 'name must contain only alphabets',
   })
   name!: string;
+  
 
   @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'MCTRECP01' })
   @IsString({ message: 'code must be a string' })

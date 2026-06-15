@@ -19,3 +19,8 @@ export type JobSource = (typeof JOB_SOURCES)[number];
 export const JOB_OVERALL_RESULTS = ['Passed', 'Failed'] as const;
 
 export type JobOverallResult = (typeof JOB_OVERALL_RESULTS)[number];
+
+/** Payment type on job intake form */
+export const JOB_PAYMENT_TYPES = ['Paid', 'FOC'] as const;
+
+export type JobPaymentType = (typeof JOB_PAYMENT_TYPES)[number];

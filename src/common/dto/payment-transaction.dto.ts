@@ -11,6 +11,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { PAYMENT_TRANSACTION_STATUSES } from '../enums/payment-transaction.enums';
+import { APPOINTMENT_PAYMENT_MODES } from '../enums/appointment.enums';
 import { JOB_SOURCES } from '../enums/job.enums';
 
 export class CreatePaymentTransactionDto {
@@ -67,6 +68,12 @@ export class CreatePaymentTransactionDto {
   @IsString()
   @IsNotEmpty()
   payment_type!: string;
+
+  @ApiPropertyOptional({ description: 'Payment mode', enum: APPOINTMENT_PAYMENT_MODES, example: 'Cash' })
+  @IsOptional()
+  @IsString()
+  @IsIn([...APPOINTMENT_PAYMENT_MODES])
+  payment_mode?: (typeof APPOINTMENT_PAYMENT_MODES)[number];
 
   @ApiPropertyOptional({ enum: PAYMENT_TRANSACTION_STATUSES, default: 'Pending' })
   @IsOptional()

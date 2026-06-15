@@ -17,25 +17,59 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { CreateJobDto, UpdateJobDto } from '../../common/dto/job.dto';
+import {
+  CreateJobDto,
+  CreateJobIntakeDto,
+  CreateJobRequestDto,
+  UpdateJobDto,
+} from '../../common/dto/job.dto';
+import { isLegacyJobCreate } from '../../common/validators/job-create-request.validator';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../common/dto/auth.dto';
 import { JobService } from './services/job.service';
+import { JobIntakeService } from './services/job-intake.service';
 
 @ApiTags('Jobs')
 @Controller('jobs')
 export class JobController {
-  constructor(private readonly jobService: JobService) {}
+  constructor(
+    private readonly jobService: JobService,
+    private readonly jobIntakeService: JobIntakeService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a job' })
+  @ApiOperation({ summary: 'Create a job (form intake or legacy IDs)' })
   @ApiResponse({ status: 201, description: 'Job created successfully.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateJobDto) {
-    const data = await this.jobService.create(createDto, actor);
-    return { message: 'Job created successfully', data };
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateJobRequestDto) {
+    if (isLegacyJobCreate(createDto)) {
+      const legacyDto: CreateJobDto = {
+        job_id: createDto.job_id,
+        source: createDto.source!,
+        status: createDto.status,
+        customer_id: createDto.customer_id!,
+        vehicle_record_id: createDto.vehicle_record_id!,
+        anpr_capture_id: createDto.anpr_capture_id,
+        centre_id: createDto.centre_id,
+        line_id: createDto.line_id,
+        admin_pc_id: createDto.admin_pc_id,
+        camera_id: createDto.camera_id,
+      };
+      const data = await this.jobService.create(legacyDto, actor);
+      return { message: 'Job created successfully', data };
+    }
+
+    const data = await this.jobIntakeService.createFromIntake(
+      createDto as CreateJobIntakeDto,
+      actor,
+    );
+    const message = data.job
+      ? 'Job created successfully'
+      : 'Payment recorded (FOC). Job will be created when payment is marked Paid.';
+
+    return { message, data };
   }
 
   @Get()

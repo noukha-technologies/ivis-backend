@@ -689,7 +689,7 @@
           "request": {
             "method": "POST",
             "header": [{ "key": "Content-Type", "value": "application/json" }],
-            "body": { "mode": "raw", "raw": "{\n  \"source\": \"Booked\",\n  \"status\": \"Pending\",\n  \"customer_id\": \"2058858609483202561\",\n  \"vehicle_record_id\": \"2058858609483202562\"\n}" },
+            "body": { "mode": "raw", "raw": "{\n  \"customer_name\": \"Ahmed Al-Said\",\n  \"phone\": \"+968 91234567\",\n  \"mulkiya_id\": \"34343432\",\n  \"vehicle_no\": \"4141413411114\",\n  \"vin_no\": \"4134331413\",\n  \"centre_id\": \"2058858609483202564\",\n  \"line_id\": \"2058858609483202565\",\n  \"admin_pc_id\": \"2058858609483202566\",\n  \"source\": \"Walk-In\",\n  \"payment\": {\n    \"amount\": 3432,\n    \"type\": \"Paid\",\n    \"mode\": \"Card\"\n  }\n}" },
             "url": { "raw": "{{base_url}}/jobs", "host": ["{{base_url}}"], "path": ["jobs"] }
           }
         },

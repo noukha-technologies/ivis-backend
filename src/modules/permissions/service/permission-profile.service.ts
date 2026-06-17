@@ -1,31 +1,37 @@
 import { Injectable } from '@nestjs/common';
 import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
-import {
-  CreatePermissionProfileDto,
-  PermissionProfileDto,
-  UpdatePermissionProfileDto,
-} from '../../../common/dto/permission-profile.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+
+import { ErrorException } from '../../../common/errors/custom-error.exception';
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException,
+  ResourceNotFoundException
 } from '../../../common/exceptions/custom.exception';
-import { ErrorException } from '../../../common/errors/custom-error.exception';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+
 import { AppLogger } from '../../../common/logger/app.logger';
-import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { validateAccessMatrix } from '../../../common/utils/validate-access-matrix';
-import { PermissionDao } from '../../database/dao/permission.dao';
-import { RoleDao } from '../../database/dao/role.dao';
-import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
+
 import { Permission } from '../../database/entity/permission.entity';
 
+import { RoleDao } from '../../database/dao/role.dao';
+import { PermissionDao } from '../../database/dao/permission.dao';
+import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
+
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import {
+  CreatePermissionProfileDto,
+  PermissionProfileDto,
+  UpdatePermissionProfileDto
+} from '../../../common/dto/permission-profile.dto';
+
+
 @Injectable()
-export class PermissionProfileService {
-  private static readonly context = 'PermissionProfileService';
+export class PermissionService {
+  private static readonly context = 'PermissionService';
 
   constructor(
     private readonly permissionDao: PermissionDao,
@@ -35,7 +41,7 @@ export class PermissionProfileService {
   ) { }
 
   async create(dto: CreatePermissionProfileDto, actor: UserContext): Promise<PermissionProfileDto> {
-    this.logger.log(`Creating permission profile: ${dto.name}`, PermissionProfileService.context);
+    this.logger.log(`Creating permission profile: ${dto.name}`, PermissionService.context);
 
     try {
       const existing = await this.permissionDao.findByName(dto.name);
@@ -60,7 +66,7 @@ export class PermissionProfileService {
       this.logger.error(
         `Failed to create permission profile: ${(error as Error).message}`,
         (error as Error).stack,
-        PermissionProfileService.context,
+        PermissionService.context,
       );
       throw new DatabaseException('Failed to create permission profile. Please try again.');
     }

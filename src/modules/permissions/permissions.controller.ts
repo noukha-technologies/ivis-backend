@@ -18,23 +18,22 @@ import {
   ApiParam,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { PermissionKeys } from '../../common/constants/permissions';
 import { Permissions } from '../../common/decorators/permissions.decorator';
-import {
-  CreatePermissionProfileDto,
-  PermissionProfileDto,
-  UpdatePermissionProfileDto,
-} from '../../common/dto/permission-profile.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
-import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
+
 import type { UserContext } from '../../common/dto/auth.dto';
-import { PermissionProfileService } from './service/permission-profile.service';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { CreatePermissionProfileDto, PermissionProfileDto, UpdatePermissionProfileDto } from '../../common/dto/permission-profile.dto';
+
+import { PermissionService } from './service/permission-profile.service';
 
 @ApiTags('Permissions')
 @Controller('permissions')
 export class PermissionsController {
-  constructor(private readonly permissionProfileService: PermissionProfileService) { }
+  constructor(private readonly permissionProfileService: PermissionService) { }
 
   @Get('keys')
   @Permissions(PermissionKeys.PERMISSIONS_VIEW)

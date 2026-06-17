@@ -1,25 +1,29 @@
-import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
-import { AppController } from './app.controller';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+
 import { AppService } from './app.service';
+import { AppController } from './app.controller';
+
+import { AuthGuard } from './guards/auth.guard';
+import { PermissionsGuard } from './guards/permissions.guard';
+import { LoggerMiddleware } from './common/middlewares/logger.middleware';
+
 import swaggerConfig from './common/swagger/swagger.config';
 import databaseConfig from './modules/database/database.config';
-import { LoggerModule } from './common/logger/logger.module';
-import { LoggerMiddleware } from './common/middlewares/logger.middleware';
+
+import { JobsModule } from './modules/jobs/jobs.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
+import { LoggerModule } from './common/logger/logger.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
 import { MasterScopeModule } from './common/services/master-scope.module';
-import { PaginationModule } from './common/shared/pagination/pagination.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { TransactionsModule } from './modules/transactions/transactions.module';
-import { JobsModule } from './modules/jobs/jobs.module';
-import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
-import { RolesModule } from './modules/roles/roles.module';
-import { AuthGuard } from './guards/auth.guard';
-import { PermissionsGuard } from './guards/permissions.guard';
+import { PaginationModule } from './common/shared/pagination/pagination.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 
 @Module({
   imports: [

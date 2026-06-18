@@ -9,6 +9,7 @@ export interface ICustomerDao {
   merge(entity: Customer, entityLike: DeepPartial<Customer>): Customer;
   findActiveById(id: string): Promise<Customer | null>;
   findByCustomerId(customerId: number): Promise<Customer | null>;
+  findActiveByPhone(phone: string): Promise<Customer | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Customer>>;
   getNextCustomerId(): Promise<number>;
 }

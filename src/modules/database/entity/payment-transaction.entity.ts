@@ -101,6 +101,9 @@ export class PaymentTransaction {
   @Column({ type: 'varchar', length: 32, nullable: false })
   payment_type!: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  payment_mode?: string | null;
+
   @Column({ type: 'varchar', length: 32, default: 'Pending', nullable: false })
   status!: PaymentTransactionStatus;
 
@@ -115,6 +118,15 @@ export class PaymentTransaction {
 
   @Column({ type: 'timestamp', nullable: true })
   pay_date?: Date;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  capture_image_path?: string | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  attachment_path?: string | null;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  attachment_filename?: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

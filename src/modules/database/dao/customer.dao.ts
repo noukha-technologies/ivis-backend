@@ -33,6 +33,13 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
     });
   }
 
+  async findActiveByPhone(phone: string): Promise<Customer | null> {
+    return this.findOne({
+      where: { phone, is_deleted: false },
+      relations: { primaryVehicleRecord: { vehicleMaster: true } },
+    });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Customer>> {
     const qb = this.createQueryBuilder('customer').leftJoinAndSelect(
       'customer.primaryVehicleRecord',

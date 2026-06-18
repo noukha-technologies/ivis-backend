@@ -29,6 +29,11 @@ export class CreateVehicleDto {
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
 
+  @ApiProperty({ description: 'Vehicle type details description', example: 'Light sedan vehicle type' })
+  @IsString({ message: 'description must be a string' })
+  @IsOptional()
+  description?: string;
+
   @ApiProperty({
     description: 'Unique 17-character alphanumeric VIN number',
     example: 'JN1AZ32E90U123456',

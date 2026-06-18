@@ -247,6 +247,32 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   // ─── master schema alterations ────────────────────────────────────────────────
 
   private async alterMaster(queryRunner: QueryRunner): Promise<void> {
+    // vehicles: ensure table exists (may be missing on DBs bootstrapped via legacy migrations only)
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."vehicles" (
+        "id"          bigint                  NOT NULL,
+        "vehicle_id"  integer                 NOT NULL,
+        "name"        character varying(128)  NOT NULL,
+        "code"        character varying(64)   NOT NULL,
+        "vin_no"      character varying(64),
+        "description" character varying(512),
+        "status"      character varying(32)   NOT NULL DEFAULT 'Active',
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean                 NOT NULL DEFAULT false,
+        CONSTRAINT "PK_vehicles_id" PRIMARY KEY ("id"),
+        CONSTRAINT "UQ_vehicles_vehicle_id" UNIQUE ("vehicle_id"),
+        CONSTRAINT "UQ_vehicles_code" UNIQUE ("code")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_VEHICLE_VEHICLE_ID" ON "master"."vehicles" ("vehicle_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_VEHICLE_CODE" ON "master"."vehicles" ("code")`,
+    );
+
     // vehicles: replace plate/type/color/brand with name/code/vin_no/status (migration 1780020000000)
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "plate_number"`,
@@ -259,9 +285,6 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "vehicle_brand"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "description"`,
     );
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" ADD COLUMN IF NOT EXISTS "name" character varying(128)`,
@@ -286,6 +309,14 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" ADD COLUMN IF NOT EXISTS "created_by" character varying`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" ADD COLUMN IF NOT EXISTS "description" character varying(512)`,
+    );
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "IDX_VEHICLE_VIN_NO"
+        ON "master"."vehicles" ("vin_no")
+        WHERE "is_deleted" = false AND "vin_no" IS NOT NULL
+    `);
 
     // lines: add centre_id FK (migration 1780120000000)
     await queryRunner.query(

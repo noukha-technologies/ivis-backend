@@ -19,17 +19,20 @@ export class Vehicle {
   @Column({ type: 'integer', unique: true, nullable: false })
   vehicle_id!: number;
 
-  @Column({ type: 'varchar', length: 128, nullable: false })
+  @Column({ type: 'varchar', nullable: false })
   name!: string;
 
-  @Column({ type: 'varchar', length: 64, nullable: false })
+  @Column({ type: 'varchar', nullable: false })
   code!: string;
 
-  @Column({ type: 'varchar', length: 64, nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   vin_no?: string;
 
-  @Column({ type: 'varchar', length: 32, default: 'Active', nullable: false })
+  @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  description?: string;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

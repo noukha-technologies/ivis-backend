@@ -4,9 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Length,
-  Matches,
-  Min,
+  Min
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { VEHICLE_MASTER_STATUSES } from '../enums/vehicle-master.constants';
@@ -24,17 +22,11 @@ export class CreateVehicleDto {
   @ApiProperty({ description: 'Vehicle type name (alphabets only)', example: 'Tesla Sedan' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'name must contain only alphabets',
-  })
   name!: string;
 
   @ApiProperty({ description: 'Unique vehicle type code (alphanumeric)', example: 'VTSEDAN01' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'code must be alphanumeric',
-  })
   code!: string;
 
   @ApiProperty({
@@ -43,10 +35,6 @@ export class CreateVehicleDto {
   })
   @IsString({ message: 'vin no must be a string' })
   @IsNotEmpty({ message: 'vin no is required' })
-  @Length(17, 17, { message: 'vin no must be exactly 17 characters' })
-  @Matches(/^[A-Za-z0-9]{17}$/, {
-    message: 'vin No must be a 17-character alphanumeric VIN code',
-  })
   vin_no!: string;
 
   @ApiPropertyOptional({

@@ -216,6 +216,7 @@ export class CreateSchema1782000000000 implements MigrationInterface {
         "name"        character varying(128)  NOT NULL,
         "code"        character varying(64)   NOT NULL,
         "vin_no"      character varying(64),
+        "description" character varying(512),
         "status"      character varying(32)   NOT NULL DEFAULT 'Active',
         "created_by"  character varying,
         "created_at"  TIMESTAMP               NOT NULL DEFAULT NOW(),
@@ -232,6 +233,11 @@ export class CreateSchema1782000000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_VEHICLE_CODE" ON "master"."vehicles" ("code")`,
     );
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX "IDX_VEHICLE_VIN_NO"
+        ON "master"."vehicles" ("vin_no")
+        WHERE "is_deleted" = false AND "vin_no" IS NOT NULL
+    `);
 
     // tests (no FK deps)
     await queryRunner.query(`

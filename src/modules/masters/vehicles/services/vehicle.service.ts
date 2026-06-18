@@ -36,9 +36,11 @@ export class VehicleService implements IVehicleService {
         throw new DuplicateResourceException('Vehicle', 'code', createVehicleDto.code);
       }
 
-      const existingVin = await this.vehicleDao.findByVinNo(createVehicleDto.vin_no);
-      if (existingVin) {
-        throw new DuplicateResourceException('Vehicle', 'vin_no', createVehicleDto.vin_no);
+      if (createVehicleDto.vin_no) {
+        const existingVin = await this.vehicleDao.findByVinNo(createVehicleDto.vin_no);
+        if (existingVin) {
+          throw new DuplicateResourceException('Vehicle', 'vin_no', createVehicleDto.vin_no);
+        }
       }
 
       let vehicle_id = createVehicleDto.vehicle_id;

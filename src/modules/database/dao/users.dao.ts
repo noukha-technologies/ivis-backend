@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
   buildTypeOrmPaginationOptions,
@@ -70,7 +71,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
   async findByUserCode(userCode: string): Promise<User | null> {
     return this.findOne({
-      where: { user_code: userCode.trim(), is_deleted: false },
+      where: { user_code: normalizeUserCode(userCode), is_deleted: false },
     });
   }
 

@@ -28,7 +28,8 @@ import type { UserContext } from '../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CreatePermissionProfileDto, PermissionProfileDto, UpdatePermissionProfileDto } from '../../common/dto/permission-profile.dto';
 
-import { PermissionService } from './service/permission-profile.service';
+import { PermissionService } from './service/permissions.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Permissions')
 @Controller('permissions')
@@ -48,6 +49,7 @@ export class PermissionsController {
     };
   }
 
+  @Public()
   @Post()
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.CREATED)
@@ -86,6 +88,7 @@ export class PermissionsController {
     }));
   }
 
+  @Public()
   @Patch(':id')
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.OK)

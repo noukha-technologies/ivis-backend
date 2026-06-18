@@ -55,7 +55,7 @@ export class PermissionService {
         name: dto.name.trim(),
         access,
         is_active: dto.is_active ?? true,
-        created_by: getCreatedById(actor),
+        created_by: "System Admin",
       });
       const saved = await this.permissionDao.save(permission);
       return this.toDto(saved);

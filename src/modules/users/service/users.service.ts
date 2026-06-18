@@ -1,33 +1,41 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
+
+import { AppLogger } from '../../../common/logger/app.logger';
+import { getCreatedById } from '../../../common/utils/created-by.util';
+import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
 import { resolveUserLineIds } from '../../../common/validators/user-centre-line.validator.js';
+
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { CreateUserDto, UpdateUserDto } from '../../../common/dto/user.dto';
+
+import { IUsersService } from './user.service.interface';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { MasterScopeService } from '../../../common/services/master-scope.service';
+
 import {
   DatabaseException,
   DuplicateResourceException,
   ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
-import { AppLogger } from '../../../common/logger/app.logger';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
-import { UsersDao } from '../../database/dao/users.dao';
+
+
 import { RoleDao } from '../../database/dao/role.dao';
-import type { UserContext } from '../../../common/dto/auth.dto';
-import { getCreatedById } from '../../../common/utils/created-by.util';
-import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
-import { MasterScopeService } from '../../../common/services/master-scope.service';
-import { IUsersService } from './user.service.interface';
+import { UsersDao } from '../../database/dao/users.dao';
+import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
+
 
 @Injectable()
 export class UsersService implements IUsersService {
   private static readonly context = 'UsersService';
   constructor(
-    private readonly usersDao: UsersDao,
     private readonly roleDao: RoleDao,
+    private readonly logger: AppLogger,
+    private readonly usersDao: UsersDao,
     private readonly masterScope: MasterScopeService,
     private readonly userLineMappingDao: UserLineMappingDao,
-    private readonly logger: AppLogger,
   ) { }
 
   async create(createUserDto: CreateUserDto, actor: UserContext): Promise<UserResponse> {
@@ -39,7 +47,7 @@ export class UsersService implements IUsersService {
         throw new DuplicateResourceException('User', 'email', createUserDto.email);
       }
 
-      const trimmedUserCode = createUserDto.user_code.trim();
+      const trimmedUserCode = normalizeUserCode(createUserDto.user_code);
       const existingCode = await this.usersDao.findByUserCode(trimmedUserCode);
       if (existingCode) {
         throw new DuplicateResourceException('User', 'user_code', trimmedUserCode);
@@ -185,7 +193,7 @@ export class UsersService implements IUsersService {
 
       let normalizedUserCode: string | undefined;
       if (updateUserDto.user_code !== undefined) {
-        normalizedUserCode = updateUserDto.user_code.trim();
+        normalizedUserCode = normalizeUserCode(updateUserDto.user_code);
         if (normalizedUserCode !== user.user_code) {
           const existingCode = await this.usersDao.findByUserCode(normalizedUserCode);
           if (existingCode && existingCode.id !== id) {

@@ -25,6 +25,7 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../common/dto/auth.dto';
 import { UsersService } from './service/users.service';
+import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -73,6 +74,7 @@ export class UsersController {
     return { message: 'User retrieved successfully', data: user };
   }
 
+  @Public()
   @Patch(':id')
   @Permissions(PermissionKeys.USER_EDIT)
   @ApiOperation({ summary: 'Update user details' })

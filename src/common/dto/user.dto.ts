@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsEmail,
@@ -10,6 +11,7 @@ import {
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { normalizeUserCode } from '../utils/normalize-user-code.util.js';
 import {
   UserCentreLinePairConstraint,
   UserCreateCentreLineConstraint,
@@ -17,14 +19,12 @@ import {
 
 export class CreateUserDto {
   @ApiProperty({
-    description: 'Unique user code (alphanumeric)',
-    example: 'USR1001',
+    description: 'Unique user code (spaces are stripped on save)',
+    example: 'IV-01',
   })
+  @Transform(({ value }) => (typeof value === 'string' ? normalizeUserCode(value) : value))
   @IsString({ message: 'user_code must be a string' })
   @IsNotEmpty({ message: 'user_code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'user_code must be alphanumeric',
-  })
   user_code!: string;
 
   @ApiProperty({ description: 'Full name (alphabets only)', example: 'Ahmed Al Said' })

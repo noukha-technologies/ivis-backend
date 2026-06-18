@@ -14,7 +14,6 @@ import {
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { RequestMetadata } from '../../common/decorators/request-metadata.decorator';
 import {
   BootstrapAdminDto,
   BootstrapAdminResponseDto,
@@ -23,7 +22,6 @@ import {
   RefreshTokenRequestDto,
 } from '../../common/dto/auth.dto';
 import type { UserContext } from '../../common/dto/auth.dto';
-import type { RequestMetadata as RequestMetadataType } from '../../common/utils/request-metadata.util';
 import { AuthService } from './service/auth.service';
 
 @ApiTags('Auth')
@@ -31,7 +29,6 @@ import { AuthService } from './service/auth.service';
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
-  @Public()
   @Post('bootstrap')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({

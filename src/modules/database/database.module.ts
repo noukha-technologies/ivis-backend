@@ -28,6 +28,7 @@ import { PermissionDao } from './dao/permission.dao';
 import { RoleDao } from './dao/role.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
 import { VehicleDao } from './dao/vehicle.dao';
+import { TestDao } from './dao/test.dao';
 import { CentreDao } from './dao/centre.dao';
 import { LineDao } from './dao/line.dao';
 import { AdminPcDao } from './dao/admin-pc.dao';
@@ -87,6 +88,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     RoleDao,
     UserSessionsDao,
     VehicleDao,
+    TestDao,
     CentreDao,
     LineDao,
     AdminPcDao,
@@ -109,6 +111,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     RoleDao,
     UserSessionsDao,
     VehicleDao,
+    TestDao,
     CentreDao,
     LineDao,
     AdminPcDao,

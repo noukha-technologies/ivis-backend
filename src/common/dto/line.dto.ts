@@ -30,9 +30,6 @@ export class CreateLineDto {
   @ApiProperty({ description: 'Line unique code (alphanumeric)', example: 'LN001' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'code must be alphanumeric',
-  })
   code!: string;
 
   @ApiProperty({
@@ -64,4 +61,4 @@ export class CreateLineDto {
 
 export class UpdateLineDto extends PartialType(
   OmitType(CreateLineDto, ['line_id'] as const),
-) {}
+) { }

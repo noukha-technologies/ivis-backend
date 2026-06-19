@@ -29,14 +29,11 @@ export class CreateAdminPcDto {
     message: 'name must contain only alphabets',
   })
   name!: string;
-  
+
 
   @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'MCTRECP01' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'code must be alphanumeric',
-  })
   code!: string;
 
   @ApiProperty({
@@ -84,4 +81,4 @@ export class CreateAdminPcDto {
 
 export class UpdateAdminPcDto extends PartialType(
   OmitType(CreateAdminPcDto, ['admin_pc_id'] as const),
-) {}
+) { }

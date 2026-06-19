@@ -30,9 +30,6 @@ export class CreateCameraDto {
   @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'CAM01' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'code must be alphanumeric',
-  })
   code!: string;
 
   @ApiProperty({ description: 'Camera type', example: 'ANPR' })
@@ -59,4 +56,4 @@ export class CreateCameraDto {
 
 export class UpdateCameraDto extends PartialType(
   OmitType(CreateCameraDto, ['camera_id'] as const),
-) {}
+) { }

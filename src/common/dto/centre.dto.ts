@@ -30,9 +30,6 @@ export class CreateCentreDto {
   @ApiProperty({ description: 'Centre unique code (alphanumeric)', example: 'CM001' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
-  @Matches(/^[A-Za-z0-9]+$/, {
-    message: 'code must be alphanumeric',
-  })
   code!: string;
 
   @ApiPropertyOptional({ description: 'Centre details description', example: 'Main hub' })
@@ -50,4 +47,4 @@ export class CreateCentreDto {
 
 export class UpdateCentreDto extends PartialType(
   OmitType(CreateCentreDto, ['centre_id'] as const),
-) {}
+) { }

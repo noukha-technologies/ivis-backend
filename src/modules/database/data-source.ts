@@ -22,6 +22,8 @@ import { Customer } from './entity/customer.entity';
 import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
 import { PaymentTransaction } from './entity/payment-transaction.entity';
+import { Charge } from './entity/charge.entity';
+import { PaymentType } from './entity/payment-type.entity';
 
 dotenv.config();
 
@@ -50,6 +52,8 @@ export const AppDataSource = new DataSource({
     Job,
     Appointment,
     PaymentTransaction,
+    Charge,
+    PaymentType,
   ],
   migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
   subscribers: [],

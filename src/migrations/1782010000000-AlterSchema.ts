@@ -525,6 +525,30 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         ON "master"."charges" ("centre_id", "vehicle_id", "category")
         WHERE "is_deleted" = false
     `);
+
+    // payment_types: create table
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."payment_types" (
+        "id"               bigint                  NOT NULL,
+        "payment_type_id"  integer                 NOT NULL,
+        "name"             character varying(128)  NOT NULL,
+        "code"             character varying(64)   NOT NULL,
+        "status"           character varying       NOT NULL DEFAULT 'Active',
+        "created_by"       character varying,
+        "created_at"       TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "updated_at"       TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "is_deleted"       boolean                 NOT NULL DEFAULT false,
+        CONSTRAINT "PK_payment_types_id" PRIMARY KEY ("id"),
+        CONSTRAINT "UQ_payment_types_payment_type_id" UNIQUE ("payment_type_id"),
+        CONSTRAINT "UQ_payment_types_code" UNIQUE ("code")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PT_PAYMENT_TYPE_ID" ON "master"."payment_types" ("payment_type_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PT_CODE" ON "master"."payment_types" ("code")`,
+    );
   }
 
   // ─── transaction schema alterations ──────────────────────────────────────────
@@ -764,6 +788,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_CODE"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_PAYMENT_TYPE_ID"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "master"."payment_types"`);
+
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CENTRE_ID"`);

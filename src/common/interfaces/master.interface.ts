@@ -108,3 +108,16 @@ export interface ICameraMasterFields {
     updated_at: Date;
     deleted_at?: Date;
 }
+
+
+export interface IPaymentTypeMasterFields {
+    id: string;
+    payment_type_id: number;
+    name: string;
+    code: string;
+    status: string;
+    created_by?: string;
+    created_at: Date;
+    updated_at: Date;
+    is_deleted: boolean;
+}

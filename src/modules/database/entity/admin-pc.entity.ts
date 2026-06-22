@@ -9,9 +9,10 @@ import {
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
+import { IAdminPcMasterFields } from '../../../common/interfaces/master.interface';
 
 @Entity({ name: 'admin_pcs', schema: 'master' })
-export class AdminPc {
+export class AdminPc implements IAdminPcMasterFields {
   @SnowflakePrimaryColumn()
   id!: string;
 

@@ -6,6 +6,7 @@ import { LineModule } from './lines/line.module';
 import { AdminPcModule } from './admin-pcs/admin-pc.module';
 import { CameraModule } from './cameras/camera.module';
 import { PaymentModule } from './payments/payment.module';
+import { ChargeModule } from './charges/charge.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { PaymentModule } from './payments/payment.module';
     AdminPcModule,
     CameraModule,
     PaymentModule,
+    ChargeModule,
   ],
   exports: [
     VehicleModule,
@@ -25,6 +27,7 @@ import { PaymentModule } from './payments/payment.module';
     AdminPcModule,
     CameraModule,
     PaymentModule,
+    ChargeModule,
   ],
 })
 export class MastersModule { }

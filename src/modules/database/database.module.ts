@@ -22,6 +22,7 @@ import { VehicleRecord } from './entity/vehicle-record.entity';
 import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
 import { PaymentTransaction } from './entity/payment-transaction.entity';
+import { Charge } from './entity/charge.entity';
 import { UsersDao } from './dao/users.dao';
 import { UserLineMappingDao } from './dao/user-line-mapping.dao';
 import { PermissionDao } from './dao/permission.dao';
@@ -42,6 +43,7 @@ import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { JobDao } from './dao/job.dao';
 import { AppointmentDao } from './dao/appointment.dao';
 import { PaymentTransactionDao } from './dao/payment-transaction.dao';
+import { ChargeDao } from './dao/charge.dao';
 
 @Global()
 @Module({
@@ -79,6 +81,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
       Job,
       Appointment,
       PaymentTransaction,
+      Charge,
     ]),
   ],
   providers: [
@@ -102,6 +105,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
+    ChargeDao,
   ],
   exports: [
     TypeOrmModule,
@@ -125,6 +129,7 @@ import { PaymentTransactionDao } from './dao/payment-transaction.dao';
     JobDao,
     AppointmentDao,
     PaymentTransactionDao,
+    ChargeDao,
   ],
 })
 export class DatabaseModule { }

@@ -487,6 +487,44 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_PAYMENT_CUSTOMER_ID" ON "master"."payments" ("customer_id")`,
     );
+
+    // charges: create table
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."charges" (
+        "id"              bigint              NOT NULL,
+        "charge_id"       integer             NOT NULL,
+        "centre_id"       bigint,
+        "vehicle_id"      bigint              NOT NULL,
+        "category"        character varying   NOT NULL,
+        "center_charges"  numeric(12,3)       NOT NULL DEFAULT 0,
+        "rop_charges"     numeric(12,3)       NOT NULL DEFAULT 0,
+        "vat_percent"     numeric(5,2)        NOT NULL DEFAULT 0,
+        "grand_total"     numeric(12,3)       NOT NULL DEFAULT 0,
+        "validate_to"     date                NOT NULL,
+        "status"          character varying   NOT NULL DEFAULT 'Active',
+        "is_enabled"      boolean             NOT NULL DEFAULT true,
+        "created_by"      character varying,
+        "created_at"      TIMESTAMP           NOT NULL DEFAULT NOW(),
+        "updated_at"      TIMESTAMP           NOT NULL DEFAULT NOW(),
+        "is_deleted"      boolean             NOT NULL DEFAULT false,
+        CONSTRAINT "PK_charges_id" PRIMARY KEY ("id"),
+        CONSTRAINT "UQ_charges_charge_id" UNIQUE ("charge_id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_CHARGE_ID" ON "master"."charges" ("charge_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_CENTRE_ID" ON "master"."charges" ("centre_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_VEHICLE_ID" ON "master"."charges" ("vehicle_id")`,
+    );
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_UNIQUE_COMBO"
+        ON "master"."charges" ("centre_id", "vehicle_id", "category")
+        WHERE "is_deleted" = false
+    `);
   }
 
   // ─── transaction schema alterations ──────────────────────────────────────────
@@ -626,11 +664,37 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ADD CONSTRAINT "FK_payments_customer_id"
         FOREIGN KEY ("customer_id") REFERENCES "transaction"."customers"("id") ON DELETE NO ACTION
     `);
+
+    // master.charges → master.centres (nullable FK)
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_centre_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "master"."charges"
+      ADD CONSTRAINT "FK_charges_centre_id"
+        FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE RESTRICT
+    `);
+
+    // master.charges → master.vehicles
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_vehicle_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "master"."charges"
+      ADD CONSTRAINT "FK_charges_vehicle_id"
+        FOREIGN KEY ("vehicle_id") REFERENCES "master"."vehicles"("id") ON DELETE RESTRICT
+    `);
   }
 
   // ─── Revert helpers ───────────────────────────────────────────────────────────
 
   private async revertForeignKeys(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_vehicle_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_centre_id"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."payments" DROP CONSTRAINT IF EXISTS "FK_payments_customer_id"`,
     );
@@ -700,6 +764,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CENTRE_ID"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CHARGE_ID"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "master"."charges"`);
+
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PAYMENT_CUSTOMER_ID"`);
     await queryRunner.query(
       `ALTER TABLE "master"."payments" ALTER COLUMN "amount" DROP NOT NULL`,

@@ -10,7 +10,7 @@ import {
 
 import { Line } from './line.entity';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { ICameraMasterFields } from '../../../common/interfaces/camera.interface';
+import { ICameraMasterFields } from '../../../common/interfaces/master.interface';
 
 @Entity({ name: 'cameras', schema: 'master' })
 export class Camera implements ICameraMasterFields {

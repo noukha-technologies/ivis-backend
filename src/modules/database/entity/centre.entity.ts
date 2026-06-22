@@ -10,9 +10,10 @@ import {
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Line } from './line.entity';
 import { User } from './user.entity';
+import { ICentreMasterFields } from '../../../common/interfaces/master.interface';
 
 @Entity({ name: 'centres', schema: 'master' })
-export class Centre {
+export class Centre implements ICentreMasterFields {
   @SnowflakePrimaryColumn()
   id!: string;
 

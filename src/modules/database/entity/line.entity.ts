@@ -15,9 +15,10 @@ import { Centre } from './centre.entity';
 import { Camera } from './camera.entity';
 import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
 import { UserLineMapping } from './user-line-mapping.entity';
+import { ILineMasterFields } from '../../../common/interfaces/master.interface';
 
 @Entity({ name: 'lines', schema: 'master' })
-export class Line {
+export class Line implements ILineMasterFields {
   @SnowflakePrimaryColumn()
   id!: string;
 

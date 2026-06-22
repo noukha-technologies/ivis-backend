@@ -11,10 +11,11 @@ import {
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Customer } from './customer.entity';
+import { IPaymentMasterFields } from '../../../common/interfaces/master.interface';
 
 @Entity({ name: 'payments', schema: 'master' })
 @Index('IDX_PAYMENT_CUSTOMER_ID', ['customer_id'])
-export class Payment {
+export class Payment implements IPaymentMasterFields {
   @SnowflakePrimaryColumn()
   id!: string;
 

@@ -14,3 +14,10 @@ export const enum CameraIntegrationMethods {
     FTP = 'ftp',
     HTTP = 'http',
 }
+
+export const enum ChargeCategory {
+    PRIVATE    = 'Private',
+    COMMERCIAL = 'Commercial',
+    DIPLOMATIC = 'Diplomatic',
+    GOVERNMENT = 'Government',
+}

@@ -16,8 +16,11 @@ export const enum CameraIntegrationMethods {
 }
 
 export const enum ChargeCategory {
-    PRIVATE    = 'Private',
-    COMMERCIAL = 'Commercial',
-    DIPLOMATIC = 'Diplomatic',
-    GOVERNMENT = 'Government',
+    BELOW3T_LT1500CC      = 'Below3T_Lt1500cc',
+    BELOW3T_1500TO3000CC  = 'Below3T_1500To3000cc',
+    BELOW3T_3000TO4500CC  = 'Below3T_3000To4500cc',
+    BELOW3T_ABOVE4500CC   = 'Below3T_Above4500cc',
+    BELOW3T_TRACTOR       = 'Below3T_Tractor',
+    THREE_TO_5_TONES      = '3To5Tones',
+    ABOVE5_TONES          = 'Above5Tones',
 }

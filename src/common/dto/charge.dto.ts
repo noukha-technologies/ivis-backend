@@ -39,14 +39,31 @@ export class CreateChargeDto {
   vehicle_id!: string;
 
   @ApiProperty({
-    description: 'Charge category',
-    enum: ['Private', 'Commercial', 'Diplomatic', 'Government'],
-    example: 'Private',
+    description: 'Charge category (ROP weight/engine classification)',
+    enum: [
+      'Below3T_Lt1500cc',
+      'Below3T_1500To3000cc',
+      'Below3T_3000To4500cc',
+      'Below3T_Above4500cc',
+      'Below3T_Tractor',
+      '3To5Tones',
+      'Above5Tones',
+    ],
+    example: 'Below3T_Lt1500cc',
   })
   @IsString()
-  @IsIn(['Private', 'Commercial', 'Diplomatic', 'Government'], {
-    message: 'category must be one of: Private, Commercial, Diplomatic, Government',
-  })
+  @IsIn(
+    [
+      'Below3T_Lt1500cc',
+      'Below3T_1500To3000cc',
+      'Below3T_3000To4500cc',
+      'Below3T_Above4500cc',
+      'Below3T_Tractor',
+      '3To5Tones',
+      'Above5Tones',
+    ],
+    { message: 'category must be a valid ROP weight/engine classification' },
+  )
   category!: string;
 
   @ApiProperty({ description: 'Centre charges amount (OMR)', example: 10.5 })

@@ -17,15 +17,18 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+
 import { PermissionKeys } from '../../common/constants/permissions';
-import { Permissions } from '../../common/decorators/permissions.decorator';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
-import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+
+import { Permissions } from '../../common/decorators/permissions.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+
 import type { UserContext } from '../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { CreateUserDto, UpdateUserDto } from '../../common/dto/user.dto';
+
 import { UsersService } from './service/users.service';
-import { Public } from 'src/common/decorators/public.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -74,7 +77,6 @@ export class UsersController {
     return { message: 'User retrieved successfully', data: user };
   }
 
-  @Public()
   @Patch(':id')
   @Permissions(PermissionKeys.USER_EDIT)
   @ApiOperation({ summary: 'Update user details' })

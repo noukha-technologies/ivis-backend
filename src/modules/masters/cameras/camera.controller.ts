@@ -17,17 +17,19 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+
 import type { UserContext } from '../../../common/dto/auth.dto';
-import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateCameraDto, UpdateCameraDto } from '../../../common/dto/camera.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { CreateCameraDto, UpdateCameraDto } from '../../../common/dto/camera.dto';
+
 import { CameraService } from './services/camera.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 
 @ApiTags('Masters / Cameras')
 @Controller('masters/cameras')
 export class CameraController {
-  constructor(private readonly cameraService: CameraService) {}
+  constructor(private readonly cameraService: CameraService) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

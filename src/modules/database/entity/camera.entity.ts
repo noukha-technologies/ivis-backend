@@ -7,11 +7,13 @@ import {
   OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { SnowflakePrimaryColumn } from './snowflake-id.column';
+
 import { Line } from './line.entity';
+import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { ICameraMasterFields } from '../../../common/interfaces/camera.interface';
 
 @Entity({ name: 'cameras', schema: 'master' })
-export class Camera {
+export class Camera implements ICameraMasterFields {
   @SnowflakePrimaryColumn()
   id!: string;
 
@@ -20,13 +22,13 @@ export class Camera {
   camera_id!: number;
 
   @Column({ type: 'varchar', nullable: false })
-  name!: string;
+  camera_name!: string;
 
   @Column({ type: 'varchar', unique: true, nullable: false })
   @Index('IDX_CAMERA_CODE', { unique: true })
   code!: string;
 
-  @Column({ type: 'varchar', nullable: false })
+  @Column({ type: 'varchar', nullable: false, default: 'CCTV' })
   type!: string;
 
   @Column({ type: 'bigint' })
@@ -36,6 +38,33 @@ export class Camera {
   @OneToOne(() => Line, (line) => line.camera, { nullable: false })
   @JoinColumn({ name: 'line_id' })
   line!: Line;
+
+  @Column({ type: 'varchar', nullable: false })
+  ip_address!: string;
+
+  @Column({ type: 'integer', nullable: false, default: 80 })
+  port!: number;
+
+  @Column({ type: 'varchar', nullable: false })
+  username!: string;
+
+  @Column({ type: 'varchar', nullable: false })
+  password!: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  integration_method?: string;
+
+  @Column({ type: 'varchar', nullable: true })
+  ftp_directory?: string;
+
+  @Column({ type: 'boolean', default: false })
+  is_online!: boolean;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_event_at?: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_health_check?: Date;
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;

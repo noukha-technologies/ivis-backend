@@ -39,6 +39,7 @@ export class AdminPc {
     line_id: number;
     name: string;
     code: string;
+    centre?: { id: string; name: string; code: string };
   }>;
 
   @AfterLoad()
@@ -53,7 +54,11 @@ export class AdminPc {
         line_id: line.line_id,
         name: line.name,
         code: line.code,
+        centre: line.centre
+          ? { id: line.centre.id, name: line.centre.name, code: line.centre.code }
+          : undefined,
       }));
+    this.lineMappings = undefined;
   }
 
   @Column({ type: 'varchar', nullable: true })

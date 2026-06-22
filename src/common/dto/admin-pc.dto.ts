@@ -1,5 +1,4 @@
 import {
-  ArrayMaxSize,
   IsArray,
   IsIn,
   IsInt,
@@ -57,13 +56,12 @@ export class CreateAdminPcDto {
   line_id!: string;
 
   @ApiPropertyOptional({
-    description: 'Assigned line snowflake IDs (alternative to line_id)',
-    example: ['2058858609483202561'],
+    description: 'Assigned line snowflake IDs (alternative to line_id); supports multiple lines',
+    example: ['2058858609483202561', '2058858609483202562'],
     type: [String],
   })
   @ValidateIf((dto: CreateAdminPcDto) => dto.line_ids !== undefined)
   @IsArray({ message: 'line_ids must be an array' })
-  @ArrayMaxSize(1, { message: 'Only one line can be selected' })
   @IsString({ each: true, message: 'each line_id must be a string' })
   line_ids?: string[];
 

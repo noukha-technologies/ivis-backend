@@ -1,29 +1,28 @@
 import { Injectable } from '@nestjs/common';
-import { MasterScopeService } from '../../../../common/services/master-scope.service';
-import { CreateCameraDto, UpdateCameraDto } from '../../../../common/dto/camera.dto';
-import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
-import {
-  DatabaseException,
-  DuplicateResourceException,
-  ResourceNotFoundException,
-} from '../../../../common/exceptions/custom.exception';
-import { AppLogger } from '../../../../common/logger/app.logger';
+import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
+
 import type { UserContext } from '../../../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { CreateCameraDto, UpdateCameraDto } from '../../../../common/dto/camera.dto';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+
+import { Camera } from '../../../database/entity/camera.entity';
+import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
-import { Camera } from '../../../database/entity/camera.entity';
+
 import { CameraDao } from '../../../database/dao/camera.dao';
+import { MasterScopeService } from '../../../../common/services/master-scope.service';
 
 @Injectable()
 export class CameraService {
   private static readonly context = 'CameraService';
 
   constructor(
+    private readonly logger: AppLogger,
     private readonly cameraDao: CameraDao,
     private readonly masterScope: MasterScopeService,
-    private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
   async create(createCameraDto: CreateCameraDto, actor: UserContext): Promise<Camera> {
     this.logger.log(`Creating Camera with code: ${createCameraDto.code}`, CameraService.context);

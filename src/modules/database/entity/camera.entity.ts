@@ -28,9 +28,6 @@ export class Camera implements ICameraMasterFields {
   @Index('IDX_CAMERA_CODE', { unique: true })
   code!: string;
 
-  @Column({ type: 'varchar', nullable: false, default: 'CCTV' })
-  type!: string;
-
   @Column({ type: 'bigint' })
   @Index('UQ_CAMERA_LINE_ID', { unique: true, where: '"is_deleted" = false' })
   line_id!: string;
@@ -45,13 +42,13 @@ export class Camera implements ICameraMasterFields {
   @Column({ type: 'integer', nullable: false, default: 80 })
   port!: number;
 
-  @Column({ type: 'varchar', nullable: false })
-  username!: string;
-
-  @Column({ type: 'varchar', nullable: false })
-  password!: string;
+  @Column({ type: 'varchar', nullable: true })
+  username?: string;
 
   @Column({ type: 'varchar', nullable: true })
+  password?: string;
+
+  @Column({ type: 'varchar', nullable: true, enum: ['ftp', 'http'], default: 'ftp' })
   integration_method?: string;
 
   @Column({ type: 'varchar', nullable: true })

@@ -40,8 +40,8 @@ export class CameraDao extends Repository<Camera> {
       .where('camera.is_deleted = :is_deleted', { is_deleted: false });
 
     const options = buildTypeOrmPaginationOptions<Camera, Camera>(query, {
-      searchFields: ['camera.camera_name', 'camera.code', 'camera.type', 'camera.status'],
-      allowedSortFields: ['camera_id', 'camera_name', 'code', 'type', 'status', 'created_at'],
+      searchFields: ['camera.camera_name', 'camera.code', 'camera.status'],
+      allowedSortFields: ['camera_id', 'camera_name', 'code', 'status', 'created_at'],
       defaultSort: { created_at: 'DESC' },
     });
 

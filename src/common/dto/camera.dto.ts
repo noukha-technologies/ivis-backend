@@ -7,6 +7,7 @@ import {
   Matches,
   Max,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
@@ -23,20 +24,12 @@ export class CreateCameraDto {
   @ApiProperty({ description: 'Camera name (alphabets only)', example: 'Gate 1 ANPR' })
   @IsString({ message: 'camera_name must be a string' })
   @IsNotEmpty({ message: 'camera_name is required' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'camera_name must contain only alphabets',
-  })
   camera_name!: string;
 
   @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'CAM01' })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
-
-  @ApiProperty({ description: 'Camera type', example: 'ANPR' })
-  @IsString({ message: 'type must be a string' })
-  @IsNotEmpty({ message: 'type is required' })
-  type!: string;
 
   @ApiProperty({ description: 'Assigned line snowflake ID', example: '2058858609483202561' })
   @IsString({ message: 'line_id must be a string' })
@@ -49,9 +42,6 @@ export class CreateCameraDto {
   })
   @IsString({ message: 'ip_address must be a string' })
   @IsNotEmpty({ message: 'ip_address is required' })
-  @Matches(/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/, {
-    message: 'ip_address must be a valid IPv4 address (example: 192.168.1.100)',
-  })
   ip_address!: string;
 
   @ApiProperty({ description: 'Camera port number (1–65535)', example: 80 })
@@ -60,23 +50,24 @@ export class CreateCameraDto {
   @Max(65535, { message: 'port must be at most 65535' })
   port!: number;
 
-  @ApiProperty({ description: 'Camera login username', example: 'admin' })
-  @IsString({ message: 'username must be a string' })
-  @IsNotEmpty({ message: 'username is required' })
-  username!: string;
-
-  @ApiProperty({ description: 'Camera login password', example: 'Hikvision@123' })
-  @IsString({ message: 'password must be a string' })
-  @IsNotEmpty({ message: 'password is required' })
-  password!: string;
-
-  @ApiPropertyOptional({ description: 'Integration method (e.g. FTP, RTSP, SDK)', example: 'FTP' })
+  @ApiPropertyOptional({ description: 'Camera login username', example: 'admin' })
   @IsOptional()
-  @IsString({ message: 'integration_method must be a string' })
-  integration_method?: string;
+  @IsString({ message: 'username must be a string' })
+  username?: string;
+
+  @ApiPropertyOptional({ description: 'Camera login password', example: 'Hikvision@123' })
+  @IsOptional()
+  @IsString({ message: 'password must be a string' })
+  password?: string;
+
+  @ApiPropertyOptional({ description: 'Integration method', example: 'ftp', enum: ['ftp', 'http'] })
+  @IsOptional()
+  @IsIn(['ftp', 'http'], { message: 'integration_method must be ftp or http' })
+  integration_method?: 'ftp' | 'http';
 
   @ApiPropertyOptional({ description: 'FTP directory path for FTP-based integration', example: '/cameras/gate1' })
-  @IsOptional()
+  @ValidateIf((o) => o.integration_method === 'ftp')
+  @IsNotEmpty({ message: 'ftp_directory is required when integration method is FTP' })
   @IsString({ message: 'ftp_directory must be a string' })
   ftp_directory?: string;
 

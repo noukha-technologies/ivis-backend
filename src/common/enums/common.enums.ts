@@ -9,3 +9,8 @@ export const enum DATABASE_SCHEMAS {
     MASTER = 'master',
     TRANSACTION = 'transaction',
 }
+
+export const enum CameraIntegrationMethods {
+    FTP = 'ftp',
+    HTTP = 'http',
+}

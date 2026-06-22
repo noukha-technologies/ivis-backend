@@ -364,6 +364,66 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       WHERE "is_deleted" = false
     `);
 
+    // cameras: drop legacy columns no longer on entity
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "type"`,
+    );
+
+    // cameras: add camera_name (replaces old "name" column if it ever existed)
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "camera_name" character varying`,
+    );
+    await queryRunner.query(`
+      UPDATE "master"."cameras"
+      SET "camera_name" = 'Camera ' || "camera_id"::text
+      WHERE "camera_name" IS NULL OR TRIM("camera_name") = ''
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ALTER COLUMN "camera_name" SET NOT NULL`,
+    );
+
+    // cameras: network config columns
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "ip_address" character varying`,
+    );
+    await queryRunner.query(
+      `UPDATE "master"."cameras" SET "ip_address" = '0.0.0.0' WHERE "ip_address" IS NULL OR TRIM("ip_address") = ''`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ALTER COLUMN "ip_address" SET NOT NULL`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "port" integer NOT NULL DEFAULT 80`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "username" character varying`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "password" character varying`,
+    );
+
+    // cameras: integration config columns
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "integration_method" character varying DEFAULT 'ftp'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "ftp_directory" character varying`,
+    );
+
+    // cameras: operational / health columns
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "is_online" boolean NOT NULL DEFAULT false`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "last_event_at" TIMESTAMP`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "last_health_check" TIMESTAMP`,
+    );
+
     // admin_pc_line_mappings table (migration 1781174000000)
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "master"."admin_pc_line_mappings" (
@@ -672,6 +732,36 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."admin_pc_line_mappings"`);
 
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`);
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "last_health_check"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "last_event_at"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "is_online"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "ftp_directory"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "integration_method"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "password"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "username"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "port"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "ip_address"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "camera_name"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_LINE_CENTRE_ID"`);
     await queryRunner.query(
       `ALTER TABLE "master"."lines" DROP COLUMN IF EXISTS "centre_id"`,

@@ -3,8 +3,8 @@ export interface ICameraMasterFields {
     camera_name: string;
     ip_address: string;
     port: number;
-    username: string;
-    password: string;
+    username?: string;
+    password?: string;
     integration_method?: string;
     ftp_directory?: string;
     is_online: boolean;

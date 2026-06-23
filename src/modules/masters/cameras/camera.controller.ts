@@ -24,14 +24,18 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
 import { CreateCameraDto, UpdateCameraDto } from '../../../common/dto/camera.dto.js';
 
 import { CameraService } from './services/camera.service.js';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator.js';
+import { AppLogger } from '../../../common/logger/app.logger.js';
 import { CameraHealthCheckService } from './services/camera-health-check.service.js';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator.js';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe.js';
 
 @ApiTags('Masters / Cameras')
 @Controller('masters/cameras')
 export class CameraController {
+  private static readonly context = 'CameraController';
+
   constructor(
+    private readonly logger: AppLogger,
     private readonly cameraService: CameraService,
     private readonly cameraHealthCheck: CameraHealthCheckService,
   ) { }
@@ -46,6 +50,12 @@ export class CameraController {
   @ApiResponse({ status: 409, description: 'Duplicate code or camera_id.' })
   async create(@CurrentUser() actor: UserContext, @Body() createCameraDto: CreateCameraDto) {
     const camera = await this.cameraService.create(createCameraDto, actor);
+    void this.cameraHealthCheck.performFullHealthCheck(camera.id).catch((err: unknown) => {
+      this.logger.warn(
+        `Initial health check failed for camera ${camera.id}: ${(err as Error).message}`,
+        CameraController.context,
+      );
+    });
     return { message: 'Camera created successfully', data: camera };
   }
 
@@ -126,10 +136,7 @@ export class CameraController {
   @ApiResponse({ status: 200, description: 'Camera updated successfully.' })
   @ApiResponse({ status: 404, description: 'Camera not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
-  async update(
-    @Param('id', ParseSnowflakeIdPipe) id: string,
-    @Body() updateCameraDto: UpdateCameraDto,
-  ) {
+  async update(@Param('id', ParseSnowflakeIdPipe) id: string, @Body() updateCameraDto: UpdateCameraDto) {
     const camera = await this.cameraService.update(id, updateCameraDto);
     return { message: 'Camera updated successfully', data: camera };
   }

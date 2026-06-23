@@ -41,3 +41,10 @@ export type FullHealthCheckResult = {
         };
     };
 };
+
+export enum WebhookResolveReason {
+    ALIAS = 'alias',
+    CAMERA_CODE = 'camera_code',
+    CENTRE_CODE = 'centre_code',
+    REQUEST_IP = 'request_ip',
+}

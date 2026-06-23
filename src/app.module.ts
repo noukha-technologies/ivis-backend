@@ -25,6 +25,7 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { AnprModule } from './modules/Anpr/anpr.module.js';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
     TransactionsModule,
     JobsModule,
     AppointmentsModule,
+    AnprModule,
     AuthModule,
     PermissionsModule,
     RolesModule,

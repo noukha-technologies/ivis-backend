@@ -6,21 +6,15 @@ import {
     OnModuleInit,
 } from '@nestjs/common';
 import { SchedulerRegistry } from '@nestjs/schedule';
+import { shouldUseMountMode } from '../../../../common/utils/ftp-path-resolver.util';
+
 import { AnprMethodConfigService } from '../anpr-method-config.service';
 import { FtpFileProcessorService } from './ftp-file-processor.service';
 import { FtpFolderWatcherService } from './ftp-folder-watcher.service';
-import { shouldUseMountMode } from '../../../../common/utils/ftp-path-resolver.util';
-
-/**
- * Optional fallback safety-net sweep for FTP cameras.
- * Primary ingestion is FtpFolderWatcherService (per-folder ~1s watch).
- *
- * Set ANPR_FTP_FALLBACK_SWEEP_MINUTES=0 to disable.
- */
 @Injectable()
 export class FtpDirectoryScannerService implements OnModuleInit {
-    private readonly logger = new Logger(FtpDirectoryScannerService.name);
     private readonly fallbackSweepMs: number;
+    private readonly logger = new Logger(FtpDirectoryScannerService.name);
 
     constructor(
         private readonly methodConfig: AnprMethodConfigService,
@@ -28,12 +22,8 @@ export class FtpDirectoryScannerService implements OnModuleInit {
         private readonly folderWatcher: FtpFolderWatcherService,
         private readonly schedulerRegistry: SchedulerRegistry,
     ) {
-        const minutes = parseInt(
-            process.env.ANPR_FTP_FALLBACK_SWEEP_MINUTES ?? '5',
-            10,
-        );
-        this.fallbackSweepMs =
-            Number.isFinite(minutes) && minutes > 0 ? minutes * 60_000 : 0;
+        const minutes = parseInt(process.env.ANPR_FTP_FALLBACK_SWEEP_MINUTES ?? '5', 10);
+        this.fallbackSweepMs = Number.isFinite(minutes) && minutes > 0 ? minutes * 60_000 : 0;
     }
 
     onModuleInit(): void {

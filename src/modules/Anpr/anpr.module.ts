@@ -26,6 +26,7 @@ import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-
 import { HikvisionOverlayOcrService } from './services/ftp-service/hikvision-overlay-ocr.service';
 import { AnprEventGuardService } from './services/anpr-event-guard.service';
 import { AnprCaptureModule } from '../transactions/anpr-captures/anpr-capture.module';
+import { DatabaseModule } from '../database/database.module';
 
 /**
  * ═══════════════════════════════════════════════════════════════════
@@ -49,6 +50,7 @@ import { AnprCaptureModule } from '../transactions/anpr-captures/anpr-capture.mo
     imports: [
         TypeOrmModule.forFeature([AnprEventEntity, Camera]),
         AnprCaptureModule,
+        DatabaseModule
     ],
     controllers: [AnprController],
     providers: [
@@ -93,19 +95,21 @@ export class AnprModule implements OnApplicationBootstrap {
      * Runs after NestJS and the database connection are fully ready.
      */
     async onApplicationBootstrap(): Promise<void> {
-        this.logger.log('[ANPR Module] Initializing...');
+        this.logger.log('━━━ ANPR Module Bootstrap ━━━');
 
         try {
+            this.logger.log('→ Validating camera configurations...');
             await this.methodConfig.validateAllCameras();
-            await this.ftpFolderWatcher.bootstrapOnStartup();
+            this.logger.log('✓ Camera configurations validated');
 
-            this.logger.log('[ANPR Module] ✓ Module initialized successfully');
-            this.logger.log(
-                '[ANPR Module] HTTP push: POST .../anpr/push/webhook (alias .../anpr/anpr)',
-            );
+            this.logger.log('→ Starting FTP folder watchers...');
+            await this.ftpFolderWatcher.bootstrapOnStartup();
+            this.logger.log('✓ FTP watchers are listening');
+
+            this.logger.log('━━━ ANPR Module Ready ━━━');
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            this.logger.error(`[ANPR Module] Initialization failed: ${message}`);
+            this.logger.error(`✗ ANPR Module bootstrap failed: ${message}`);
             throw error;
         }
     }

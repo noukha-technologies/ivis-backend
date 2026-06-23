@@ -17,6 +17,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
+import { AnprModule } from './modules/anpr/anpr.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
@@ -25,7 +26,6 @@ import { PermissionsModule } from './modules/permissions/permissions.module';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
-import { AnprModule } from './modules/Anpr/anpr.module.js';
 
 @Module({
   imports: [

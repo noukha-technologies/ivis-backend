@@ -6,3 +6,13 @@ export interface ErrorDetails {
     message: string;
 }
 
+export interface FtpProcessResult {
+    filesFound: number;
+    parsed: number;
+    saved: number;
+};
+
+export interface FtpCursor {
+    dateFolder: string;
+    timestampKey: string;
+};

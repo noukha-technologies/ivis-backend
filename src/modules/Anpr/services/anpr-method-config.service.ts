@@ -1,5 +1,5 @@
-import { InjectRepository } from "@nestjs/typeorm";
 import { Injectable, Logger } from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
 import { QueryFailedError, Repository } from "typeorm";
 import { CameraIntegrationMethod } from "../../../common/enums/camera.enums";
 import { CameraEntity } from '../../database/entity/camera.entity';

@@ -48,3 +48,9 @@ export enum WebhookResolveReason {
     CENTRE_CODE = 'centre_code',
     REQUEST_IP = 'request_ip',
 }
+
+export enum ProcessedStrategy {
+    MOVE = 'move',
+    DELETE = 'delete',
+    NONE = 'none'
+}

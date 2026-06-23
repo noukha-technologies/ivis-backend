@@ -1,8 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { Injectable, Logger } from '@nestjs/common';
+
 import { CameraEntity } from '../../../database/entity/camera.entity';
-import { joinFtpPath } from '../../../../common/utils/ftp-path.util';
 import {
     getFtpIngestMode,
     joinCameraAndDateFolder,
@@ -13,43 +13,31 @@ import {
     shouldUseMountMode,
     stripCameraPathFromFtpRoot,
 } from '../../../../common/utils/ftp-path-resolver.util';
+import { joinFtpPath } from '../../../../common/utils/ftp-path.util';
 import { groupJpegFilesIntoBundles } from '../../../../common/utils/hikvision-jpeg-filename.util';
-import { FtpConnectionPoolService } from './ftp-connection-pool.service';
+
 import { FtpMethodService } from './ftp-method.service';
-import { AnprWebhookService } from '../http-push-service/anpr-webhook.service';
 import { AnprGateway } from '../http-push-service/anpr-gateway.service';
+import { FtpConnectionPoolService } from './ftp-connection-pool.service';
+import { AnprWebhookService } from '../http-push-service/anpr-webhook.service';
+
+import { ProcessedStrategy } from '../../../../common/enums/common.enums';
+import { FtpCursor, FtpProcessResult } from '../../../../common/interfaces/common.interfaces';
 import { ParsedAnprEvent } from '../../../../common/interfaces/anpr.interface';
 
-export type ProcessedStrategy = 'move' | 'delete' | 'none';
 
-export type FtpProcessResult = {
-    filesFound: number;
-    parsed: number;
-    saved: number;
-};
-
-type FtpCursor = {
-    dateFolder: string;
-    timestampKey: string;
-};
-
-/**
- * FTP file discovery + parse + save.
- * Supports XML (legacy) and Hikvision JPEG-only bundles in date folders.
- */
 @Injectable()
 export class FtpFileProcessorService {
     private readonly logger = new Logger(FtpFileProcessorService.name);
 
     private readonly cursors = new Map<string, FtpCursor>();
-    /** Legacy XML filename cursor for flat-folder XML mode. */
     private readonly xmlCursors = new Map<string, string>();
 
     constructor(
-        private readonly ftpPool: FtpConnectionPoolService,
-        private readonly ftpMethod: FtpMethodService,
-        private readonly anprWebhookService: AnprWebhookService,
         private readonly anprGateway: AnprGateway,
+        private readonly ftpMethod: FtpMethodService,
+        private readonly ftpPool: FtpConnectionPoolService,
+        private readonly anprWebhookService: AnprWebhookService,
     ) { }
 
     getCursor(cameraId: string): string {
@@ -67,21 +55,18 @@ export class FtpFileProcessorService {
     }
 
     getProcessedStrategy(): ProcessedStrategy {
-        const legacyDelete =
-            process.env.ANPR_FTP_DELETE_PROCESSED_XML?.trim().toLowerCase();
-        if (
-            legacyDelete === '1' ||
-            legacyDelete === 'true' ||
-            legacyDelete === 'yes'
-        ) {
-            return 'delete';
+        const legacyDelete = process.env.ANPR_FTP_DELETE_PROCESSED_XML?.trim().toLowerCase();
+
+        if (legacyDelete === '1' || legacyDelete === 'true' || legacyDelete === 'yes') {
+            return ProcessedStrategy.DELETE;
         }
-        const strategy =
-            process.env.ANPR_FTP_PROCESSED_STRATEGY?.trim().toLowerCase();
+        const strategy = process.env.ANPR_FTP_PROCESSED_STRATEGY?.trim().toLowerCase();
+
         if (strategy === 'delete' || strategy === 'none' || strategy === 'move') {
-            return strategy;
+            return strategy as ProcessedStrategy;
         }
-        return 'move';
+
+        return ProcessedStrategy.MOVE;
     }
 
     resolveMountPath(camera: CameraEntity): string | null {
@@ -361,11 +346,11 @@ export class FtpFileProcessorService {
                 source === 'mount'
                     ? await this.processOneMountFile(camera, dir, f.name)
                     : await this.processOneFtpFile(
-                          camera,
-                          dir,
-                          f.name,
-                          typeof f.size === 'number' ? f.size : 0,
-                      );
+                        camera,
+                        dir,
+                        f.name,
+                        typeof f.size === 'number' ? f.size : 0,
+                    );
 
             if (handled.parsed) {
                 parsed += 1;

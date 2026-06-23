@@ -63,6 +63,15 @@ export class Camera implements ICameraMasterFields {
   @Column({ type: 'timestamp', nullable: true })
   last_health_check?: Date;
 
+  @Column({ type: 'varchar', default: 'NOT_REACHABLE', nullable: false })
+  health_status!: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  last_seen_at?: Date;
+
+  @Column({ type: 'integer', default: 30, nullable: false })
+  health_ping_interval_seconds!: number;
+
   @Column({ type: 'varchar', nullable: true })
   description?: string;
 

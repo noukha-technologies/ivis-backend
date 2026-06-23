@@ -1,5 +1,6 @@
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
 import { AppService } from './app.service';
@@ -32,6 +33,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
       load: [databaseConfig, swaggerConfig],
       envFilePath: ['.env'],
     }),
+    ScheduleModule.forRoot(),
     LoggerModule,
     PaginationModule,
     DatabaseModule,

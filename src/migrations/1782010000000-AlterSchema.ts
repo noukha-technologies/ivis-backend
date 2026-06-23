@@ -423,6 +423,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "last_health_check" TIMESTAMP`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "health_status" character varying NOT NULL DEFAULT 'NOT_REACHABLE'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "last_seen_at" TIMESTAMP`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "health_ping_interval_seconds" integer NOT NULL DEFAULT 30`,
+    );
 
     // admin_pc_line_mappings table (migration 1781174000000)
     await queryRunner.query(`
@@ -830,6 +839,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."admin_pc_line_mappings"`);
 
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`);
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "health_ping_interval_seconds"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "last_seen_at"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "health_status"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "last_health_check"`,
     );

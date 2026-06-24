@@ -7,33 +7,37 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import type { PaymentTransactionStatus } from '../../../common/enums/payment-transaction.enums';
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
-import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { AdminPc } from './admin-pc.entity';
-import { AnprCapture } from './anpr-capture.entity';
-import { Appointment } from './appointment.entity';
-import { Camera } from './camera.entity';
-import { Centre } from './centre.entity';
-import { Customer } from './customer.entity';
+import type {
+  PaymentMode,
+  PaymentTransactionStatus,
+  PaymentTransactionType,
+} from '../../../common/enums/payment.enums';
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+import { IPaymentsFields } from 'src/common/interfaces/transactions.interface';
+
 import { Job } from './job.entity';
 import { Line } from './line.entity';
+import { Camera } from './camera.entity';
+import { Centre } from './centre.entity';
+import { AdminPc } from './admin-pc.entity';
+import { Customer } from './customer.entity';
+import { Appointment } from './appointment.entity';
+import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
 
-import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 
-@Entity({ name: 'payment_transactions', schema: DATABASE_SCHEMAS.TRANSACTION })
-@Index('IDX_PAYMENT_TRANSACTION_PAYMENT_TRANSACTION_ID', ['payment_transaction_id'], {
-  unique: true,
-})
-@Index('IDX_PAYMENT_TRANSACTION_STATUS', ['status'])
-@Index('IDX_PAYMENT_TRANSACTION_CUSTOMER_ID', ['customer_id'])
-export class PaymentTransaction {
+@Entity({ name: 'payments', schema: DATABASE_SCHEMAS.TRANSACTION })
+@Index('IDX_PAYMENTS_ID', ['payments_id'], { unique: true })
+@Index('IDX_PAYMENT_STATUS', ['status'])
+@Index('IDX_PAYMENT_CUSTOMER_ID', ['customer_id'])
+export class Payments implements IPaymentsFields {
   @SnowflakePrimaryColumn()
   id!: string;
 
   @Column({ type: 'integer', unique: true, nullable: false })
-  payment_transaction_id!: number;
+  payments_id!: number;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   appointment_id?: string | null;
@@ -98,13 +102,13 @@ export class PaymentTransaction {
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
-  @Column({ type: 'varchar', length: 32, nullable: false })
-  payment_type!: string;
+  @Column({ type: 'varchar', length: 16, nullable: false })
+  payment_type!: PaymentTransactionType;
 
-  @Column({ type: 'varchar', length: 64, nullable: true })
-  payment_mode?: string | null;
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  payment_mode?: PaymentMode | null;
 
-  @Column({ type: 'varchar', length: 32, default: 'Pending', nullable: false })
+  @Column({ type: 'varchar', length: 32, default: 'Paid', nullable: false })
   status!: PaymentTransactionStatus;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
@@ -117,7 +121,7 @@ export class PaymentTransaction {
   grand_total!: number;
 
   @Column({ type: 'timestamp', nullable: true })
-  pay_date?: Date;
+  pay_date?: Date | null;
 
   @Column({ type: 'varchar', length: 512, nullable: true })
   capture_image_path?: string | null;
@@ -129,7 +133,7 @@ export class PaymentTransaction {
   attachment_filename?: string | null;
 
   @Column({ type: 'varchar', nullable: true })
-  created_by?: string;
+  created_by?: string | null;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;

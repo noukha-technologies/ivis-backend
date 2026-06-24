@@ -3,15 +3,16 @@ import {
   IsDateString,
   IsIn,
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { PAYMENT_TRANSACTION_STATUSES } from '../enums/payment-transaction.enums';
-import { APPOINTMENT_PAYMENT_MODES } from '../enums/appointment.enums';
+import {
+  PAYMENT_MODES,
+  PAYMENT_TRANSACTION_TYPES,
+} from '../enums/payment.enums';
 import { JOB_SOURCES } from '../enums/job.enums';
 
 export class CreatePaymentTransactionDto {
@@ -24,20 +25,27 @@ export class CreatePaymentTransactionDto {
   @IsOptional()
   payment_transaction_id?: number;
 
+  @ApiPropertyOptional({
+    description: 'Existing job snowflake ID — pre-fills customer and vehicle details',
+  })
+  @IsOptional()
+  @IsString()
+  job_id?: string;
+
   @ApiPropertyOptional({ description: 'Linked appointment snowflake ID' })
   @IsOptional()
   @IsString()
   appointment_id?: string;
 
-  @ApiProperty({ description: 'Customer snowflake ID' })
+  @ApiPropertyOptional({ description: 'Customer snowflake ID (required if job_id not provided)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  customer_id!: string;
+  customer_id?: string;
 
-  @ApiProperty({ description: 'Vehicle record snowflake ID' })
+  @ApiPropertyOptional({ description: 'Vehicle record snowflake ID (required if job_id not provided)' })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  vehicle_record_id!: string;
+  vehicle_record_id?: string;
 
   @ApiPropertyOptional({ description: 'ANPR capture snowflake ID' })
   @IsOptional()
@@ -64,40 +72,37 @@ export class CreatePaymentTransactionDto {
   @IsString()
   camera_id?: string;
 
-  @ApiProperty({ description: 'Payment type', example: 'Mix' })
+  @ApiProperty({ description: 'Payment type', enum: PAYMENT_TRANSACTION_TYPES, example: 'Paid' })
   @IsString()
-  @IsNotEmpty()
+  @IsIn([...PAYMENT_TRANSACTION_TYPES])
   payment_type!: string;
 
-  @ApiPropertyOptional({ description: 'Payment mode', enum: APPOINTMENT_PAYMENT_MODES, example: 'Cash' })
+  @ApiPropertyOptional({
+    description: 'Payment mode — required when payment_type is Paid',
+    enum: PAYMENT_MODES,
+    example: 'Cash',
+  })
   @IsOptional()
   @IsString()
-  @IsIn([...APPOINTMENT_PAYMENT_MODES])
-  payment_mode?: (typeof APPOINTMENT_PAYMENT_MODES)[number];
+  @IsIn([...PAYMENT_MODES])
+  payment_mode?: string;
 
-  @ApiPropertyOptional({ enum: PAYMENT_TRANSACTION_STATUSES, default: 'Pending' })
-  @IsOptional()
-  @IsString()
-  @IsIn([...PAYMENT_TRANSACTION_STATUSES])
-  status?: (typeof PAYMENT_TRANSACTION_STATUSES)[number];
+  @ApiProperty({ description: 'Total amount including VAT (OMR)', example: 26.25 })
+  @IsNumber()
+  @Min(0)
+  grand_total!: number;
 
-  @ApiPropertyOptional({ example: 30 })
+  @ApiPropertyOptional({ description: 'Charges excluding VAT', example: 25.0 })
   @IsOptional()
   @IsNumber()
   @Min(0)
   charges?: number;
 
-  @ApiPropertyOptional({ example: 1.5 })
+  @ApiPropertyOptional({ description: 'VAT amount', example: 1.25 })
   @IsOptional()
   @IsNumber()
   @Min(0)
   vat?: number;
-
-  @ApiPropertyOptional({ example: 31.5 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  grand_total?: number;
 
   @ApiPropertyOptional({ description: 'Payment date', example: '2026-05-28T11:00:00.000Z' })
   @IsOptional()
@@ -105,7 +110,7 @@ export class CreatePaymentTransactionDto {
   pay_date?: string;
 
   @ApiPropertyOptional({
-    description: 'When status is Paid, automatically create a job',
+    description: 'When payment_type is Paid, automatically create a job',
     default: true,
   })
   @IsOptional()

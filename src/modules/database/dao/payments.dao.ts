@@ -7,13 +7,13 @@ import {
   toPaginatedResult,
 } from '../../../common/shared/pagination/pagination-query.util';
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
-import { IPaymentTransactionDao } from '../../transactions/payment-transactions/dao/payment-transaction.dao.interface';
-import { PaymentTransaction } from '../entity/payment-transaction.entity';
+import { IPaymentsDao } from '../../transactions/payments/dao/payment.dao.interface';
+import { Payments } from '../entity/payments.entity';
 
 @Injectable()
 export class PaymentTransactionDao
-  extends Repository<PaymentTransaction>
-  implements IPaymentTransactionDao
+  extends Repository<Payments>
+  implements IPaymentsDao
 {
   private static readonly detailRelations = {
     appointment: true,
@@ -31,10 +31,10 @@ export class PaymentTransactionDao
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
   ) {
-    super(PaymentTransaction, dataSource.createEntityManager());
+    super(Payments, dataSource.createEntityManager());
   }
 
-  async findActiveById(id: string): Promise<PaymentTransaction | null> {
+  async findActiveById(id: string): Promise<Payments | null> {
     return this.findOne({
       where: { id, is_deleted: false },
       relations: PaymentTransactionDao.detailRelations,
@@ -42,29 +42,29 @@ export class PaymentTransactionDao
   }
 
   async findByPaymentTransactionId(
-    paymentTransactionId: number,
-  ): Promise<PaymentTransaction | null> {
+    paymentsId: number,
+  ): Promise<Payments | null> {
     return this.findOne({
-      where: { payment_transaction_id: paymentTransactionId, is_deleted: false },
+      where: { payments_id: paymentsId, is_deleted: false },
       relations: PaymentTransactionDao.detailRelations,
     });
   }
 
   async findPaginated(
     query: PaginationQueryDto,
-  ): Promise<PaginatedResult<PaymentTransaction>> {
+  ): Promise<PaginatedResult<Payments>> {
     const qb = this.createQueryBuilder('payment')
       .leftJoinAndSelect('payment.customer', 'customer')
       .leftJoinAndSelect('payment.vehicleRecord', 'vehicleRecord')
       .leftJoinAndSelect('payment.appointment', 'appointment')
       .leftJoinAndSelect('payment.job', 'job');
 
-    const options = buildTypeOrmPaginationOptions<PaymentTransaction, PaymentTransaction>(
+    const options = buildTypeOrmPaginationOptions<Payments, Payments>(
       query,
       {
         searchFields: ['status', 'payment_type', 'customer.name'],
         allowedSortFields: [
-          'payment_transaction_id',
+          'payments_id',
           'status',
           'pay_date',
           'grand_total',
@@ -81,7 +81,7 @@ export class PaymentTransactionDao
 
   async getNextPaymentTransactionId(): Promise<number> {
     const result = await this.createQueryBuilder('payment')
-      .select('MAX(payment.payment_transaction_id)', 'max')
+      .select('MAX(payment.payments_id)', 'max')
       .getRawOne();
     const max = result?.max ? Number(result.max) : 0;
     return max + 1;

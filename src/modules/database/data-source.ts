@@ -21,7 +21,7 @@ import { VehicleRecord } from './entity/vehicle-record.entity';
 import { Customer } from './entity/customer.entity';
 import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
-import { PaymentTransaction } from './entity/payment-transaction.entity';
+import { PaymentTransaction } from './entity/payments.entity';
 import { Charge } from './entity/charge.entity';
 import { PaymentType } from './entity/payment-type.entity';
 

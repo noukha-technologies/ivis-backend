@@ -17,11 +17,11 @@ import { CentreDao } from '../../database/dao/centre.dao.js';
 import { CustomerDao } from '../../database/dao/customer.dao.js';
 import { JobDao } from '../../database/dao/job.dao.js';
 import { LineDao } from '../../database/dao/line.dao.js';
-import { PaymentTransactionDao } from '../../database/dao/payment-transaction.dao.js';
+import { PaymentTransactionDao } from '../../database/dao/payments.dao.js';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao.js';
 import { Customer } from '../../database/entity/customer.entity.js';
 import { Job } from '../../database/entity/job.entity.js';
-import { PaymentTransaction } from '../../database/entity/payment-transaction.entity.js';
+import { PaymentTransaction } from '../../database/entity/payments.entity.js';
 import { VehicleRecord } from '../../database/entity/vehicle-record.entity.js';
 
 export interface JobIntakeResult {

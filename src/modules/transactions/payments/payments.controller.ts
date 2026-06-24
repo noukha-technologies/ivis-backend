@@ -10,29 +10,26 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
-import {
-  CreatePaymentTransactionDto,
-  UpdatePaymentTransactionDto,
-} from '../../../common/dto/payment-transaction.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+
 import type { UserContext } from '../../../common/dto/auth.dto';
-import { PaymentTransactionService } from './services/payment-transaction.service';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+
+import { PaymentsService } from './services/payments.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { CreatePaymentTransactionDto, UpdatePaymentTransactionDto } from '../../../common/dto/payment-transaction.dto';
 
 @ApiTags('Transactions / Payment Transactions')
 @Controller('transactions/payment-transactions')
-export class PaymentTransactionController {
-  constructor(private readonly paymentTransactionService: PaymentTransactionService) {}
+export class PaymentsController {
+  constructor(private readonly paymentsService: PaymentsService) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({
-    summary: 'Create payment transaction (auto-creates job when status is Paid)',
-  })
+  @ApiOperation({ summary: 'Create payment transaction (auto-creates job when status is Paid)' })
   async create(@CurrentUser() actor: UserContext, @Body() createDto: CreatePaymentTransactionDto) {
-    const data = await this.paymentTransactionService.create(createDto, actor);
+    const data = await this.paymentsService.create(createDto, actor);
     return { message: 'Payment transaction created successfully', data };
   }
 
@@ -41,15 +38,23 @@ export class PaymentTransactionController {
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async findAll(@Query() query: PaginationQueryDto) {
-    const result = await this.paymentTransactionService.findAll(query);
+    const result = await this.paymentsService.findAll(query);
     return { message: 'Payment transactions retrieved successfully', ...result };
+  }
+
+  @Get('job-lookup/:jobId')
+  @ApiOperation({ summary: 'Pre-fill payment form from an existing job' })
+  @ApiParam({ name: 'jobId', type: String })
+  async jobLookup(@Param('jobId', ParseSnowflakeIdPipe) jobId: string) {
+    const data = await this.paymentsService.lookupJob(jobId);
+    return { message: 'Job details retrieved successfully', data };
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get payment transaction by ID' })
   @ApiParam({ name: 'id', type: String })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    const data = await this.paymentTransactionService.findOne(id);
+    const data = await this.paymentsService.findOne(id);
     return { message: 'Payment transaction retrieved successfully', data };
   }
 
@@ -60,14 +65,14 @@ export class PaymentTransactionController {
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdatePaymentTransactionDto,
   ) {
-    const data = await this.paymentTransactionService.update(id, updateDto, actor);
+    const data = await this.paymentsService.update(id, updateDto, actor);
     return { message: 'Payment transaction updated successfully', data };
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete payment transaction' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.paymentTransactionService.remove(id);
+    await this.paymentsService.remove(id);
     return { message: 'Payment transaction deleted successfully', data: null };
   }
 }

@@ -21,7 +21,7 @@ import { Customer } from './entity/customer.entity';
 import { VehicleRecord } from './entity/vehicle-record.entity';
 import { Job } from './entity/job.entity';
 import { Appointment } from './entity/appointment.entity';
-import { PaymentTransaction } from './entity/payment-transaction.entity';
+import { Payments } from './entity/payments.entity';
 import { Charge } from './entity/charge.entity';
 import { PaymentType } from './entity/payment-type.entity';
 import { UsersDao } from './dao/users.dao';
@@ -43,7 +43,7 @@ import { CustomerDao } from './dao/customer.dao';
 import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { JobDao } from './dao/job.dao';
 import { AppointmentDao } from './dao/appointment.dao';
-import { PaymentTransactionDao } from './dao/payment-transaction.dao';
+import { PaymentTransactionDao } from './dao/payments.dao';
 import { ChargeDao } from './dao/charge.dao';
 import { PaymentTypeDao } from './dao/payment-type.dao';
 
@@ -82,7 +82,7 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
       VehicleRecord,
       Job,
       Appointment,
-      PaymentTransaction,
+      Payments,
       Charge,
       PaymentType,
     ]),

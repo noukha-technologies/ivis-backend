@@ -25,3 +25,25 @@ export interface IPaymentsFields {
   updated_at: Date;
   is_deleted: boolean;
 }
+
+
+export interface IAnprCaptureFields {
+  id: string;
+  anpr_capture_id: number;
+  plate_number: string;
+  normalized_plate?: string | null;
+  plate_confidence?: number | null;
+  capture_time: Date;
+  camera_id: string;
+  line_id?: string | null;
+  direction?: string | null;
+  plate_color?: string | null;
+  vehicle_type?: string | null;
+  vehicle_color?: string | null;
+  image_url?: string | null;
+  raw_payload?: Record<string, unknown> | null;
+  created_by?: string | null;
+  created_at: Date;
+  updated_at: Date;
+  is_deleted: boolean;
+}

@@ -8,19 +8,21 @@ import {
   OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
 import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';
-
-import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
+import { IAnprCaptureFields } from 'src/common/interfaces/transactions.interface';
 
 @Entity({ name: 'anpr_captures', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], { unique: true })
 @Index('IDX_ANPR_CAPTURE_PLATE_TIME', ['plate_number', 'capture_time'])
 @Index('IDX_ANPR_CAPTURE_CAMERA_TIME', ['camera_id', 'capture_time'])
 @Index('UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME', ['camera_id', 'plate_number', 'capture_time'], { unique: true })
-export class AnprCapture {
+export class AnprCapture implements IAnprCaptureFields {
   @SnowflakePrimaryColumn()
   id!: string;
 
@@ -47,13 +49,10 @@ export class AnprCapture {
   camera!: Camera;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
-  lane?: string;
+  line_id?: string;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   direction?: string;
-
-  @Column({ type: 'varchar', length: 8, nullable: true })
-  country_code?: string;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   plate_color?: string;
@@ -66,9 +65,6 @@ export class AnprCapture {
 
   @Column({ type: 'varchar', nullable: true })
   image_url?: string;
-
-  @Column({ type: 'varchar', default: 'Pending', nullable: false })
-  verification_status!: string;
 
   @Column({ type: 'jsonb', nullable: true })
   raw_payload?: Record<string, unknown>;

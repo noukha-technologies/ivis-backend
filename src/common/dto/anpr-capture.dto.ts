@@ -49,10 +49,10 @@ export class CreateAnprCaptureDto {
   @IsNotEmpty()
   camera_id!: string;
 
-  @ApiPropertyOptional({ description: 'Lane info', example: 'Line 1' })
+  @ApiPropertyOptional({ description: 'Line ID the camera is assigned to', example: 'LINE-01' })
   @IsOptional()
   @IsString()
-  lane?: string;
+  line_id?: string;
 
   @ApiPropertyOptional({ description: 'Vehicle direction', example: 'forward' })
   @IsOptional()
@@ -79,16 +79,11 @@ export class CreateAnprCaptureDto {
   @IsString()
   vehicle_color?: string;
 
-  @ApiPropertyOptional({
-    description: 'Verification status',
-    example: 'Pending',
-    default: 'Pending',
-  })
+  @ApiPropertyOptional({ description: 'Compressed plate image path', example: '/uploads/OM1024_plate.jpg' })
   @IsOptional()
   @IsString()
-  verification_status?: string;
+  image_url?: string;
 
-  @ApiPropertyOptional({ description: 'Creator user snowflake ID', example: '2058858609483202561' })
   @ApiPropertyOptional({
     description: 'Simulate ROP fetch and upsert vehicle record after capture (demo)',
     default: false,

@@ -1,40 +1,33 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CreateAnprCaptureDto,
-  UpdateAnprCaptureDto,
-} from '../../../../common/dto/anpr-capture.dto';
-import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
-import {
-  DatabaseException,
-  DuplicateResourceException,
-  ResourceNotFoundException,
-} from '../../../../common/exceptions/custom.exception';
-import { AppLogger } from '../../../../common/logger/app.logger';
+
 import type { UserContext } from '../../../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
+import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
+
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+
+import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
-import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
+import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
+
 import { CameraDao } from '../../../database/dao/camera.dao';
+import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
+
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
-import { VehicleIntakeService } from '../../shared/vehicle-intake.service';
 
 @Injectable()
 export class AnprCaptureService {
   private static readonly context = 'AnprCaptureService';
 
   constructor(
-    private readonly anprCaptureDao: AnprCaptureDao,
-    private readonly cameraDao: CameraDao,
-    private readonly vehicleIntakeService: VehicleIntakeService,
     private readonly logger: AppLogger,
-  ) {}
+    private readonly cameraDao: CameraDao,
+    private readonly anprCaptureDao: AnprCaptureDao,
+  ) { }
 
   async create(createDto: CreateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
-    this.logger.log(
-      `Creating ANPR capture for plate: ${createDto.plate_number}`,
-      AnprCaptureService.context,
-    );
+    this.logger.log(`Creating ANPR capture for plate: ${createDto.plate_number}`, AnprCaptureService.context);
 
     try {
       const camera = await this.cameraDao.findActiveById(createDto.camera_id);
@@ -57,20 +50,9 @@ export class AnprCaptureService {
         ...createDto,
         anpr_capture_id: captureId,
         capture_time: new Date(createDto.capture_time),
-        verification_status: createDto.verification_status || 'Pending',
         created_by: getCreatedById(actor),
       });
-      let saved = await this.anprCaptureDao.save(capture);
-
-      if (createDto.simulate_rop) {
-        await this.vehicleIntakeService.simulateRopForCapture(saved, actor);
-        saved.verification_status = 'Verified';
-        saved = await this.anprCaptureDao.save(saved);
-        this.logger.log(
-          `Simulated ROP created for ANPR capture ID: ${saved.id}`,
-          AnprCaptureService.context,
-        );
-      }
+      const saved = await this.anprCaptureDao.save(capture);
 
       this.logger.log(`ANPR capture created with ID: ${saved.id}`, AnprCaptureService.context);
       return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;

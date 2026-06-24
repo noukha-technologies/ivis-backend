@@ -1,14 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import {
-  buildTypeOrmPaginationOptions,
-  toPaginatedResult,
-} from '../../../common/shared/pagination/pagination-query.util';
-import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { IAnprCaptureDao } from '../../transactions/anpr-captures/dao/anpr-capture.dao.interface';
+import { buildTypeOrmPaginationOptions, toPaginatedResult } from '../../../common/shared/pagination/pagination-query.util';
+
 import { AnprCapture } from '../entity/anpr-capture.entity';
+import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 
 @Injectable()
 export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCaptureDao {
@@ -32,12 +31,11 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>> {
     const options = buildTypeOrmPaginationOptions<AnprCapture, AnprCapture>(query, {
-      searchFields: ['plate_number', 'normalized_plate', 'lane', 'direction', 'verification_status'],
+      searchFields: ['plate_number', 'normalized_plate', 'line_id', 'direction'],
       allowedSortFields: [
         'anpr_capture_id',
         'plate_number',
         'capture_time',
-        'verification_status',
         'created_at',
         'updated_at',
       ],

@@ -2,7 +2,7 @@ import * as fs from "fs";
 import chalk from "chalk";
 import * as path from "path";
 import { Request } from "express";
-import { Repository } from "typeorm";
+import { QueryFailedError, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { BadRequestException, Injectable, Logger } from "@nestjs/common";
 
@@ -572,7 +572,19 @@ export class AnprWebhookService {
             const entity = new AnprEventEntity();
             Object.assign(entity, eventDto);
 
-            const savedEvent = await this.anprEventRepo.save(entity);
+            let savedEvent: AnprEventEntity;
+            try {
+                savedEvent = await this.anprEventRepo.save(entity);
+            } catch (error) {
+                if (this.isUniqueViolation(error)) {
+                    this.logger.warn(
+                        `[ANPR Service] Duplicate event ignored (plate=${entity.plateNumber}, ` +
+                        `captureTime=${entity.captureTime.toISOString()}) — already persisted`,
+                    );
+                    return false;
+                }
+                throw error;
+            }
 
             this.logger.log(
                 `[ANPR Service] ✓ Saved event #${savedEvent.id}: ${savedEvent.plateNumber} (method=${eventDto.sourceMethod})`,
@@ -602,12 +614,13 @@ export class AnprWebhookService {
                             plate_confidence: savedEvent.confidenceScore ?? undefined,
                             capture_time: savedEvent.captureTime.toISOString(),
                             camera_id: camera.id,
-                            lane: savedEvent.laneNumber != null ? String(savedEvent.laneNumber) : undefined,
+                            line_id: savedEvent.laneNumber != null ? String(savedEvent.laneNumber) : undefined,
                             direction: eventDto.direction ?? undefined,
                             country_code: 'OM',
                             plate_color: savedEvent.plateColour ?? undefined,
                             vehicle_type: savedEvent.vehicleType ?? undefined,
                             vehicle_color: savedEvent.vehicleColour ?? undefined,
+                            image_url: savedEvent.plateImagePath ?? undefined,
                         },
                         { id: 'system', email: 'system@ivis.internal' } as any,
                     );
@@ -624,6 +637,14 @@ export class AnprWebhookService {
             this.logger.error(`[ANPR Service] Process event failed: ${message}`);
             throw error;
         }
+    }
+
+    private isUniqueViolation(error: unknown): boolean {
+        if (error instanceof QueryFailedError) {
+            const code = (error.driverError as { code?: string } | undefined)?.code;
+            return code === '23505';
+        }
+        return false;
     }
 
     /* Broadcast ANPR event to all connected WebSocket clients. */

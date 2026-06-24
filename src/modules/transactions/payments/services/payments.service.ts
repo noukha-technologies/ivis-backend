@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
+import {
+  DatabaseException,
+  DuplicateResourceException,
+  ResourceNotFoundException,
+} from '../../../../common/exceptions/custom.exception';
 
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { CreatePaymentTransactionDto, UpdatePaymentTransactionDto } from '../../../../common/dto/payment-transaction.dto';
+import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../../common/dto/payments.dto';
 
 import { JobService } from '../../../jobs/services/job.service';
 import { Payments } from '../../../database/entity/payments.entity';
@@ -16,7 +20,7 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { AppointmentDao } from '../../../database/dao/appointment.dao';
-import { PaymentTransactionDao } from '../../../database/dao/payments.dao';
+import { PaymentsDao } from '../../../database/dao/payments.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 
 @Injectable()
@@ -29,26 +33,21 @@ export class PaymentsService {
     private readonly customerDao: CustomerDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly paymentTransactionDao: PaymentTransactionDao,
+    private readonly paymentsDao: PaymentsDao,
   ) { }
 
-  async create(createDto: CreatePaymentTransactionDto, actor: UserContext): Promise<Payments> {
+  async create(createDto: CreatePaymentsDto, actor: UserContext): Promise<Payments> {
     this.logger.log('Creating payment transaction', PaymentsService.context);
     try {
       const resolved = await this.resolveReferences(createDto);
 
-      let paymentTransactionId = createDto.payment_transaction_id;
-      if (!paymentTransactionId) {
-        paymentTransactionId = await this.paymentTransactionDao.getNextPaymentTransactionId();
+      let paymentsId = createDto.payments_id;
+      if (!paymentsId) {
+        paymentsId = await this.paymentsDao.getNextPaymentsId();
       } else {
-        const existing =
-          await this.paymentTransactionDao.findByPaymentTransactionId(paymentTransactionId);
+        const existing = await this.paymentsDao.findByPaymentsId(paymentsId);
         if (existing) {
-          throw new DuplicateResourceException(
-            'PaymentTransaction',
-            'payment_transaction_id',
-            paymentTransactionId,
-          );
+          throw new DuplicateResourceException('Payment', 'payments_id', paymentsId);
         }
       }
 
@@ -61,9 +60,9 @@ export class PaymentsService {
           ? new Date(createDto.pay_date)
           : undefined;
 
-      const payment = this.paymentTransactionDao.create({
+      const payment = this.paymentsDao.create({
         id: generateSnowflakeId(),
-        payments_id: paymentTransactionId,
+        payments_id: paymentsId,
         appointment_id: resolved.appointment_id,
         customer_id: resolved.customer_id,
         vehicle_record_id: resolved.vehicle_record_id,
@@ -82,7 +81,7 @@ export class PaymentsService {
         created_by: getCreatedById(actor),
       });
 
-      let saved = await this.paymentTransactionDao.save(payment);
+      let saved = await this.paymentsDao.save(payment);
 
       if (isPaid && createDto.auto_create_job !== false) {
         const job = await this.jobService.create(
@@ -101,11 +100,11 @@ export class PaymentsService {
         );
 
         saved.job_id = job.id;
-        saved = await this.paymentTransactionDao.save(saved);
+        saved = await this.paymentsDao.save(saved);
         this.logger.log(`Job auto-created ID: ${job.id} from payment ${saved.id}`, PaymentsService.context);
       }
 
-      return (await this.paymentTransactionDao.findActiveById(saved.id)) ?? saved;
+      return (await this.paymentsDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -113,34 +112,32 @@ export class PaymentsService {
       ) {
         throw error;
       }
-
       this.logger.error(
-        `Failed to create payment transaction: ${(error as Error).message}`,
+        `Failed to create payment: ${(error as Error).message}`,
         (error as Error).stack,
         PaymentsService.context,
       );
-
-      throw new DatabaseException('Failed to create payment transaction. Please try again.');
+      throw new DatabaseException('Failed to create payment. Please try again.');
     }
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Payments>> {
     try {
-      return await this.paymentTransactionDao.findPaginated(query);
+      return await this.paymentsDao.findPaginated(query);
     } catch {
-      throw new DatabaseException('Failed to fetch payment transactions. Please try again.');
+      throw new DatabaseException('Failed to fetch payments. Please try again.');
     }
   }
 
   async findOne(id: string): Promise<Payments> {
-    const payment = await this.paymentTransactionDao.findActiveById(id);
+    const payment = await this.paymentsDao.findActiveById(id);
     if (!payment) {
-      throw new ResourceNotFoundException('PaymentTransaction', id);
+      throw new ResourceNotFoundException('Payment', id);
     }
     return payment;
   }
 
-  async update(id: string, updateDto: UpdatePaymentTransactionDto, actor: UserContext): Promise<Payments> {
+  async update(id: string, updateDto: UpdatePaymentsDto, actor: UserContext): Promise<Payments> {
     const payment = await this.findOne(id);
     const resolved = await this.resolveReferences({
       ...updateDto,
@@ -150,7 +147,7 @@ export class PaymentsService {
     });
 
     const nextType = updateDto.payment_type ?? payment.payment_type;
-    const merged = this.paymentTransactionDao.merge(payment, {
+    const merged = this.paymentsDao.merge(payment, {
       ...updateDto,
       payment_type: nextType as 'Paid' | 'FOC',
       payment_mode: updateDto.payment_mode as 'Cash' | 'UPI' | 'Card' | null | undefined,
@@ -165,7 +162,7 @@ export class PaymentsService {
       ...(nextType === 'Paid' && !payment.pay_date ? { pay_date: new Date() } : {}),
     });
 
-    let saved = await this.paymentTransactionDao.save(merged);
+    let saved = await this.paymentsDao.save(merged);
 
     if (
       nextType === 'Paid' &&
@@ -188,21 +185,20 @@ export class PaymentsService {
         actor,
       );
       saved.job_id = job.id;
-      saved = await this.paymentTransactionDao.save(saved);
+      saved = await this.paymentsDao.save(saved);
     }
 
-    return (await this.paymentTransactionDao.findActiveById(saved.id)) ?? saved;
+    return (await this.paymentsDao.findActiveById(saved.id)) ?? saved;
   }
 
   async remove(id: string): Promise<void> {
     const payment = await this.findOne(id);
     payment.is_deleted = true;
-    await this.paymentTransactionDao.save(payment);
+    await this.paymentsDao.save(payment);
   }
 
   async lookupJob(jobId: string) {
     const job = await this.jobService.findOne(jobId);
-    const vehicleRecord = job.vehicleRecord;
     return {
       customer_id: job.customer_id,
       customer_name: job.customer?.name ?? null,
@@ -217,7 +213,7 @@ export class PaymentsService {
 
   private async resolveReferences(
     dto: Pick<
-      CreatePaymentTransactionDto,
+      CreatePaymentsDto,
       | 'job_id'
       | 'appointment_id'
       | 'customer_id'

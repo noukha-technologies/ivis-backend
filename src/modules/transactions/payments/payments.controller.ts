@@ -18,7 +18,7 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 import { PaymentsService } from './services/payments.service';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { CreatePaymentTransactionDto, UpdatePaymentTransactionDto } from '../../../common/dto/payment-transaction.dto';
+import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../common/dto/payments.dto';
 
 @ApiTags('Transactions / Payment Transactions')
 @Controller('transactions/payment-transactions')
@@ -28,7 +28,7 @@ export class PaymentsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create payment transaction (auto-creates job when status is Paid)' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreatePaymentTransactionDto) {
+  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreatePaymentsDto) {
     const data = await this.paymentsService.create(createDto, actor);
     return { message: 'Payment transaction created successfully', data };
   }
@@ -63,7 +63,7 @@ export class PaymentsController {
   async update(
     @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
-    @Body() updateDto: UpdatePaymentTransactionDto,
+    @Body() updateDto: UpdatePaymentsDto,
   ) {
     const data = await this.paymentsService.update(id, updateDto, actor);
     return { message: 'Payment transaction updated successfully', data };

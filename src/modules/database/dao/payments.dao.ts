@@ -1,20 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+
+import { Payments } from '../entity/payments.entity';
+import { IPaymentsDao } from '../../transactions/payments/dao/payment.dao.interface';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import {
   buildTypeOrmPaginationOptions,
   toPaginatedResult,
 } from '../../../common/shared/pagination/pagination-query.util';
-import { PaginationService } from '../../../common/shared/pagination/pagination.service';
-import { IPaymentsDao } from '../../transactions/payments/dao/payment.dao.interface';
-import { Payments } from '../entity/payments.entity';
 
 @Injectable()
-export class PaymentTransactionDao
-  extends Repository<Payments>
-  implements IPaymentsDao
-{
+export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
   private static readonly detailRelations = {
     appointment: true,
     customer: { primaryVehicleRecord: true },
@@ -37,22 +35,18 @@ export class PaymentTransactionDao
   async findActiveById(id: string): Promise<Payments | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: PaymentTransactionDao.detailRelations,
+      relations: PaymentsDao.detailRelations,
     });
   }
 
-  async findByPaymentTransactionId(
-    paymentsId: number,
-  ): Promise<Payments | null> {
+  async findByPaymentsId(paymentsId: number): Promise<Payments | null> {
     return this.findOne({
       where: { payments_id: paymentsId, is_deleted: false },
-      relations: PaymentTransactionDao.detailRelations,
+      relations: PaymentsDao.detailRelations,
     });
   }
 
-  async findPaginated(
-    query: PaginationQueryDto,
-  ): Promise<PaginatedResult<Payments>> {
+  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Payments>> {
     const qb = this.createQueryBuilder('payment')
       .leftJoinAndSelect('payment.customer', 'customer')
       .leftJoinAndSelect('payment.vehicleRecord', 'vehicleRecord')
@@ -63,13 +57,7 @@ export class PaymentTransactionDao
       query,
       {
         searchFields: ['status', 'payment_type', 'customer.name'],
-        allowedSortFields: [
-          'payments_id',
-          'status',
-          'pay_date',
-          'grand_total',
-          'created_at',
-        ],
+        allowedSortFields: ['payments_id', 'status', 'pay_date', 'grand_total', 'created_at'],
         defaultSort: { created_at: 'DESC' },
         baseWhere: { is_deleted: false },
       },
@@ -79,7 +67,7 @@ export class PaymentTransactionDao
     return toPaginatedResult(response);
   }
 
-  async getNextPaymentTransactionId(): Promise<number> {
+  async getNextPaymentsId(): Promise<number> {
     const result = await this.createQueryBuilder('payment')
       .select('MAX(payment.payments_id)', 'max')
       .getRawOne();

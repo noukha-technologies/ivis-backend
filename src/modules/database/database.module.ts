@@ -43,7 +43,7 @@ import { CustomerDao } from './dao/customer.dao';
 import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { JobDao } from './dao/job.dao';
 import { AppointmentDao } from './dao/appointment.dao';
-import { PaymentTransactionDao } from './dao/payments.dao';
+import { PaymentsDao } from './dao/payments.dao';
 import { ChargeDao } from './dao/charge.dao';
 import { PaymentTypeDao } from './dao/payment-type.dao';
 
@@ -107,7 +107,7 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
     VehicleRecordDao,
     JobDao,
     AppointmentDao,
-    PaymentTransactionDao,
+    PaymentsDao,
     ChargeDao,
     PaymentTypeDao,
   ],
@@ -132,7 +132,7 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
     VehicleRecordDao,
     JobDao,
     AppointmentDao,
-    PaymentTransactionDao,
+    PaymentsDao,
     ChargeDao,
     PaymentTypeDao,
   ],

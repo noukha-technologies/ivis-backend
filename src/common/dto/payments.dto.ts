@@ -8,14 +8,11 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import {
-  PAYMENT_MODES,
-  PAYMENT_TRANSACTION_TYPES,
-} from '../enums/payment.enums';
 import { JOB_SOURCES } from '../enums/job.enums';
+import { PAYMENT_MODES, PAYMENT_TRANSACTION_TYPES } from '../enums/payment.enums';
+import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
-export class CreatePaymentTransactionDto {
+export class CreatePaymentsDto {
   @ApiPropertyOptional({
     description: 'Unique numeric payment transaction identifier (auto-generated if omitted)',
     example: 1,
@@ -23,7 +20,7 @@ export class CreatePaymentTransactionDto {
   @IsInt()
   @Min(1)
   @IsOptional()
-  payment_transaction_id?: number;
+  payments_id?: number;
 
   @ApiPropertyOptional({
     description: 'Existing job snowflake ID — pre-fills customer and vehicle details',
@@ -124,6 +121,4 @@ export class CreatePaymentTransactionDto {
   job_source?: (typeof JOB_SOURCES)[number];
 }
 
-export class UpdatePaymentTransactionDto extends PartialType(
-  OmitType(CreatePaymentTransactionDto, ['payment_transaction_id'] as const),
-) {}
+export class UpdatePaymentsDto extends PartialType(OmitType(CreatePaymentsDto, ['payments_id'] as const)) { }

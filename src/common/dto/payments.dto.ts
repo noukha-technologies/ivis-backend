@@ -9,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { JOB_SOURCES } from '../enums/job.enums';
-import { PAYMENT_MODES, PAYMENT_TRANSACTION_TYPES } from '../enums/payment.enums';
+import { PaymentModesEnum, PaymentStatusEnum } from '../enums/payment.enums';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
 export class CreatePaymentsDto {
@@ -69,19 +69,19 @@ export class CreatePaymentsDto {
   @IsString()
   camera_id?: string;
 
-  @ApiProperty({ description: 'Payment type', enum: PAYMENT_TRANSACTION_TYPES, example: 'Paid' })
+  @ApiProperty({ description: 'Payment type', enum: PaymentStatusEnum, example: 'Paid' })
   @IsString()
-  @IsIn([...PAYMENT_TRANSACTION_TYPES])
+  @IsIn([...Object.values(PaymentStatusEnum)])
   payment_type!: string;
 
   @ApiPropertyOptional({
     description: 'Payment mode — required when payment_type is Paid',
-    enum: PAYMENT_MODES,
+    enum: PaymentModesEnum,
     example: 'Cash',
   })
   @IsOptional()
   @IsString()
-  @IsIn([...PAYMENT_MODES])
+  @IsIn([...Object.values(PaymentModesEnum)])
   payment_mode?: string;
 
   @ApiProperty({ description: 'Total amount including VAT (OMR)', example: 26.25 })

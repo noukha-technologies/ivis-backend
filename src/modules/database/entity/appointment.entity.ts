@@ -7,16 +7,18 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
+
+import { SnowflakePrimaryColumn } from './snowflake-id.column';
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 import type { AppointmentStatus } from '../../../common/enums/appointment.enums';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
-import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { AnprCapture } from './anpr-capture.entity';
+
+import { Line } from './line.entity';
 import { Centre } from './centre.entity';
 import { Customer } from './customer.entity';
-import { Line } from './line.entity';
+import { Payments } from './payments.entity';
+import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
-
-import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 
 @Entity({ name: 'appointments', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_APPOINTMENT_APPOINTMENT_ID', ['appointment_id'], { unique: true })
@@ -29,6 +31,7 @@ export class Appointment {
   @Column({ type: 'integer', unique: true, nullable: false })
   appointment_id!: number;
 
+  /* ANPR FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   anpr_capture_id?: string | null;
 
@@ -36,6 +39,7 @@ export class Appointment {
   @JoinColumn({ name: 'anpr_capture_id' })
   anprCapture?: AnprCapture;
 
+  /* Customer FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   customer_id?: string | null;
 
@@ -43,6 +47,7 @@ export class Appointment {
   @JoinColumn({ name: 'customer_id' })
   customer?: Customer;
 
+  /* Master Vehicle Record FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   vehicle_record_id?: string | null;
 
@@ -50,6 +55,7 @@ export class Appointment {
   @JoinColumn({ name: 'vehicle_record_id' })
   vehicleRecord?: VehicleRecord;
 
+  /* Centre FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   centre_id?: string | null;
 
@@ -57,12 +63,21 @@ export class Appointment {
   @JoinColumn({ name: 'centre_id' })
   centre?: Centre;
 
+  /* Line FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   line_id?: string | null;
 
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
+
+  /* Payment FK */
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  payment_id?: string | null;
+
+  @ManyToOne(() => Payments, { nullable: true })
+  @JoinColumn({ name: 'payment_id' })
+  payment?: Payments;
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   plate_number?: string;
@@ -76,6 +91,12 @@ export class Appointment {
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  payment_mode?: string;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  type?: string;
+
   @Column({ type: 'timestamp', nullable: false })
   appointment_at!: Date;
 
@@ -84,12 +105,6 @@ export class Appointment {
 
   @Column({ type: 'varchar', length: 512, nullable: true })
   notes?: string;
-
-  @Column({ type: 'varchar', length: 64, nullable: false })
-  payment_mode!: string;
-
-  @Column({ type: 'varchar', length: 64, nullable: false })
-  type!: string;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

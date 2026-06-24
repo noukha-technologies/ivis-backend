@@ -1,41 +1,38 @@
 import { Injectable } from '@nestjs/common';
-import {
-  CreateAppointmentDto,
-  UpdateAppointmentDto,
-} from '../../../common/dto/appointment.dto';
+
+import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { CreateAppointmentDto, UpdateAppointmentDto } from '../../../common/dto/appointment.dto';
+
+import { AppLogger } from '../../../common/logger/app.logger';
+import { getCreatedById } from '../../../common/utils/created-by.util';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException,
+  ResourceNotFoundException
 } from '../../../common/exceptions/custom.exception';
-import { AppLogger } from '../../../common/logger/app.logger';
-import type { UserContext } from '../../../common/dto/auth.dto';
-import { getCreatedById } from '../../../common/utils/created-by.util';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
-import { AppointmentDao } from '../../database/dao/appointment.dao';
+
+import { LineDao } from '../../database/dao/line.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
-import { LineDao } from '../../database/dao/line.dao';
-import { PaymentDao } from '../../database/dao/payment.dao';
+import { AppointmentDao } from '../../database/dao/appointment.dao';
+import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
+
 import { Appointment } from '../../database/entity/appointment.entity';
-import { VehicleIntakeService } from '../../transactions/shared/vehicle-intake.service';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 
 @Injectable()
 export class AppointmentService {
   private static readonly context = 'AppointmentService';
 
   constructor(
-    private readonly appointmentDao: AppointmentDao,
-    private readonly customerDao: CustomerDao,
-    private readonly anprCaptureDao: AnprCaptureDao,
-    private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
-    private readonly paymentDao: PaymentDao,
-    private readonly vehicleIntakeService: VehicleIntakeService,
     private readonly logger: AppLogger,
+    private readonly centreDao: CentreDao,
+    private readonly customerDao: CustomerDao,
+    private readonly appointmentDao: AppointmentDao,
+    private readonly anprCaptureDao: AnprCaptureDao,
   ) { }
 
   async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
@@ -94,34 +91,6 @@ export class AppointmentService {
 
       const saved = await this.appointmentDao.save(appointment);
       this.logger.log(`Appointment created ID: ${saved.id}`, AppointmentService.context);
-
-      if (saved.customer_id) {
-        try {
-          const paymentId = await this.paymentDao.getNextId();
-          const code = `PM-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
-
-          const paymentRecord = this.paymentDao.create({
-            id: generateSnowflakeId(),
-            payment_id: paymentId,
-            customer_id: saved.customer_id,
-            code,
-            status: 'Active',
-            payment_mode: saved.payment_mode,
-            type: saved.type,
-            amount: createDto.amount,
-            created_by: getCreatedById(actor),
-          });
-          await this.paymentDao.save(paymentRecord);
-          this.logger.log(`Auto-created payment record for appointment: ${saved.id}`, AppointmentService.context);
-        } catch (payError) {
-          this.logger.error(
-            `Failed to auto-create payment record for appointment: ${(payError as Error).message}`,
-            (payError as Error).stack,
-            AppointmentService.context,
-          );
-        }
-      }
-
       return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
@@ -215,12 +184,12 @@ export class AppointmentService {
     let vehicleRecordId = dto.vehicle_record_id;
 
     if (dto.anpr_capture_id) {
-      const rop = await this.vehicleIntakeService.findLatestRopByCaptureId(dto.anpr_capture_id);
-      const capture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
-      if (rop && capture) {
-        const record = await this.vehicleIntakeService.upsertVehicleRecordFromRop(rop, capture, actor);
-        vehicleRecordId = record.id;
-      }
+      // const rop = await this.vehicleIntakeService.findLatestRopByCaptureId(dto.anpr_capture_id);
+      // const capture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
+      // if (rop && capture) {
+      //   const record = await this.vehicleIntakeService.upsertVehicleRecordFromRop(rop, capture, actor);
+      //   vehicleRecordId = record.id;
+      // }
     }
 
     if (dto.customer_id) {

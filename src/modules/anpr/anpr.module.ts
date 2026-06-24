@@ -23,7 +23,7 @@ import { FtpFolderWatcherService } from './services/ftp-service/ftp-folder-watch
 import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
 import { AnprWebhookService } from './services/http-push-service/anpr-webhook.service';
 import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-pool.service';
-import { HikvisionOverlayOcrService } from './services/ftp-service/hikvision-overlay-ocr.service';
+import { HikvisionOverlayOcrService } from '../../common/ocr-extraction/hikvision-overlay-ocr.service';
 import { AnprEventGuardService } from './services/anpr-event-guard.service';
 import { AnprCaptureModule } from '../transactions/anpr-captures/anpr-capture.module';
 import { DatabaseModule } from '../database/database.module';

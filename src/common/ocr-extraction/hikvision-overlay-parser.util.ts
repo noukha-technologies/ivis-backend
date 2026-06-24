@@ -1,4 +1,4 @@
-import { normalizeAnprColour } from './anpr-colour.util.js';
+import { normalizeAnprColour } from './anpr-colour.util';
 
 const OVERLAY_LABEL =
     '(?:Camera\\s*Info|Device\\s*No\\.?|Capture\\s*Time|Plate\\s*No\\.?|Vehicle\\s*Colou?r|Vehicle\\s*Type|Vehicle\\s*Brand|Uehicle\\s*Brand|Moving\\s*Direction|Confidence|Camera\\s*No\\.?|Area[s\\-/]?Country|Plate\\s*Colou?r|Plate\\s*(?:Size|Siz|3ize)|Plate\\s*Type|Province|Category)';

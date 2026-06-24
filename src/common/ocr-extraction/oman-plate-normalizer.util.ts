@@ -155,9 +155,7 @@ function catEndsWith(plate: string, category?: string | null): boolean {
     return Boolean(cat && plate.endsWith(cat));
 }
 
-export function pickBestPlateCandidate(
-    candidates: PlateCandidateInput[],
-): { plate: string; source: string } | null {
+export function pickBestPlateCandidate(candidates: PlateCandidateInput[]): { plate: string; source: string } | null {
     const scored: Array<{ plate: string; source: string; score: number; hints?: PlateNormalizeHints }> = [];
     for (const c of candidates) {
         if (!c.value?.trim()) continue;

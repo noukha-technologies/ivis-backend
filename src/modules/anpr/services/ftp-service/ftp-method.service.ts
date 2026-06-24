@@ -8,7 +8,7 @@ import { RawFileResponseBuilder } from '../../../../common/shared/anpr/raw-file-
 import { ParsedAnprEvent } from '../../../../common/interfaces/anpr.interface';
 import { FtpConnectionPoolService } from './ftp-connection-pool.service';
 import { joinFtpPath } from '../../../../common/utils/ftp-path.util';
-import { HikvisionOverlayOcrService } from './hikvision-overlay-ocr.service';
+import { HikvisionOverlayOcrService } from '../../../../common/ocr-extraction/hikvision-overlay-ocr.service';
 import { JpegEventBundle } from '../../../../common/utils/hikvision-jpeg-filename.util';
 import { OmanPlateClassifierService } from '../../../../common/shared/anpr/oman-plate-classifier.service';
 import {
@@ -16,13 +16,13 @@ import {
     stripCameraPathFromFtpRoot,
 } from '../../../../common/utils/ftp-path-resolver.util';
 import { AnprEventGuardService } from '../anpr-event-guard.service';
-import { normalizeAnprColour } from '../../../../common/utils/anpr-colour.util';
-import { pickBestPlateCandidate } from '../../../../common/utils/oman-plate-normalizer.util';
 import {
+    normalizeAnprColour,
+    pickBestPlateCandidate,
     writeOcrExtractionDebugFile,
+    parseHikvisionOverlayFields,
     type JpegOcrExtractionDebug,
-} from '../../../../common/utils/ocr-extraction-debug.util';
-import { parseHikvisionOverlayFields } from '../../../../common/utils/hikvision-overlay-parser.util';
+} from '../../../../common/ocr-extraction';
 import { AnprMethodConfigService } from '../anpr-method-config.service';
 import { CameraIntegrationMethod } from '../../../../common/enums/camera.enums';
 

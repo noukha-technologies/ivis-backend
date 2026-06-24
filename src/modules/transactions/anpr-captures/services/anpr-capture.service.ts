@@ -13,6 +13,7 @@ import { DatabaseException, DuplicateResourceException, ResourceNotFoundExceptio
 
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
+import { AnprOrchestrationService } from './anpr-orchestration.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 
@@ -24,6 +25,7 @@ export class AnprCaptureService {
     private readonly logger: AppLogger,
     private readonly cameraDao: CameraDao,
     private readonly anprCaptureDao: AnprCaptureDao,
+    private readonly orchestrationService: AnprOrchestrationService,
   ) { }
 
   async create(createDto: CreateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
@@ -53,6 +55,7 @@ export class AnprCaptureService {
         created_by: getCreatedById(actor),
       });
       const saved = await this.anprCaptureDao.save(capture);
+      this.orchestrationService.runPostCapture(saved);
 
       this.logger.log(`ANPR capture created with ID: ${saved.id}`, AnprCaptureService.context);
       return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;

@@ -4,8 +4,8 @@ import { createWorker } from 'tesseract.js';
 import {
     parseCaptureTimeLabel,
     parseHikvisionOverlayFields,
-} from '../../../../common/utils/hikvision-overlay-parser.util';
-import { normalizeOcrPlateNumber } from '../../../../common/utils/oman-plate-normalizer.util';
+} from './hikvision-overlay-parser.util';
+import { normalizeOcrPlateNumber } from './oman-plate-normalizer.util';
 
 export type HikvisionOverlayMetadata = {
     plateNumber?: string;
@@ -85,7 +85,7 @@ export class HikvisionOverlayOcrService {
             '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
         );
         const cleaned = text
-            .replace(/[^A-Za-z0-9\u0600-\u06FF]/g, '')
+            .replace(/[^A-Za-z0-9؀-ۿ]/g, '')
             .trim()
             .toUpperCase();
         const normalized = normalizeOcrPlateNumber(cleaned);
@@ -287,7 +287,7 @@ export class HikvisionOverlayOcrService {
         }
 
         const cleaned = normalized
-            .replace(/[^A-Za-z0-9\u0600-\u06FF]/g, '')
+            .replace(/[^A-Za-z0-9؀-ۿ]/g, '')
             .trim()
             .toUpperCase();
         const normalizedPlate = normalizeOcrPlateNumber(cleaned);

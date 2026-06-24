@@ -1,29 +1,29 @@
 import 'reflect-metadata';
-import { DataSource } from 'typeorm';
 import * as dotenv from 'dotenv';
+import { DataSource } from 'typeorm';
 import { buildDatabaseOptions } from './database.config';
-import { AdminPc } from './entity/admin-pc.entity';
-import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
-import { AnprCapture } from './entity/anpr-capture.entity';
+
+import { Job } from './entity/job.entity';
+import { User } from './entity/user.entity';
+import { Test } from './entity/test.entity';
+import { Role } from './entity/role.entity';
+import { Line } from './entity/line.entity';
+import { Charge } from './entity/charge.entity';
 import { Camera } from './entity/camera.entity';
 import { Centre } from './entity/centre.entity';
-import { Line } from './entity/line.entity';
-import { Payment } from './entity/payment.entity';
-import { Permission } from './entity/permission.entity';
-import { Role } from './entity/role.entity';
-import { RopVerification } from './entity/rop-verification.entity';
-import { Test } from './entity/test.entity';
-import { User } from './entity/user.entity';
-import { UserLineMapping } from './entity/user-line-mapping.entity';
-import { UserSession } from './entity/user-session.entity';
 import { Vehicle } from './entity/vehicle.entity';
-import { VehicleRecord } from './entity/vehicle-record.entity';
+import { AdminPc } from './entity/admin-pc.entity';
+import { Payments } from './entity/payments.entity';
 import { Customer } from './entity/customer.entity';
-import { Job } from './entity/job.entity';
+import { Permission } from './entity/permission.entity';
 import { Appointment } from './entity/appointment.entity';
-import { PaymentTransaction } from './entity/payments.entity';
-import { Charge } from './entity/charge.entity';
+import { UserSession } from './entity/user-session.entity';
 import { PaymentType } from './entity/payment-type.entity';
+import { AnprCapture } from './entity/anpr-capture.entity';
+import { VehicleRecord } from './entity/vehicle-record.entity';
+import { RopVerification } from './entity/rop-verification.entity';
+import { UserLineMapping } from './entity/user-line-mapping.entity';
+import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 
 dotenv.config();
 
@@ -44,14 +44,13 @@ export const AppDataSource = new DataSource({
     AdminPc,
     AdminPcLineMapping,
     Camera,
-    Payment,
+    Payments,
     AnprCapture,
     RopVerification,
     Customer,
     VehicleRecord,
     Job,
     Appointment,
-    PaymentTransaction,
     Charge,
     PaymentType,
   ],

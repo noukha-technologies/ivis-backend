@@ -1,51 +1,51 @@
 import { Global, Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import databaseConfig, { DatabaseConfig } from './database.config';
-import { User } from './entity/user.entity';
-import { UserLineMapping } from './entity/user-line-mapping.entity';
-import { Permission } from './entity/permission.entity';
-import { Role } from './entity/role.entity';
-import { UserSession } from './entity/user-session.entity';
-import { Vehicle } from './entity/vehicle.entity';
-import { Test } from './entity/test.entity';
-import { Centre } from './entity/centre.entity';
-import { Line } from './entity/line.entity';
-import { AdminPc } from './entity/admin-pc.entity';
-import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
-import { Camera } from './entity/camera.entity';
-import { Payment } from './entity/payment.entity';
-import { AnprCapture } from './entity/anpr-capture.entity';
-import { RopVerification } from './entity/rop-verification.entity';
-import { Customer } from './entity/customer.entity';
-import { VehicleRecord } from './entity/vehicle-record.entity';
+
 import { Job } from './entity/job.entity';
-import { Appointment } from './entity/appointment.entity';
-import { Payments } from './entity/payments.entity';
+import { User } from './entity/user.entity';
+import { Role } from './entity/role.entity';
+import { Test } from './entity/test.entity';
+import { Line } from './entity/line.entity';
+import { Camera } from './entity/camera.entity';
+import { Centre } from './entity/centre.entity';
 import { Charge } from './entity/charge.entity';
+import { Vehicle } from './entity/vehicle.entity';
+import { AdminPc } from './entity/admin-pc.entity';
+import { Customer } from './entity/customer.entity';
+import { Payments } from './entity/payments.entity';
+import { Permission } from './entity/permission.entity';
+import { Appointment } from './entity/appointment.entity';
+import { UserSession } from './entity/user-session.entity';
+import { AnprCapture } from './entity/anpr-capture.entity';
 import { PaymentType } from './entity/payment-type.entity';
-import { UsersDao } from './dao/users.dao';
-import { UserLineMappingDao } from './dao/user-line-mapping.dao';
-import { PermissionDao } from './dao/permission.dao';
-import { RoleDao } from './dao/role.dao';
-import { UserSessionsDao } from './dao/user-sessions.dao';
-import { VehicleDao } from './dao/vehicle.dao';
-import { TestDao } from './dao/test.dao';
-import { CentreDao } from './dao/centre.dao';
-import { LineDao } from './dao/line.dao';
-import { AdminPcDao } from './dao/admin-pc.dao';
-import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
-import { CameraDao } from './dao/camera.dao';
-import { PaymentDao } from './dao/payment.dao';
-import { AnprCaptureDao } from './dao/anpr-capture.dao';
-import { RopVerificationDao } from './dao/rop-verification.dao';
-import { CustomerDao } from './dao/customer.dao';
-import { VehicleRecordDao } from './dao/vehicle-record.dao';
+import { VehicleRecord } from './entity/vehicle-record.entity';
+import { RopVerification } from './entity/rop-verification.entity';
+import { UserLineMapping } from './entity/user-line-mapping.entity';
+import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
+
 import { JobDao } from './dao/job.dao';
-import { AppointmentDao } from './dao/appointment.dao';
-import { PaymentsDao } from './dao/payments.dao';
+import { RoleDao } from './dao/role.dao';
+import { TestDao } from './dao/test.dao';
+import { LineDao } from './dao/line.dao';
+import { UsersDao } from './dao/users.dao';
+import { CentreDao } from './dao/centre.dao';
 import { ChargeDao } from './dao/charge.dao';
+import { CameraDao } from './dao/camera.dao';
+import { VehicleDao } from './dao/vehicle.dao';
+import { AdminPcDao } from './dao/admin-pc.dao';
+import { PaymentsDao } from './dao/payments.dao';
+import { CustomerDao } from './dao/customer.dao';
+import { PermissionDao } from './dao/permission.dao';
+import { AppointmentDao } from './dao/appointment.dao';
 import { PaymentTypeDao } from './dao/payment-type.dao';
+import { AnprCaptureDao } from './dao/anpr-capture.dao';
+import { UserSessionsDao } from './dao/user-sessions.dao';
+import { VehicleRecordDao } from './dao/vehicle-record.dao';
+import { RopVerificationDao } from './dao/rop-verification.dao';
+import { UserLineMappingDao } from './dao/user-line-mapping.dao';
+import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
 
 @Global()
 @Module({
@@ -75,14 +75,13 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
       AdminPc,
       AdminPcLineMapping,
       Camera,
-      Payment,
+      Payments,
       AnprCapture,
       RopVerification,
       Customer,
       VehicleRecord,
       Job,
       Appointment,
-      Payments,
       Charge,
       PaymentType,
     ]),
@@ -100,14 +99,13 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
     AdminPcDao,
     AdminPcLineMappingDao,
     CameraDao,
-    PaymentDao,
+    PaymentsDao,
     AnprCaptureDao,
     RopVerificationDao,
     CustomerDao,
     VehicleRecordDao,
     JobDao,
     AppointmentDao,
-    PaymentsDao,
     ChargeDao,
     PaymentTypeDao,
   ],
@@ -125,14 +123,13 @@ import { PaymentTypeDao } from './dao/payment-type.dao';
     AdminPcDao,
     AdminPcLineMappingDao,
     CameraDao,
-    PaymentDao,
+    PaymentsDao,
     AnprCaptureDao,
     RopVerificationDao,
     CustomerDao,
     VehicleRecordDao,
     JobDao,
     AppointmentDao,
-    PaymentsDao,
     ChargeDao,
     PaymentTypeDao,
   ],

@@ -1,5 +1,6 @@
 /** Job lifecycle statuses (stored as varchar). UI: Created → Test & Submit */
 export const JOB_STATUSES = [
+  'Queued',
   'Pending',
   'Ready',
   'InProgress',
@@ -11,7 +12,7 @@ export const JOB_STATUSES = [
 export type JobStatus = (typeof JOB_STATUSES)[number];
 
 /** How the job was created */
-export const JOB_SOURCES = ['Booked', 'Walk-In'] as const;
+export const JOB_SOURCES = ['Booked', 'Walk-In', 'ANPR'] as const;
 
 export type JobSource = (typeof JOB_SOURCES)[number];
 

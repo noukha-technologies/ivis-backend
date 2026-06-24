@@ -7,13 +7,9 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import type {
-  PaymentMode,
-  PaymentTransactionStatus,
-  PaymentTransactionType,
-} from '../../../common/enums/payment.enums';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
-import { IPaymentsFields } from 'src/common/interfaces/transactions.interface';
+import { IPaymentsFields } from '../../../common/interfaces/transactions.interface';
+import { PaymentStatusEnum, PaymentTypeEnum } from '../../../common/enums/payment.enums';
 
 import { Job } from './job.entity';
 import { Line } from './line.entity';
@@ -29,7 +25,7 @@ import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 
 @Entity({ name: 'payments', schema: DATABASE_SCHEMAS.TRANSACTION })
-@Index('IDX_PAYMENTS_ID', ['payments_id'], { unique: true })
+@Index('IDX_PAYMENTS_ID', ['payment_id'], { unique: true })
 @Index('IDX_PAYMENT_STATUS', ['status'])
 @Index('IDX_PAYMENT_CUSTOMER_ID', ['customer_id'])
 export class Payments implements IPaymentsFields {
@@ -37,7 +33,7 @@ export class Payments implements IPaymentsFields {
   id!: string;
 
   @Column({ type: 'integer', unique: true, nullable: false })
-  payments_id!: number;
+  payment_id!: number;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   appointment_id?: string | null;
@@ -89,27 +85,27 @@ export class Payments implements IPaymentsFields {
   line?: Line;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  admin_pc_id?: string | null;
-
-  @ManyToOne(() => AdminPc, { nullable: true })
-  @JoinColumn({ name: 'admin_pc_id' })
-  adminPc?: AdminPc;
-
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   camera_id?: string | null;
 
   @ManyToOne(() => Camera, { nullable: true })
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
-  @Column({ type: 'varchar', length: 16, nullable: false })
-  payment_type!: PaymentTransactionType;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  admin_pc_id?: string | null;
 
-  @Column({ type: 'varchar', length: 16, nullable: true })
-  payment_mode?: PaymentMode | null;
+  @ManyToOne(() => AdminPc, { nullable: true })
+  @JoinColumn({ name: 'admin_pc_id' })
+  adminPc?: AdminPc;
+
+  @Column({ type: 'varchar', length: 16, nullable: false })
+  payment_type!: PaymentTypeEnum;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  payment_mode?: string | null;
 
   @Column({ type: 'varchar', length: 32, default: 'Paid', nullable: false })
-  status!: PaymentTransactionStatus;
+  status!: PaymentStatusEnum;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   charges!: number;
@@ -129,7 +125,7 @@ export class Payments implements IPaymentsFields {
   @Column({ type: 'varchar', length: 512, nullable: true })
   attachment_path?: string | null;
 
-  @Column({ type: 'varchar', length: 256, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
   attachment_filename?: string | null;
 
   @Column({ type: 'varchar', nullable: true })

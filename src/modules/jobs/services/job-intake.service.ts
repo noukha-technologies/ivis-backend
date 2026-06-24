@@ -1,57 +1,52 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager, EntityTarget, ObjectLiteral } from 'typeorm';
-import { CreateJobIntakeDto } from '../../../common/dto/job.dto.js';
-import type { JobSource } from '../../../common/enums/job.enums.js';
-import type { UserContext } from '../../../common/dto/auth.dto.js';
-import {
-  DatabaseException,
-  ResourceNotFoundException,
-} from '../../../common/exceptions/custom.exception.js';
-import { AppLogger } from '../../../common/logger/app.logger.js';
-import { getCreatedById } from '../../../common/utils/created-by.util.js';
-import { saveBase64File } from '../../../common/utils/file-storage.util.js';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration.js';
-import { AdminPcDao } from '../../database/dao/admin-pc.dao.js';
-import { CameraDao } from '../../database/dao/camera.dao.js';
-import { CentreDao } from '../../database/dao/centre.dao.js';
-import { CustomerDao } from '../../database/dao/customer.dao.js';
-import { JobDao } from '../../database/dao/job.dao.js';
-import { LineDao } from '../../database/dao/line.dao.js';
-import { PaymentTransactionDao } from '../../database/dao/payments.dao.js';
-import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao.js';
-import { Customer } from '../../database/entity/customer.entity.js';
-import { Job } from '../../database/entity/job.entity.js';
-import { PaymentTransaction } from '../../database/entity/payments.entity.js';
-import { VehicleRecord } from '../../database/entity/vehicle-record.entity.js';
 
-export interface JobIntakeResult {
-  customer: Customer;
-  vehicle_record: VehicleRecord;
-  payment_transaction: PaymentTransaction;
-  job: Job | null;
-}
+import { CreateJobIntakeDto } from '../../../common/dto/job.dto';
+import type { UserContext } from '../../../common/dto/auth.dto';
+
+import type { JobSource } from '../../../common/enums/job.enums';
+import { PaymentStatusEnum, PaymentTypeEnum } from '../../../common/enums/payment.enums';
+import { JobIntakeResult } from '../../../common/interfaces/job.interface';
+
+import { AppLogger } from '../../../common/logger/app.logger';
+import { DatabaseException, ResourceNotFoundException } from '../../../common/exceptions/custom.exception';
+
+import { getCreatedById } from '../../../common/utils/created-by.util';
+import { saveBase64File } from '../../../common/utils/file-storage.util';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+
+import { JobDao } from '../../database/dao/job.dao';
+import { LineDao } from '../../database/dao/line.dao';
+import { CentreDao } from '../../database/dao/centre.dao';
+import { CameraDao } from '../../database/dao/camera.dao';
+import { AdminPcDao } from '../../database/dao/admin-pc.dao';
+import { CustomerDao } from '../../database/dao/customer.dao';
+import { PaymentsDao } from '../../database/dao/payments.dao';
+import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
+
+import { Job } from '../../database/entity/job.entity';
+import { Customer } from '../../database/entity/customer.entity';
+import { VehicleRecord } from '../../database/entity/vehicle-record.entity';
+import { Payments } from '../../database/entity/payments.entity';
 
 @Injectable()
 export class JobIntakeService {
   private static readonly context = 'JobIntakeService';
 
   constructor(
+    private readonly jobDao: JobDao,
+    private readonly lineDao: LineDao,
+    private readonly logger: AppLogger,
+    private readonly centreDao: CentreDao,
+    private readonly cameraDao: CameraDao,
+    private readonly adminPcDao: AdminPcDao,
     private readonly dataSource: DataSource,
     private readonly customerDao: CustomerDao,
+    private readonly paymentsDao: PaymentsDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly paymentTransactionDao: PaymentTransactionDao,
-    private readonly jobDao: JobDao,
-    private readonly centreDao: CentreDao,
-    private readonly lineDao: LineDao,
-    private readonly adminPcDao: AdminPcDao,
-    private readonly cameraDao: CameraDao,
-    private readonly logger: AppLogger,
-  ) {}
+  ) { }
 
-  async createFromIntake(
-    createDto: CreateJobIntakeDto,
-    actor: UserContext,
-  ): Promise<JobIntakeResult> {
+  async createFromIntake(createDto: CreateJobIntakeDto, actor: UserContext): Promise<JobIntakeResult> {
     this.logger.log(
       `Creating job intake for customer: ${createDto.customer_name}`,
       JobIntakeService.context,
@@ -66,11 +61,7 @@ export class JobIntakeService {
     let attachmentPath: string | undefined;
 
     if (createDto.payment.capture_image) {
-      const saved = await saveBase64File(
-        createDto.payment.capture_image,
-        fileSubdirectory,
-        'capture.jpg',
-      );
+      const saved = await saveBase64File(createDto.payment.capture_image, fileSubdirectory, 'capture.jpg');
       captureImagePath = saved.relativePath;
     }
 
@@ -103,24 +94,24 @@ export class JobIntakeService {
           await manager.save(Customer, customer);
         }
 
-        const paymentTransactionId = await this.getNextNumericId(
+        const paymentId = await this.getNextNumericId(
           manager,
-          PaymentTransaction,
-          'payment_transaction_id',
+          Payments,
+          'payment_id',
         );
 
-        const payment = manager.create(PaymentTransaction, {
+        const payment = manager.create(Payments, {
           id: paymentSnowflakeId,
-          payment_transaction_id: paymentTransactionId,
+          payment_id: paymentId,
           customer_id: customer.id,
           vehicle_record_id: vehicleRecord.id,
           centre_id: createDto.centre_id,
           line_id: createDto.line_id,
           admin_pc_id: createDto.admin_pc_id,
           camera_id: createDto.camera_id,
-          payment_type: createDto.payment.type,
+          payment_type: createDto.payment.type as PaymentTypeEnum,
           payment_mode: createDto.payment.mode,
-          status: isPaid ? 'Paid' : 'Pending',
+          status: isPaid ? PaymentStatusEnum.PAID : PaymentStatusEnum.PENDING,
           charges: grandTotal,
           vat: 0,
           grand_total: grandTotal,
@@ -131,7 +122,7 @@ export class JobIntakeService {
           created_by: createdBy,
         });
 
-        let savedPayment = await manager.save(PaymentTransaction, payment);
+        let savedPayment = await manager.save(Payments, payment);
         let job: Job | null = null;
 
         if (isPaid) {
@@ -149,7 +140,7 @@ export class JobIntakeService {
             },
           );
           savedPayment.job_id = job.id;
-          savedPayment = await manager.save(PaymentTransaction, savedPayment);
+          savedPayment = await manager.save(Payments, savedPayment);
         }
 
         return { customer, vehicleRecord, savedPayment, job };
@@ -160,22 +151,22 @@ export class JobIntakeService {
       const vehicleRecord =
         (await this.vehicleRecordDao.findActiveById(result.vehicleRecord.id)) ??
         result.vehicleRecord;
-      const paymentTransaction =
-        (await this.paymentTransactionDao.findActiveById(result.savedPayment.id)) ??
+      const payments =
+        (await this.paymentsDao.findActiveById(result.savedPayment.id)) ??
         result.savedPayment;
       const job = result.job
         ? (await this.jobDao.findActiveById(result.job.id)) ?? result.job
         : null;
 
       this.logger.log(
-        `Job intake completed — payment: ${paymentTransaction.id}, job: ${job?.id ?? 'none'}`,
+        `Job intake completed — payment: ${payments.id}, job: ${job?.id ?? 'none'}`,
         JobIntakeService.context,
       );
 
       return {
         customer,
         vehicle_record: vehicleRecord,
-        payment_transaction: paymentTransaction,
+        payments: payments,
         job,
       };
     } catch (error) {

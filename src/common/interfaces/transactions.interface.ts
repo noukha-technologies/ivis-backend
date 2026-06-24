@@ -1,6 +1,8 @@
+import { PaymentStatusEnum, PaymentTypeEnum } from "../enums/payment.enums";
+
 export interface IPaymentsFields {
   id: string;
-  payments_id: number;
+  payment_id: number;
   appointment_id?: string | null;
   customer_id: string;
   vehicle_record_id: string;
@@ -10,9 +12,9 @@ export interface IPaymentsFields {
   line_id?: string | null;
   admin_pc_id?: string | null;
   camera_id?: string | null;
-  payment_type: string;
+  payment_type: PaymentTypeEnum;
   payment_mode?: string | null;
-  status: string;
+  status: PaymentStatusEnum;
   charges: number;
   vat: number;
   grand_total: number;

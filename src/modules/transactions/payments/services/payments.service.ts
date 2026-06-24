@@ -14,6 +14,7 @@ import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../../common/dto/pay
 
 import { JobService } from '../../../jobs/services/job.service';
 import { Payments } from '../../../database/entity/payments.entity';
+import { PaymentStatusEnum, PaymentTypeEnum } from '../../../../common/enums/payment.enums';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
@@ -52,17 +53,12 @@ export class PaymentsService {
       }
 
       const isPaid = createDto.payment_type === 'Paid';
-      const payDate = isPaid
-        ? createDto.pay_date
-          ? new Date(createDto.pay_date)
-          : new Date()
-        : createDto.pay_date
-          ? new Date(createDto.pay_date)
-          : undefined;
+      const payDate = isPaid ? createDto.pay_date ? new Date(createDto.pay_date)
+        : new Date() : createDto.pay_date ? new Date(createDto.pay_date) : undefined;
 
       const payment = this.paymentsDao.create({
         id: generateSnowflakeId(),
-        payments_id: paymentsId,
+        payment_id: paymentsId,
         appointment_id: resolved.appointment_id,
         customer_id: resolved.customer_id,
         vehicle_record_id: resolved.vehicle_record_id,
@@ -71,9 +67,9 @@ export class PaymentsService {
         line_id: resolved.line_id,
         admin_pc_id: resolved.admin_pc_id,
         camera_id: resolved.camera_id,
-        payment_type: createDto.payment_type as 'Paid' | 'FOC',
-        payment_mode: createDto.payment_mode as 'Cash' | 'UPI' | 'Card' | undefined,
-        status: 'Paid',
+        payment_type: createDto.payment_type as PaymentTypeEnum,
+        payment_mode: createDto.payment_mode,
+        status: PaymentStatusEnum.PAID,
         grand_total: createDto.grand_total,
         charges: createDto.charges ?? 0,
         vat: createDto.vat ?? 0,
@@ -101,7 +97,8 @@ export class PaymentsService {
 
         saved.job_id = job.id;
         saved = await this.paymentsDao.save(saved);
-        this.logger.log(`Job auto-created ID: ${job.id} from payment ${saved.id}`, PaymentsService.context);
+        this.logger.log(`Job auto-created ID: ${job.id} from payment $
+          {saved.id}`, PaymentsService.context);
       }
 
       return (await this.paymentsDao.findActiveById(saved.id)) ?? saved;
@@ -149,8 +146,8 @@ export class PaymentsService {
     const nextType = updateDto.payment_type ?? payment.payment_type;
     const merged = this.paymentsDao.merge(payment, {
       ...updateDto,
-      payment_type: nextType as 'Paid' | 'FOC',
-      payment_mode: updateDto.payment_mode as 'Cash' | 'UPI' | 'Card' | null | undefined,
+      payment_type: nextType as PaymentTypeEnum,
+      payment_mode: updateDto.payment_mode,
       customer_id: resolved.customer_id,
       vehicle_record_id: resolved.vehicle_record_id,
       anpr_capture_id: resolved.anpr_capture_id,

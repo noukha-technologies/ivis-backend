@@ -10,27 +10,21 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import {
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiResponse,
-  ApiTags,
-} from '@nestjs/swagger';
-import {
-  CreateAnprCaptureDto,
-  UpdateAnprCaptureDto,
-} from '../../../common/dto/anpr-capture.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
 import type { UserContext } from '../../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../common/dto/anpr-capture.dto';
+
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
+
 import { AnprCaptureService } from './services/anpr-capture.service';
 
 @ApiTags('Transactions / ANPR Captures')
 @Controller('transactions/anpr-captures')
 export class AnprCaptureController {
-  constructor(private readonly anprCaptureService: AnprCaptureService) {}
+  constructor(private readonly anprCaptureService: AnprCaptureService) { }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

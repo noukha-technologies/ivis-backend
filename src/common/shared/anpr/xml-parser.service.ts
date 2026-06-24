@@ -2,7 +2,7 @@ import { XMLParser } from "fast-xml-parser";
 import { BadRequestException, Injectable } from "@nestjs/common";
 
 import { AnprNormalizedEventDto } from "../../interfaces/anpr.interface";
-import { normalizeAnprColour } from "../../utils/anpr-colour.util";
+import { normalizeAnprColour } from "../../ocr-extraction/anpr-colour.util";
 
 import { OmanPlateClassifierService } from "./oman-plate-classifier.service";
 

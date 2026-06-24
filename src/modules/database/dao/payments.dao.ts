@@ -41,7 +41,7 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
 
   async findByPaymentsId(paymentsId: number): Promise<Payments | null> {
     return this.findOne({
-      where: { payments_id: paymentsId, is_deleted: false },
+      where: { payment_id: paymentsId, is_deleted: false },
       relations: PaymentsDao.detailRelations,
     });
   }
@@ -57,7 +57,7 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
       query,
       {
         searchFields: ['status', 'payment_type', 'customer.name'],
-        allowedSortFields: ['payments_id', 'status', 'pay_date', 'grand_total', 'created_at'],
+        allowedSortFields: ['payment_id', 'status', 'pay_date', 'grand_total', 'created_at'],
         defaultSort: { created_at: 'DESC' },
         baseWhere: { is_deleted: false },
       },
@@ -69,7 +69,7 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
 
   async getNextPaymentsId(): Promise<number> {
     const result = await this.createQueryBuilder('payment')
-      .select('MAX(payment.payments_id)', 'max')
+      .select('MAX(payment.payment_id)', 'max')
       .getRawOne();
     const max = result?.max ? Number(result.max) : 0;
     return max + 1;

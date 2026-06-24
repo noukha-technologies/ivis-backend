@@ -1,12 +1,11 @@
 import { Module } from '@nestjs/common';
-import { TransactionsSharedModule } from '../transactions/shared/transactions-shared.module';
 import { AppointmentController } from './appointment.controller';
 import { AppointmentService } from './services/appointment.service';
 
 @Module({
-  imports: [TransactionsSharedModule],
+  imports: [],
   controllers: [AppointmentController],
   providers: [AppointmentService],
   exports: [AppointmentService],
 })
-export class AppointmentsModule {}
+export class AppointmentsModule { }

@@ -1,5 +1,4 @@
 import {
-  IsBoolean,
   IsDateString,
   IsNotEmpty,
   IsNumber,
@@ -16,8 +15,6 @@ export class CreateAnprCaptureDto {
     example: 1001,
   })
   @IsOptional()
-  @IsNumber()
-  @Min(1)
   capture_id?: number;
 
   @ApiProperty({ description: 'Detected plate number', example: 'OM-1024' })
@@ -83,17 +80,7 @@ export class CreateAnprCaptureDto {
   @IsOptional()
   @IsString()
   image_url?: string;
-
-  @ApiPropertyOptional({
-    description: 'Simulate ROP fetch and upsert vehicle record after capture (demo)',
-    default: false,
-  })
-  @IsOptional()
-  @IsBoolean()
-  simulate_rop?: boolean;
 }
 
-export class UpdateAnprCaptureDto extends PartialType(
-  OmitType(CreateAnprCaptureDto, ['capture_id'] as const),
-) {}
+export class UpdateAnprCaptureDto extends PartialType(OmitType(CreateAnprCaptureDto, ['capture_id'] as const)) { }
 

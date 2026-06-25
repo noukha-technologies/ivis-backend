@@ -15,7 +15,6 @@ import { Job } from './job.entity';
 import { Line } from './line.entity';
 import { Camera } from './camera.entity';
 import { Centre } from './centre.entity';
-import { AdminPc } from './admin-pc.entity';
 import { Customer } from './customer.entity';
 import { Appointment } from './appointment.entity';
 import { AnprCapture } from './anpr-capture.entity';
@@ -91,42 +90,20 @@ export class Payments implements IPaymentsFields {
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  admin_pc_id?: string | null;
-
-  @ManyToOne(() => AdminPc, { nullable: true })
-  @JoinColumn({ name: 'admin_pc_id' })
-  adminPc?: AdminPc;
-
   @Column({ type: 'varchar', length: 16, nullable: false })
-  payment_type!: PaymentTypeEnum;
-
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  payment_mode?: string | null;
+  payment_type_id!: PaymentTypeEnum;
 
   @Column({ type: 'varchar', length: 32, default: 'Paid', nullable: false })
   status!: PaymentStatusEnum;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
-  charges!: number;
-
-  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
-  vat!: number;
+  total_amount!: number;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   grand_total!: number;
 
   @Column({ type: 'timestamp', nullable: true })
   pay_date?: Date | null;
-
-  @Column({ type: 'varchar', length: 512, nullable: true })
-  capture_image_path?: string | null;
-
-  @Column({ type: 'varchar', length: 512, nullable: true })
-  attachment_path?: string | null;
-
-  @Column({ type: 'varchar', length: 255, nullable: true })
-  attachment_filename?: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string | null;

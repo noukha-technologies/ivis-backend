@@ -8,14 +8,15 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
-import { IPaymentsFields } from '../../../common/interfaces/transactions.interface';
-import { PaymentStatusEnum, PaymentTypeEnum } from '../../../common/enums/payment.enums';
+import { IPaymentsFields } from '../../../common/interfaces/payments.interface';
+import { PaymentStatusEnum } from '../../../common/enums/payment.enums';
 
 import { Job } from './job.entity';
 import { Line } from './line.entity';
 import { Camera } from './camera.entity';
 import { Centre } from './centre.entity';
 import { Customer } from './customer.entity';
+import { PaymentType } from './payment-type.entity';
 import { Appointment } from './appointment.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
@@ -90,14 +91,15 @@ export class Payments implements IPaymentsFields {
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
-  @Column({ type: 'varchar', length: 16, nullable: false })
-  payment_type_id!: PaymentTypeEnum;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  payment_type_id?: string | null;
+
+  @ManyToOne(() => PaymentType, { nullable: true })
+  @JoinColumn({ name: 'payment_type_id' })
+  paymentType?: PaymentType;
 
   @Column({ type: 'varchar', length: 32, default: 'Paid', nullable: false })
   status!: PaymentStatusEnum;
-
-  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
-  total_amount!: number;
 
   @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
   grand_total!: number;

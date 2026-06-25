@@ -14,7 +14,7 @@ import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../../common/dto/pay
 
 import { JobService } from '../../../jobs/services/job.service';
 import { Payments } from '../../../database/entity/payments.entity';
-import { PaymentStatusEnum, PaymentTypeEnum } from '../../../../common/enums/payment.enums';
+import { PaymentStatusEnum } from '../../../../common/enums/payment.enums';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
@@ -52,7 +52,7 @@ export class PaymentsService {
         }
       }
 
-      const isPaid = createDto.payment_type === 'Paid';
+      const isPaid = Number(createDto.grand_total) > 0;
       const payDate = isPaid ? createDto.pay_date ? new Date(createDto.pay_date)
         : new Date() : createDto.pay_date ? new Date(createDto.pay_date) : undefined;
 
@@ -65,14 +65,10 @@ export class PaymentsService {
         anpr_capture_id: resolved.anpr_capture_id,
         centre_id: resolved.centre_id,
         line_id: resolved.line_id,
-        admin_pc_id: resolved.admin_pc_id,
         camera_id: resolved.camera_id,
-        payment_type: createDto.payment_type as PaymentTypeEnum,
-        payment_mode: createDto.payment_mode,
+        payment_type_id: createDto.payment_type_id ?? null,
         status: PaymentStatusEnum.PAID,
         grand_total: createDto.grand_total,
-        charges: createDto.charges ?? 0,
-        vat: createDto.vat ?? 0,
         pay_date: payDate,
         created_by: getCreatedById(actor),
       });
@@ -143,27 +139,25 @@ export class PaymentsService {
       appointment_id: updateDto.appointment_id ?? payment.appointment_id ?? undefined,
     });
 
-    const nextType = updateDto.payment_type ?? payment.payment_type;
+    const nextGrandTotal = updateDto.grand_total ?? Number(payment.grand_total);
     const merged = this.paymentsDao.merge(payment, {
-      ...updateDto,
-      payment_type: nextType as PaymentTypeEnum,
-      payment_mode: updateDto.payment_mode,
+      payment_type_id: updateDto.payment_type_id ?? payment.payment_type_id,
       customer_id: resolved.customer_id,
       vehicle_record_id: resolved.vehicle_record_id,
+      appointment_id: resolved.appointment_id ?? payment.appointment_id,
       anpr_capture_id: resolved.anpr_capture_id,
       centre_id: resolved.centre_id,
       line_id: resolved.line_id,
-      admin_pc_id: resolved.admin_pc_id,
       camera_id: resolved.camera_id,
+      ...(updateDto.grand_total !== undefined ? { grand_total: updateDto.grand_total } : {}),
       ...(updateDto.pay_date ? { pay_date: new Date(updateDto.pay_date) } : {}),
-      ...(nextType === 'Paid' && !payment.pay_date ? { pay_date: new Date() } : {}),
+      ...(Number(nextGrandTotal) > 0 && !payment.pay_date ? { pay_date: new Date() } : {}),
     });
 
     let saved = await this.paymentsDao.save(merged);
 
     if (
-      nextType === 'Paid' &&
-      payment.payment_type !== 'Paid' &&
+      Number(saved.grand_total) > 0 &&
       !saved.job_id &&
       updateDto.auto_create_job !== false
     ) {
@@ -176,7 +170,7 @@ export class PaymentsService {
           anpr_capture_id: saved.anpr_capture_id ?? undefined,
           centre_id: saved.centre_id ?? undefined,
           line_id: saved.line_id ?? undefined,
-          admin_pc_id: saved.admin_pc_id ?? undefined,
+          admin_pc_id: resolved.admin_pc_id ?? undefined,
           camera_id: saved.camera_id ?? undefined,
         },
         actor,

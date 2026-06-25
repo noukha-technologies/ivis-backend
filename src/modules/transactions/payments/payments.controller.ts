@@ -16,7 +16,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../common/dto/payments.dto';
 
 @ApiTags('Transactions / Payment Transactions')
-@Controller('transactions/payment-transactions')
+@Controller('transactions/payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) { }
 

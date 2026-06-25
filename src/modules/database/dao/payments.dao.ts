@@ -21,8 +21,8 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     anprCapture: true,
     centre: true,
     line: true,
-    adminPc: true,
     camera: true,
+    paymentType: true,
   } as const;
 
   constructor(
@@ -51,12 +51,13 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
       .leftJoinAndSelect('payment.customer', 'customer')
       .leftJoinAndSelect('payment.vehicleRecord', 'vehicleRecord')
       .leftJoinAndSelect('payment.appointment', 'appointment')
+      .leftJoinAndSelect('payment.paymentType', 'paymentType')
       .leftJoinAndSelect('payment.job', 'job');
 
     const options = buildTypeOrmPaginationOptions<Payments, Payments>(
       query,
       {
-        searchFields: ['status', 'payment_type', 'customer.name'],
+        searchFields: ['status', 'paymentType.name', 'customer.name'],
         allowedSortFields: ['payment_id', 'status', 'pay_date', 'grand_total', 'created_at'],
         defaultSort: { created_at: 'DESC' },
         baseWhere: { is_deleted: false },

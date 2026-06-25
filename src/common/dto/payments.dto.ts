@@ -9,7 +9,6 @@ import {
   Min,
 } from 'class-validator';
 import { JOB_SOURCES } from '../enums/job.enums';
-import { PaymentModesEnum, PaymentStatusEnum } from '../enums/payment.enums';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 
 export class CreatePaymentsDto {
@@ -69,37 +68,17 @@ export class CreatePaymentsDto {
   @IsString()
   camera_id?: string;
 
-  @ApiProperty({ description: 'Payment type', enum: PaymentStatusEnum, example: 'Paid' })
-  @IsString()
-  @IsIn([...Object.values(PaymentStatusEnum)])
-  payment_type!: string;
-
   @ApiPropertyOptional({
-    description: 'Payment mode — required when payment_type is Paid',
-    enum: PaymentModesEnum,
-    example: 'Cash',
+    description: 'Payment type (mode) master ID from payment_types — Cash / UPI / Card',
   })
   @IsOptional()
   @IsString()
-  @IsIn([...Object.values(PaymentModesEnum)])
-  payment_mode?: string;
+  payment_type_id?: string;
 
   @ApiProperty({ description: 'Total amount including VAT (OMR)', example: 26.25 })
   @IsNumber()
   @Min(0)
   grand_total!: number;
-
-  @ApiPropertyOptional({ description: 'Charges excluding VAT', example: 25.0 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  charges?: number;
-
-  @ApiPropertyOptional({ description: 'VAT amount', example: 1.25 })
-  @IsOptional()
-  @IsNumber()
-  @Min(0)
-  vat?: number;
 
   @ApiPropertyOptional({ description: 'Payment date', example: '2026-05-28T11:00:00.000Z' })
   @IsOptional()
@@ -107,7 +86,7 @@ export class CreatePaymentsDto {
   pay_date?: string;
 
   @ApiPropertyOptional({
-    description: 'When payment_type is Paid, automatically create a job',
+    description: 'When payment_type_id is Paid, automatically create a job',
     default: true,
   })
   @IsOptional()

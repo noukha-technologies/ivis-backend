@@ -21,7 +21,7 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
   async findActiveById(id: string): Promise<AnprCapture | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { camera: true },
+      relations: { camera: true, rop_verifications: true },
     });
   }
 
@@ -30,6 +30,14 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>> {
+    const qb = this.createQueryBuilder('anprCapture')
+      .leftJoinAndSelect('anprCapture.camera', 'camera')
+      .leftJoinAndSelect(
+        'anprCapture.rop_verifications',
+        'rop_verifications',
+        'rop_verifications.is_deleted = false',
+      );
+
     const options = buildTypeOrmPaginationOptions<AnprCapture, AnprCapture>(query, {
       searchFields: ['plate_number', 'normalized_plate', 'line_id', 'direction'],
       allowedSortFields: [
@@ -43,7 +51,7 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginate(this, 'anprCapture', options);
+    const response = await this.paginationService.paginateQueryBuilder(qb, 'anprCapture', options);
     return toPaginatedResult(response);
   }
 

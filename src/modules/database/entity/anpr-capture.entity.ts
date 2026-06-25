@@ -15,7 +15,7 @@ import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.t
 
 import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';
-import { IAnprCaptureFields } from 'src/common/interfaces/transactions.interface';
+import { IAnprCaptureFields } from 'src/common/interfaces/payments.interface';
 
 @Entity({ name: 'anpr_captures', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], { unique: true })

@@ -263,6 +263,30 @@ Return raw data from controllers — interceptor handles wrapping.
 
 ---
 
+## Intake → Payment Flow (CORE PIPELINE)
+
+Vehicle inspection records flow through this fixed pipeline. A **Payment is only created at the point a Job is created** — never standalone.
+
+```
+ANPR capture (Hikvision plate read)   → AnprCapture
+   ↓ resolve / create vehicle
+VehicleRecord
+   ↓ queued in the appointments list
+Appointment
+   ↓ processed together with the customer
+Customer (created / linked)
+   ↓ moves to inspection job
+Job (created)
+   ↓ at job creation, payment is processed
+Payment (row written to payments table, linked via job_id)
+```
+
+Rules that follow from this:
+- A payment always belongs to the context of a job. The manual **"New Payment (Manual Entry)"** drawer therefore makes **Job ID required** (a job must already exist).
+- `payments.payment_type_id` is a **FK to the `payment_types` master** (the payment *mode*: Cash / UPI / Card) — NOT an enum. Frontend sends the selected master id; backend stores it.
+- **Paid vs FOC is derived, not stored**: FOC ⇔ `grand_total = 0`. Service uses `grand_total > 0` to mean "paid" (sets `pay_date`, may auto-create a job). The mapper shows `FOC` when `status = Paid && grand_total = 0`.
+- The payments entity does NOT store `payment_mode`, `charges`, or `vat` — those were intentionally removed. Mode is the `payment_type_id` master FK; charges/vat are not persisted on the payment.
+
 ## Live Rules
 
 **When I say "update the rules" or "add this to rules" in conversation, immediately update this CLAUDE.md file with the new rule.**

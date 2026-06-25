@@ -1,4 +1,4 @@
-import { PaymentStatusEnum, PaymentTypeEnum } from "../enums/payment.enums";
+import { PaymentStatusEnum } from "../enums/payment.enums";
 
 export interface IPaymentsFields {
   id: string;
@@ -11,9 +11,9 @@ export interface IPaymentsFields {
   centre_id?: string | null;
   line_id?: string | null;
   camera_id?: string | null;
-  payment_type_id: PaymentTypeEnum;
+  payment_type_id?: string | null;
   status: PaymentStatusEnum;
-  total_amount: number;
+  grand_total: number;
   pay_date?: Date | null;
   created_by?: string | null;
   created_at: Date;

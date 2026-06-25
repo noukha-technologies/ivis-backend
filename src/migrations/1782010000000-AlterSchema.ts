@@ -38,6 +38,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await this.alterMaster(queryRunner);
     await this.alterTransaction(queryRunner);
     await this.reconcileForeignKeys(queryRunner);
+    await this.alignPaymentsAndAnprEvents(queryRunner);
 
     console.log('[AlterSchema] Done.');
   }
@@ -50,6 +51,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
     console.log('[AlterSchema] Reverting structural alterations...');
 
+    await this.revertPaymentsAndAnprEvents(queryRunner);
     await this.revertForeignKeys(queryRunner);
     await this.revertTransaction(queryRunner);
     await this.revertMaster(queryRunner);
@@ -596,6 +598,21 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."appointments" ALTER COLUMN "type" SET NOT NULL`,
     );
 
+    // anpr_captures: align columns with entity — `line_id` (varchar) replaces the
+    // legacy `lane` / `country_code` / `verification_status` columns.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "line_id" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "lane"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "country_code"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "verification_status"`,
+    );
+
     // anpr_captures / rop_verifications / jobs / payment_transactions indexes
     // (idempotent — only created if absent)
     await queryRunner.query(`
@@ -617,12 +634,19 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_CUSTOMER_ID" ON "transaction"."appointments" ("customer_id")`,
     );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_PAYMENT_TRANSACTION_CUSTOMER_ID" ON "transaction"."payment_transactions" ("customer_id")`,
+    // The legacy "payment_transactions" table was replaced by "transaction"."payments"
+    // (see AlignPaymentsTable migration). Only index it if it still exists on this DB.
+    const [{ paymentTxnTable }] = await queryRunner.query(
+      `SELECT to_regclass('transaction.payment_transactions') AS "paymentTxnTable"`,
     );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_PAYMENT_TRANSACTION_STATUS" ON "transaction"."payment_transactions" ("status")`,
-    );
+    if (paymentTxnTable) {
+      await queryRunner.query(
+        `CREATE INDEX IF NOT EXISTS "IDX_PAYMENT_TRANSACTION_CUSTOMER_ID" ON "transaction"."payment_transactions" ("customer_id")`,
+      );
+      await queryRunner.query(
+        `CREATE INDEX IF NOT EXISTS "IDX_PAYMENT_TRANSACTION_STATUS" ON "transaction"."payment_transactions" ("status")`,
+      );
+    }
   }
 
   // ─── Reconcile cross-schema foreign keys ─────────────────────────────────────
@@ -929,5 +953,144 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "password"`,
     );
+  }
+
+  // ─── Payments table + ANPR ingestion table ───────────────────────────────────
+  // Creates transaction.payments (replaces the legacy payment_transactions table),
+  // links appointments.payment_id, and the opal_ivis.anpr_events ingestion table.
+  private async alignPaymentsAndAnprEvents(queryRunner: QueryRunner): Promise<void> {
+    const [{ paymentsTable }] = await queryRunner.query(
+      `SELECT to_regclass('transaction.payments') AS "paymentsTable"`,
+    );
+
+    if (!paymentsTable) {
+      await queryRunner.query(`
+        CREATE TABLE "transaction"."payments" (
+          "id"                bigint                NOT NULL,
+          "payment_id"        integer               NOT NULL,
+          "appointment_id"    bigint,
+          "customer_id"       bigint                NOT NULL,
+          "vehicle_record_id" bigint                NOT NULL,
+          "job_id"            bigint,
+          "anpr_capture_id"   bigint,
+          "centre_id"         bigint,
+          "line_id"           bigint,
+          "camera_id"         bigint,
+          "payment_type_id"   bigint,
+          "status"            character varying(32) NOT NULL DEFAULT 'Paid',
+          "grand_total"       numeric(12,2)         NOT NULL DEFAULT 0,
+          "pay_date"          TIMESTAMP,
+          "created_by"        character varying,
+          "created_at"        TIMESTAMP             NOT NULL DEFAULT NOW(),
+          "updated_at"        TIMESTAMP             NOT NULL DEFAULT NOW(),
+          "is_deleted"        boolean               NOT NULL DEFAULT false,
+          CONSTRAINT "PK_payments_id" PRIMARY KEY ("id"),
+          CONSTRAINT "UQ_payments_payment_id" UNIQUE ("payment_id"),
+          CONSTRAINT "FK_payments_appointment_id"
+            FOREIGN KEY ("appointment_id") REFERENCES "transaction"."appointments"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_customer_id"
+            FOREIGN KEY ("customer_id") REFERENCES "transaction"."customers"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_vehicle_record_id"
+            FOREIGN KEY ("vehicle_record_id") REFERENCES "transaction"."vehicle_records"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_job_id"
+            FOREIGN KEY ("job_id") REFERENCES "transaction"."jobs"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_anpr_capture_id"
+            FOREIGN KEY ("anpr_capture_id") REFERENCES "transaction"."anpr_captures"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_centre_id"
+            FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_line_id"
+            FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_camera_id"
+            FOREIGN KEY ("camera_id") REFERENCES "master"."cameras"("id") ON DELETE NO ACTION,
+          CONSTRAINT "FK_payments_payment_type_id"
+            FOREIGN KEY ("payment_type_id") REFERENCES "master"."payment_types"("id") ON DELETE NO ACTION
+        )
+      `);
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX "IDX_PAYMENTS_ID" ON "transaction"."payments" ("payment_id")`,
+      );
+      await queryRunner.query(
+        `CREATE INDEX "IDX_PAYMENT_STATUS" ON "transaction"."payments" ("status")`,
+      );
+      await queryRunner.query(
+        `CREATE INDEX "IDX_PAYMENT_CUSTOMER_ID" ON "transaction"."payments" ("customer_id")`,
+      );
+    }
+
+    // appointments → payments link (intake flow)
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "payment_id" bigint`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'FK_appointments_payment_id'
+        ) THEN
+          ALTER TABLE "transaction"."appointments"
+            ADD CONSTRAINT "FK_appointments_payment_id"
+            FOREIGN KEY ("payment_id") REFERENCES "transaction"."payments"("id") ON DELETE NO ACTION;
+        END IF;
+      END $$;
+    `);
+
+    // Remove the orphaned legacy table now replaced by transaction.payments
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "transaction"."payment_transactions" CASCADE`,
+    );
+
+    // opal_ivis.anpr_events — raw Hikvision ANPR ingestion table (FTP + HTTP push)
+    await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS "opal_ivis"`);
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "opal_ivis"."anpr_events" (
+        "id"                    SERIAL PRIMARY KEY,
+        "plate_number"          CHARACTER VARYING(50)  NOT NULL,
+        "capture_time"          TIMESTAMPTZ            NOT NULL,
+        "confidence_score"      INTEGER                NOT NULL,
+        "plate_char_confidence" CHARACTER VARYING(255),
+        "camera_ip"             CHARACTER VARYING(45),
+        "camera_mac"            CHARACTER VARYING(17),
+        "camera_code"           CHARACTER VARYING(50),
+        "centre_code"           CHARACTER VARYING(50),
+        "lane_number"           INTEGER,
+        "vehicle_type"          CHARACTER VARYING(50),
+        "vehicle_colour"        CHARACTER VARYING(50),
+        "plate_colour"          CHARACTER VARYING(50),
+        "plate_image_path"      TEXT,
+        "scene_image_path"      TEXT,
+        "integration_method"    CHARACTER VARYING(20),
+        "source_method"         CHARACTER VARYING(10),
+        "raw_file_response"     JSONB,
+        "raw_payload"           JSONB,
+        "received_at"           TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
+        "created_at"            TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
+        "updated_at"            TIMESTAMPTZ
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_anpr_events_plate_capture" ON "opal_ivis"."anpr_events" ("plate_number", "capture_time")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_plate_number" ON "opal_ivis"."anpr_events" ("plate_number")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_capture_time" ON "opal_ivis"."anpr_events" ("capture_time")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_camera_ip" ON "opal_ivis"."anpr_events" ("camera_ip")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "idx_camera_mac" ON "opal_ivis"."anpr_events" ("camera_mac")`,
+    );
+  }
+
+  private async revertPaymentsAndAnprEvents(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "opal_ivis"."anpr_events"`);
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_id"`,
+    );
+    await queryRunner.query(`DROP TABLE IF EXISTS "transaction"."payments" CASCADE`);
   }
 }

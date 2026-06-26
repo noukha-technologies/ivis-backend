@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
@@ -12,10 +12,12 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
 
 import { CameraDao } from '../../../database/dao/camera.dao';
+import { LineDao } from '../../../database/dao/line.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { AnprOrchestrationService } from './anpr-orchestration.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
+import { Camera } from '../../../database/entity/camera.entity';
 
 @Injectable()
 export class AnprCaptureService {
@@ -24,9 +26,27 @@ export class AnprCaptureService {
   constructor(
     private readonly logger: AppLogger,
     private readonly cameraDao: CameraDao,
+    private readonly lineDao: LineDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly orchestrationService: AnprOrchestrationService,
   ) { }
+
+  /**
+   * Ensures the chosen line exists and belongs to the same centre the camera is
+   * configured under (camera → line → centre). Skips when no line is supplied.
+   */
+  private async validateLineForCamera(lineId: string | undefined, camera: Camera): Promise<void> {
+    if (!lineId) {
+      return;
+    }
+    const line = await this.lineDao.findActiveById(lineId);
+    if (!line) {
+      throw new ResourceNotFoundException('Line', lineId);
+    }
+    if (line.centre_id !== camera.line?.centre_id) {
+      throw new BadRequestException('Selected line does not belong to the camera\'s centre');
+    }
+  }
 
   async create(createDto: CreateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
     this.logger.log(`Creating ANPR capture for plate: ${createDto.plate_number}`, AnprCaptureService.context);
@@ -36,6 +56,8 @@ export class AnprCaptureService {
       if (!camera) {
         throw new ResourceNotFoundException('Camera', createDto.camera_id);
       }
+
+      await this.validateLineForCamera(createDto.line_id, camera);
 
       let captureId = createDto.capture_id;
       if (!captureId) {
@@ -62,7 +84,8 @@ export class AnprCaptureService {
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
-        error instanceof ResourceNotFoundException
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
       ) {
         throw error;
       }
@@ -119,11 +142,13 @@ export class AnprCaptureService {
     try {
       const capture = await this.findOne(id);
 
-      if (updateDto.camera_id) {
-        const camera = await this.cameraDao.findActiveById(updateDto.camera_id);
-        if (!camera) {
-          throw new ResourceNotFoundException('Camera', updateDto.camera_id);
-        }
+      const cameraId = updateDto.camera_id ?? capture.camera_id;
+      const camera = await this.cameraDao.findActiveById(cameraId);
+      if (!camera) {
+        throw new ResourceNotFoundException('Camera', cameraId);
+      }
+      if (updateDto.line_id !== undefined) {
+        await this.validateLineForCamera(updateDto.line_id, camera);
       }
 
       const merged = this.anprCaptureDao.merge(capture, {
@@ -134,7 +159,10 @@ export class AnprCaptureService {
       this.logger.log(`ANPR capture updated ID: ${saved.id}`, AnprCaptureService.context);
       return saved;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(

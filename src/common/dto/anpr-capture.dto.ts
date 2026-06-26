@@ -46,7 +46,10 @@ export class CreateAnprCaptureDto {
   @IsNotEmpty()
   camera_id!: string;
 
-  @ApiPropertyOptional({ description: 'Line ID the camera is assigned to', example: 'LINE-01' })
+  @ApiPropertyOptional({
+    description: 'Line snowflake ID (must belong to the camera\'s centre)',
+    example: '2058858609483202561',
+  })
   @IsOptional()
   @IsString()
   line_id?: string;

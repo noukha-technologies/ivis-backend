@@ -23,6 +23,7 @@
     "migration:create-schema": "cross-env RUN_CREATE_SCHEMA=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts CreateSchema1782000000000",
     "migration:alter": "cross-env RUN_ALTER_SCHEMA=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts AlterSchema1782010000000",
     "migration:wipe": "cross-env ALLOW_DATA_WIPE=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts WipeData1782020000000",
+    "migration:add-charge-categories": "ts-node -r tsconfig-paths/register src/scripts/run-migration.ts AddChargeCategories1782030000000",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
     "test:watch": "jest --watch",

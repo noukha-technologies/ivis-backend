@@ -39,32 +39,20 @@ export class CreateChargeDto {
   vehicle_id!: string;
 
   @ApiProperty({
-    description: 'Charge category (ROP weight/engine classification)',
-    enum: [
-      'Below3T_Lt1500cc',
-      'Below3T_1500To3000cc',
-      'Below3T_3000To4500cc',
-      'Below3T_Above4500cc',
-      'Below3T_Tractor',
-      '3To5Tones',
-      'Above5Tones',
-    ],
-    example: 'Below3T_Lt1500cc',
+    description: 'Charge category master snowflake ID',
+    example: '2058858609483202563',
   })
-  @IsString()
-  @IsIn(
-    [
-      'Below3T_Lt1500cc',
-      'Below3T_1500To3000cc',
-      'Below3T_3000To4500cc',
-      'Below3T_Above4500cc',
-      'Below3T_Tractor',
-      '3To5Tones',
-      'Above5Tones',
-    ],
-    { message: 'category must be a valid ROP weight/engine classification' },
-  )
-  category!: string;
+  @IsString({ message: 'charge_category_id must be a string' })
+  @IsNotEmpty({ message: 'charge_category_id is required' })
+  charge_category_id!: string;
+
+  @ApiPropertyOptional({
+    description: 'Legacy free-text charge category label (optional)',
+    example: 'Below 3 Tones – Less than 1500cc',
+  })
+  @IsOptional()
+  @IsString({ message: 'category must be a string' })
+  category?: string;
 
   @ApiProperty({ description: 'Centre charges amount (OMR)', example: 10.5 })
   @IsNumber({}, { message: 'center_charges must be a number' })

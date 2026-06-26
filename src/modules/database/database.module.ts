@@ -11,6 +11,7 @@ import { Line } from './entity/line.entity';
 import { Camera } from './entity/camera.entity';
 import { Centre } from './entity/centre.entity';
 import { Charge } from './entity/charge.entity';
+import { ChargeCategory } from './entity/charge-category.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { AdminPc } from './entity/admin-pc.entity';
 import { Customer } from './entity/customer.entity';
@@ -32,6 +33,7 @@ import { LineDao } from './dao/line.dao';
 import { UsersDao } from './dao/users.dao';
 import { CentreDao } from './dao/centre.dao';
 import { ChargeDao } from './dao/charge.dao';
+import { ChargeCategoryDao } from './dao/charge-category.dao';
 import { CameraDao } from './dao/camera.dao';
 import { VehicleDao } from './dao/vehicle.dao';
 import { AdminPcDao } from './dao/admin-pc.dao';
@@ -83,6 +85,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
       Job,
       Appointment,
       Charge,
+      ChargeCategory,
       PaymentType,
     ]),
   ],
@@ -107,6 +110,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
     JobDao,
     AppointmentDao,
     ChargeDao,
+    ChargeCategoryDao,
     PaymentTypeDao,
   ],
   exports: [
@@ -131,6 +135,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
     JobDao,
     AppointmentDao,
     ChargeDao,
+    ChargeCategoryDao,
     PaymentTypeDao,
   ],
 })

@@ -9,6 +9,7 @@ import { Test } from './entity/test.entity';
 import { Role } from './entity/role.entity';
 import { Line } from './entity/line.entity';
 import { Charge } from './entity/charge.entity';
+import { ChargeCategory } from './entity/charge-category.entity';
 import { Camera } from './entity/camera.entity';
 import { Centre } from './entity/centre.entity';
 import { Vehicle } from './entity/vehicle.entity';
@@ -52,6 +53,7 @@ export const AppDataSource = new DataSource({
     Job,
     Appointment,
     Charge,
+    ChargeCategory,
     PaymentType,
   ],
   migrations: [__dirname + '/../../migrations/*{.ts,.js}'],

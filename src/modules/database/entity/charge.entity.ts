@@ -13,6 +13,7 @@ import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.t
 
 import { Centre } from './centre.entity';
 import { Vehicle } from './vehicle.entity';
+import { ChargeCategory } from './charge-category.entity';
 
 import { IChargeMasterFields } from '../../../common/interfaces/master.interface';
 
@@ -41,8 +42,16 @@ export class Charge implements IChargeMasterFields {
   @JoinColumn({ name: 'vehicle_id' })
   vehicle!: Vehicle;
 
-  @Column({ type: 'varchar', nullable: false })
-  category!: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Index('IDX_CHARGE_CATEGORY_ID')
+  charge_category_id?: string;
+
+  @ManyToOne(() => ChargeCategory, { nullable: true })
+  @JoinColumn({ name: 'charge_category_id' })
+  chargeCategory?: ChargeCategory;
+
+  @Column({ type: 'varchar', nullable: true })
+  category?: string;
 
   @Column({ type: 'decimal', precision: 12, scale: 3, nullable: false, default: 0 })
   center_charges!: number;

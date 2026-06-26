@@ -7,6 +7,7 @@ import { CentreModule } from './centres/centre.module';
 import { VehicleModule } from './vehicles/vehicle.module';
 import { AdminPcModule } from './admin-pcs/admin-pc.module';
 import { PaymentTypeModule } from './payment-type/payment-type.module';
+import { ChargeCategoryModule } from './charge-categories/charge-category.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { PaymentTypeModule } from './payment-type/payment-type.module';
     AdminPcModule,
     CameraModule,
     ChargeModule,
+    ChargeCategoryModule,
     PaymentTypeModule,
   ],
   exports: [
@@ -27,6 +29,7 @@ import { PaymentTypeModule } from './payment-type/payment-type.module';
     AdminPcModule,
     CameraModule,
     ChargeModule,
+    ChargeCategoryModule,
     PaymentTypeModule,
   ],
 })

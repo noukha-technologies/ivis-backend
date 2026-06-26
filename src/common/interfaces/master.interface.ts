@@ -69,12 +69,26 @@ export interface IPaymentMasterFields {
     is_deleted: boolean;
 }
 
+export interface IChargeCategoryMasterFields {
+    id: string;
+    category_id: number;
+    vehicle_weight: string;
+    engine_capacity: string;
+    fees: number;
+    status: string;
+    created_by?: string;
+    created_at: Date;
+    updated_at: Date;
+    is_deleted: boolean;
+}
+
 export interface IChargeMasterFields {
     id: string;
     charge_id: number;
     centre_id?: string;
     vehicle_id: string;
-    category: string;
+    charge_category_id?: string;
+    category?: string;
     center_charges: number;
     rop_charges: number;
     vat_percent: number;

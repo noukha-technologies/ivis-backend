@@ -15,7 +15,7 @@ import {
 export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
   private static readonly detailRelations = {
     appointment: true,
-    customer: { primaryVehicleRecord: true },
+    customer: { vehicleRecord: true },
     vehicleRecord: { vehicleMaster: true },
     job: true,
     anprCapture: true,
@@ -57,7 +57,7 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     const options = buildTypeOrmPaginationOptions<Payments, Payments>(
       query,
       {
-        searchFields: ['status', 'paymentType.name', 'customer.name'],
+        searchFields: ['status', 'paymentType.name', 'customer.customer_name'],
         allowedSortFields: ['payment_id', 'status', 'pay_date', 'grand_total', 'created_at'],
         defaultSort: { created_at: 'DESC' },
         baseWhere: { is_deleted: false },

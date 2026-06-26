@@ -30,7 +30,7 @@ export class CustomerService {
   ) {}
 
   async create(createDto: CreateCustomerDto, actor: UserContext): Promise<Customer> {
-    this.logger.log(`Creating customer: ${createDto.name}`, CustomerService.context);
+    this.logger.log(`Creating customer: ${createDto.customer_name}`, CustomerService.context);
 
     try {
       let customerId = createDto.customer_id;
@@ -43,18 +43,20 @@ export class CustomerService {
         }
       }
 
-      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(createDto, undefined, actor);
+      const vehicleRecordId = await this.resolveVehicleRecord(createDto, undefined, actor);
 
       const customer = this.customerDao.create({
         id: generateSnowflakeId(),
         customer_id: customerId,
-        name: createDto.name,
+        customer_name: createDto.customer_name,
         phone: createDto.phone,
+        alternate_phone: createDto.alternate_phone,
         owner_name: createDto.owner_name,
+        owner_phone_number: createDto.owner_phone_number,
         id_number: createDto.id_number,
         chassis_no: createDto.chassis_no,
         mulkiya_id: createDto.mulkiya_id,
-        primary_vehicle_record_id: primaryVehicleRecordId,
+        vehicle_record_id: vehicleRecordId,
         created_by: getCreatedById(actor),
       });
 
@@ -122,17 +124,19 @@ export class CustomerService {
 
     try {
       const customer = await this.findOne(id);
-      const primaryVehicleRecordId = await this.resolvePrimaryVehicleRecord(updateDto, customer, actor);
+      const vehicleRecordId = await this.resolveVehicleRecord(updateDto, customer, actor);
 
       const merged = this.customerDao.merge(customer, {
-        name: updateDto.name,
+        customer_name: updateDto.customer_name,
         phone: updateDto.phone,
+        alternate_phone: updateDto.alternate_phone,
         owner_name: updateDto.owner_name,
+        owner_phone_number: updateDto.owner_phone_number,
         id_number: updateDto.id_number,
         chassis_no: updateDto.chassis_no,
         mulkiya_id: updateDto.mulkiya_id,
-        ...(primaryVehicleRecordId !== undefined
-          ? { primary_vehicle_record_id: primaryVehicleRecordId }
+        ...(vehicleRecordId !== undefined
+          ? { vehicle_record_id: vehicleRecordId }
           : {}),
       });
 
@@ -173,19 +177,19 @@ export class CustomerService {
     }
   }
 
-  private async resolvePrimaryVehicleRecord(
+  private async resolveVehicleRecord(
     dto: CreateCustomerDto | UpdateCustomerDto,
     existing: Customer | undefined,
     actor?: UserContext,
   ): Promise<string | null | undefined> {
-    if (dto.primary_vehicle_record_id) {
+    if (dto.vehicle_record_id) {
       const vehicleRecord = await this.vehicleRecordDao.findActiveById(
-        dto.primary_vehicle_record_id,
+        dto.vehicle_record_id,
       );
       if (!vehicleRecord) {
-        throw new ResourceNotFoundException('VehicleRecord', dto.primary_vehicle_record_id);
+        throw new ResourceNotFoundException('VehicleRecord', dto.vehicle_record_id);
       }
-      return dto.primary_vehicle_record_id;
+      return dto.vehicle_record_id;
     }
 
     if (!dto.plate_number) {

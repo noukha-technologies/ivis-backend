@@ -89,8 +89,8 @@ export class JobIntakeService {
           createdBy,
         );
 
-        if (customer.primary_vehicle_record_id !== vehicleRecord.id) {
-          customer.primary_vehicle_record_id = vehicleRecord.id;
+        if (customer.vehicle_record_id !== vehicleRecord.id) {
+          customer.vehicle_record_id = vehicleRecord.id;
           await manager.save(Customer, customer);
         }
 
@@ -221,7 +221,7 @@ export class JobIntakeService {
 
     if (customer) {
       customer = manager.merge(Customer, customer, {
-        name: dto.customer_name.trim(),
+        customer_name: dto.customer_name.trim(),
         phone,
         owner_name: dto.customer_name.trim(),
         mulkiya_id: dto.mulkiya_id?.trim() ?? customer.mulkiya_id,
@@ -234,7 +234,7 @@ export class JobIntakeService {
     const created = manager.create(Customer, {
       id: generateSnowflakeId(),
       customer_id: customerId,
-      name: dto.customer_name.trim(),
+      customer_name: dto.customer_name.trim(),
       phone,
       owner_name: dto.customer_name.trim(),
       mulkiya_id: dto.mulkiya_id?.trim(),
@@ -275,7 +275,7 @@ export class JobIntakeService {
     });
 
     const saved = await manager.save(VehicleRecord, created);
-    await manager.update(Customer, { id: customerId }, { primary_vehicle_record_id: saved.id });
+    await manager.update(Customer, { id: customerId }, { vehicle_record_id: saved.id });
     return saved;
   }
 

@@ -14,7 +14,7 @@ import { Appointment } from '../entity/appointment.entity';
 export class AppointmentDao extends Repository<Appointment> implements IAppointmentDao {
   private static readonly detailRelations = {
     anprCapture: true,
-    customer: { primaryVehicleRecord: true },
+    customer: { vehicleRecord: true },
     vehicleRecord: { vehicleMaster: true },
     centre: true,
     line: true,
@@ -55,7 +55,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
         'plate_number',
         'customer_name',
         'customer_phone',
-        'customer.name',
+        'customer.customer_name',
         'vehicleRecord.plate_number',
       ],
       allowedSortFields: [

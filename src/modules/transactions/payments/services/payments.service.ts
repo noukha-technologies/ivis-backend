@@ -192,7 +192,7 @@ export class PaymentsService {
     const job = await this.jobService.findOne(jobId);
     return {
       customer_id: job.customer_id,
-      customer_name: job.customer?.name ?? null,
+      customer_name: job.customer?.customer_name ?? null,
       vehicle_record_id: job.vehicle_record_id,
       anpr_capture_id: job.anpr_capture_id ?? null,
       centre_id: job.centre_id ?? null,

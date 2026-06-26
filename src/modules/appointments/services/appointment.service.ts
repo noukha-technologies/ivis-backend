@@ -199,16 +199,16 @@ export class AppointmentService {
       }
 
       const merged = this.customerDao.merge(customer, {
-        name: dto.customer_name,
+        customer_name: dto.customer_name,
         phone: dto.customer_phone,
         id_number: dto.id_number,
         chassis_no: dto.chassis_no,
         mulkiya_id: dto.mulkiya_id,
         owner_name: dto.customer_name,
-        primary_vehicle_record_id: vehicleRecordId ?? customer.primary_vehicle_record_id,
+        vehicle_record_id: vehicleRecordId ?? customer.vehicle_record_id,
       });
       const saved = await this.customerDao.save(merged);
-      return { customerId: saved.id, vehicleRecordId: saved.primary_vehicle_record_id ?? undefined };
+      return { customerId: saved.id, vehicleRecordId: saved.vehicle_record_id ?? undefined };
     }
 
     if (!plateNumber) {
@@ -219,13 +219,13 @@ export class AppointmentService {
     const customer = this.customerDao.create({
       id: generateSnowflakeId(),
       customer_id: customerId,
-      name: dto.customer_name,
+      customer_name: dto.customer_name,
       phone: dto.customer_phone,
       owner_name: dto.customer_name,
       id_number: dto.id_number,
       chassis_no: dto.chassis_no,
       mulkiya_id: dto.mulkiya_id,
-      primary_vehicle_record_id: vehicleRecordId,
+      vehicle_record_id: vehicleRecordId,
       created_by: getCreatedById(actor),
     });
     const saved = await this.customerDao.save(customer);

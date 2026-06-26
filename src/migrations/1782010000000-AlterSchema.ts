@@ -613,6 +613,51 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "verification_status"`,
     );
 
+    // customers: align columns with entity — rename name → customer_name and
+    // primary_vehicle_record_id → vehicle_record_id, add alternate_phone +
+    // owner_phone_number, and rename the related index / FK constraint.
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'name'
+        ) THEN
+          ALTER TABLE "transaction"."customers" RENAME COLUMN "name" TO "customer_name";
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'primary_vehicle_record_id'
+        ) THEN
+          ALTER TABLE "transaction"."customers" RENAME COLUMN "primary_vehicle_record_id" TO "vehicle_record_id";
+        END IF;
+        IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_customers_primary_vehicle_record_id') THEN
+          ALTER TABLE "transaction"."customers"
+            RENAME CONSTRAINT "FK_customers_primary_vehicle_record_id" TO "FK_customers_vehicle_record_id";
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "alternate_phone" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "owner_phone_number" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PRIMARY_VEHICLE_RECORD_ID" RENAME TO "IDX_CUSTOMER_VEHICLE_RECORD_ID"`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CUSTOMER_VEHICLE_RECORD_ID" ON "transaction"."customers" ("vehicle_record_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_customers_vehicle_record_id') THEN
+          ALTER TABLE "transaction"."customers"
+            ADD CONSTRAINT "FK_customers_vehicle_record_id"
+            FOREIGN KEY ("vehicle_record_id") REFERENCES "transaction"."vehicle_records"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // anpr_captures / rop_verifications / jobs / payment_transactions indexes
     // (idempotent — only created if absent)
     await queryRunner.query(`

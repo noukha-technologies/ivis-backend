@@ -20,17 +20,27 @@ export class CreateCustomerDto {
   @ApiProperty({ description: 'Customer full name', example: 'Ahmed Al-Said' })
   @IsString()
   @IsNotEmpty()
-  name!: string;
+  customer_name!: string;
 
   @ApiProperty({ description: 'Customer contact number', example: '+968 91000000' })
   @IsString()
   @IsNotEmpty()
   phone!: string;
 
+  @ApiPropertyOptional({ description: 'Alternate contact number', example: '+968 92000000' })
+  @IsOptional()
+  @IsString()
+  alternate_phone?: string;
+
   @ApiPropertyOptional({ description: 'Vehicle owner name (if different from customer)', example: 'Ahmed Al-Said' })
   @IsOptional()
   @IsString()
   owner_name?: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle owner contact number', example: '+968 93000000' })
+  @IsOptional()
+  @IsString()
+  owner_phone_number?: string;
 
   @ApiPropertyOptional({ description: 'National / civil ID number', example: 'ID20000000' })
   @IsOptional()
@@ -47,10 +57,10 @@ export class CreateCustomerDto {
   @IsString()
   mulkiya_id?: string;
 
-  @ApiPropertyOptional({ description: 'Existing vehicle record snowflake ID to link as primary vehicle' })
+  @ApiPropertyOptional({ description: 'Existing vehicle record snowflake ID to link to this customer' })
   @IsOptional()
   @IsString()
-  primary_vehicle_record_id?: string;
+  vehicle_record_id?: string;
 
   @ApiPropertyOptional({ description: 'Plate number — creates or links vehicle when provided', example: 'OM-1000' })
   @IsOptional()

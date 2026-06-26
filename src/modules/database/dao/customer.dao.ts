@@ -22,33 +22,33 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
   async findActiveById(id: string): Promise<Customer | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { primaryVehicleRecord: { vehicleMaster: true } },
+      relations: { vehicleRecord: { vehicleMaster: true } },
     });
   }
 
   async findByCustomerId(customerId: number): Promise<Customer | null> {
     return this.findOne({
       where: { customer_id: customerId, is_deleted: false },
-      relations: { primaryVehicleRecord: { vehicleMaster: true } },
+      relations: { vehicleRecord: { vehicleMaster: true } },
     });
   }
 
   async findActiveByPhone(phone: string): Promise<Customer | null> {
     return this.findOne({
       where: { phone, is_deleted: false },
-      relations: { primaryVehicleRecord: { vehicleMaster: true } },
+      relations: { vehicleRecord: { vehicleMaster: true } },
     });
   }
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Customer>> {
     const qb = this.createQueryBuilder('customer').leftJoinAndSelect(
-      'customer.primaryVehicleRecord',
+      'customer.vehicleRecord',
       'vehicleRecord',
     );
 
     const options = buildTypeOrmPaginationOptions<Customer, Customer>(query, {
       searchFields: [
-        'name',
+        'customer_name',
         'phone',
         'id_number',
         'owner_name',
@@ -58,7 +58,7 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
       ],
       allowedSortFields: [
         'customer_id',
-        'name',
+        'customer_name',
         'phone',
         'id_number',
         'chassis_no',

@@ -149,11 +149,11 @@ export class AnprOrchestrationService {
         customer = this.customerDao.create({
           id: generateSnowflakeId(),
           customer_id: nextId,
-          name: ownerName ?? plate,
+          customer_name: ownerName ?? plate,
           phone: phoneLookup,
           owner_name: ownerName,
           chassis_no: chassisNo,
-          primary_vehicle_record_id: vehicleRecord?.id ?? null,
+          vehicle_record_id: vehicleRecord?.id ?? null,
           created_by: 'anpr-system',
         });
         customer = await this.customerDao.save(customer);

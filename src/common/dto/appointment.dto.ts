@@ -1,7 +1,7 @@
 import {
   IsBoolean,
   IsDateString,
-  IsIn,
+  IsEnum,
   IsInt,
   IsNotEmpty,
   IsNumber,
@@ -12,14 +12,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import {
-  APPOINTMENT_PAYMENT_MODES,
-  APPOINTMENT_STATUSES,
-  APPOINTMENT_TYPES,
-} from '../enums/appointment.enums';
-
-const PAYMENT_MODE_OPTIONS = APPOINTMENT_PAYMENT_MODES.join(', ');
-const APPOINTMENT_TYPE_OPTIONS = APPOINTMENT_TYPES.join(', ');
+import { AppointmentStatus, AppointmentTypes } from '../enums/common.enums';
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -108,13 +101,10 @@ export class CreateAppointmentDto {
   @IsDateString({}, { message: 'appointment_at must be a valid ISO date string' })
   appointment_at!: string;
 
-  @ApiPropertyOptional({ enum: APPOINTMENT_STATUSES, default: 'Scheduled' })
+  @ApiPropertyOptional({ enum: AppointmentStatus, default: 'Scheduled' })
   @IsOptional()
-  @IsString()
-  @IsIn([...APPOINTMENT_STATUSES], {
-    message: `status must be one of: ${APPOINTMENT_STATUSES.join(', ')}`,
-  })
-  status?: (typeof APPOINTMENT_STATUSES)[number];
+  @IsEnum(AppointmentStatus, { message: 'status must be a valid appointment status' })
+  status?: AppointmentStatus;
 
   @ApiPropertyOptional({ description: 'Sync customer record from ANPR/ROP on create', default: true })
   @IsOptional()
@@ -126,28 +116,26 @@ export class CreateAppointmentDto {
   @IsString()
   notes?: string;
 
-  @ApiProperty({ description: 'Payment mode', example: 'Cash', enum: APPOINTMENT_PAYMENT_MODES })
-  @IsString({ message: 'payment_mode must be a string' })
-  @IsNotEmpty({ message: 'payment_mode is required' })
-  @IsIn([...APPOINTMENT_PAYMENT_MODES], {
-    message: `payment_mode must be one of: ${PAYMENT_MODE_OPTIONS}`,
+  @ApiPropertyOptional({
+    description: 'Payment mode — payment_types master snowflake ID',
+    example: '2058858609483202561',
   })
-  payment_mode!: string;
+  @IsOptional()
+  @IsString({ message: 'payment_type_id must be a string' })
+  payment_type_id?: string;
 
-  @ApiProperty({ description: 'Appointment type', example: 'Paid', enum: APPOINTMENT_TYPES })
-  @IsString({ message: 'type must be a string' })
-  @IsNotEmpty({ message: 'type is required' })
-  @IsIn([...APPOINTMENT_TYPES], {
-    message: `type must be one of: ${APPOINTMENT_TYPE_OPTIONS}`,
-  })
-  type!: string;
+  @ApiPropertyOptional({ description: 'Appointment type', enum: AppointmentTypes, example: 'Paid' })
+  @IsOptional()
+  @IsEnum(AppointmentTypes, { message: 'type must be a valid appointment type' })
+  type?: AppointmentTypes;
 
-  @ApiProperty({ description: 'Payment amount', example: 150.5 })
+  @ApiPropertyOptional({ description: 'Payment amount', example: 150.5 })
+  @IsOptional()
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'amount must be a valid number' })
   @Min(1, { message: 'amount must be at least 1' })
-  amount!: number;
+  amount?: number;
 }
 
 export class UpdateAppointmentDto extends PartialType(
   OmitType(CreateAppointmentDto, ['appointment_id'] as const),
-) {}
+) { }

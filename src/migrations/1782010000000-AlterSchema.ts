@@ -560,6 +560,53 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PT_CODE" ON "master"."payment_types" ("code")`,
     );
+
+    // charge_categories: create table (FK target for charges.charge_category_id)
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."charge_categories" (
+        "id"               bigint                  NOT NULL,
+        "category_id"      integer                 NOT NULL,
+        "vehicle_weight"   character varying(128)  NOT NULL,
+        "engine_capacity"  character varying(128)  NOT NULL,
+        "fees"             numeric(12,3)           NOT NULL DEFAULT 0,
+        "status"           character varying       NOT NULL DEFAULT 'Active',
+        "created_by"       character varying,
+        "created_at"       TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "updated_at"       TIMESTAMP               NOT NULL DEFAULT NOW(),
+        "is_deleted"       boolean                 NOT NULL DEFAULT false,
+        CONSTRAINT "PK_charge_categories_id" PRIMARY KEY ("id"),
+        CONSTRAINT "UQ_charge_categories_category_id" UNIQUE ("category_id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CC_CATEGORY_ID" ON "master"."charge_categories" ("category_id")`,
+    );
+
+    // charges: link to charge_categories master, relax legacy free-text category
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" ADD COLUMN IF NOT EXISTS "charge_category_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_CATEGORY_ID" ON "master"."charges" ("charge_category_id")`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_charge_category_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "master"."charges"
+      ADD CONSTRAINT "FK_charges_charge_category_id"
+      FOREIGN KEY ("charge_category_id") REFERENCES "master"."charge_categories"("id") ON DELETE NO ACTION
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" ALTER COLUMN "category" DROP NOT NULL`,
+    );
+    // Replace the old (centre/vehicle/category) combo with the FK-based combo
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_UNIQUE_COMBO"
+        ON "master"."charges" ("centre_id", "vehicle_id", "charge_category_id")
+        WHERE "is_deleted" = false
+    `);
   }
 
   // ─── transaction schema alterations ──────────────────────────────────────────
@@ -579,30 +626,61 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "IDX_CUSTOMER_MULKIYA_ID" ON "transaction"."customers" ("mulkiya_id")`,
     );
 
-    // appointments: add payment_mode + type (migration 1781162440262)
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "payment_mode" character varying(64)`,
-    );
+    // appointments: type column is nullable per the entity — a queued ANPR
+    // appointment is created before any payment, so it must allow NULL.
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "type" character varying(64)`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "type" DROP NOT NULL`,
+    );
+    // appointments: payment mode now references the payment_types master (FK),
+    // replacing the legacy free-text payment_mode column.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "payment_type_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_PAYMENT_TYPE_ID" ON "transaction"."appointments" ("payment_type_id")`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,
+    );
     await queryRunner.query(`
-      UPDATE "transaction"."appointments"
-      SET "payment_mode" = 'Cash', "type" = 'Standard'
-      WHERE "payment_mode" IS NULL OR "type" IS NULL
+      ALTER TABLE "transaction"."appointments"
+      ADD CONSTRAINT "FK_appointments_payment_type_id"
+      FOREIGN KEY ("payment_type_id") REFERENCES "master"."payment_types"("id") ON DELETE NO ACTION
     `);
     await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "payment_mode" SET NOT NULL`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "type" SET NOT NULL`,
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_mode"`,
     );
 
-    // anpr_captures: align columns with entity — `line_id` (varchar) replaces the
-    // legacy `lane` / `country_code` / `verification_status` columns.
+    // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
+    // free-text varchar column). Free-text values cannot cast to bigint, so the
+    // legacy column is dropped when present before re-adding it as bigint.
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'anpr_captures'
+            AND column_name = 'line_id' AND udt_name <> 'int8'
+        ) THEN
+          EXECUTE 'ALTER TABLE "transaction"."anpr_captures" DROP CONSTRAINT IF EXISTS "FK_anpr_captures_line_id"';
+          EXECUTE 'ALTER TABLE "transaction"."anpr_captures" DROP COLUMN "line_id"';
+        END IF;
+      END $$;
+    `);
     await queryRunner.query(
-      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "line_id" character varying(32)`,
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "line_id" bigint`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP CONSTRAINT IF EXISTS "FK_anpr_captures_line_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "transaction"."anpr_captures"
+      ADD CONSTRAINT "FK_anpr_captures_line_id"
+      FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE NO ACTION
+    `);
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "lane"`,
     );
@@ -611,6 +689,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "verification_status"`,
+    );
+    // anpr_captures: persisted lifecycle status — stays 'Pending' until validated.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "status" character varying(32) NOT NULL DEFAULT 'Pending'`,
     );
 
     // customers: align columns with entity — rename name → customer_name and
@@ -660,12 +742,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
     // anpr_captures / rop_verifications / jobs / payment_transactions indexes
     // (idempotent — only created if absent)
+    // line_id-based indexes replace the legacy camera_id-based ones (entity-aligned).
+    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_CAMERA_TIME"`);
     await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME"
-      ON "transaction"."anpr_captures" ("camera_id", "plate_number", "capture_time")
+      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_ANPR_CAPTURE_LINE_PLATE_TIME"
+      ON "transaction"."anpr_captures" ("line_id", "plate_number", "capture_time")
     `);
     await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_ANPR_CAPTURE_CAMERA_TIME" ON "transaction"."anpr_captures" ("camera_id", "capture_time")`,
+      `CREATE INDEX IF NOT EXISTS "IDX_ANPR_CAPTURE_LINE_TIME" ON "transaction"."anpr_captures" ("line_id", "capture_time")`,
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_ROP_VERIFICATION_FETCH_STATUS_CREATED_AT" ON "transaction"."rop_verifications" ("fetch_status", "created_at")`,
@@ -834,22 +919,28 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `DROP INDEX IF EXISTS "transaction"."IDX_ROP_VERIFICATION_FETCH_STATUS_CREATED_AT"`,
     );
     await queryRunner.query(
-      `DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_CAMERA_TIME"`,
+      `ALTER TABLE "transaction"."anpr_captures" DROP CONSTRAINT IF EXISTS "FK_anpr_captures_line_id"`,
     );
     await queryRunner.query(
-      `DROP INDEX IF EXISTS "transaction"."UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME"`,
+      `DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_LINE_TIME"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "type" DROP NOT NULL`,
+      `DROP INDEX IF EXISTS "transaction"."UQ_ANPR_CAPTURE_LINE_PLATE_TIME"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "payment_mode" DROP NOT NULL`,
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_PAYMENT_TYPE_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_type_id"`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "type"`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_mode"`,
     );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_CUSTOMER_MULKIYA_ID"`,
@@ -870,11 +961,18 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_PAYMENT_TYPE_ID"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."payment_types"`);
 
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_charge_category_id"`,
+    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CATEGORY_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CENTRE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CHARGE_ID"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."charges"`);
+
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CC_CATEGORY_ID"`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "master"."charge_categories"`);
 
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PAYMENT_CUSTOMER_ID"`);
     await queryRunner.query(

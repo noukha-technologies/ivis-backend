@@ -7,16 +7,17 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
-import type { AppointmentStatus } from '../../../common/enums/appointment.enums';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
+import type { AppointmentStatus } from '../../../common/enums/common.enums';
+import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 
 import { Line } from './line.entity';
 import { Centre } from './centre.entity';
 import { Customer } from './customer.entity';
 import { Payments } from './payments.entity';
+import { PaymentType } from './payment-type.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
 
@@ -91,8 +92,13 @@ export class Appointment {
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
 
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  payment_mode?: string;
+  /* Payment mode — payment_types master FK */
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  payment_type_id?: string | null;
+
+  @ManyToOne(() => PaymentType, { nullable: true })
+  @JoinColumn({ name: 'payment_type_id' })
+  paymentType?: PaymentType;
 
   @Column({ type: 'varchar', length: 16, nullable: true })
   type?: string;

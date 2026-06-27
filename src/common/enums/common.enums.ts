@@ -54,3 +54,22 @@ export enum ProcessedStrategy {
     DELETE = 'delete',
     NONE = 'none'
 }
+
+export enum AppointmentStatus {
+    QUEUED = 'Queued',
+    SCHEDULED = 'Scheduled',
+    CONFIRMED = 'Confirmed',
+    CANCELLED = 'Cancelled',
+    COMPLETED = 'Completed'
+}
+
+export enum RopVerificationStatus {
+    PENDING = 'Pending',
+    VALIDATED = 'Fetched',
+    FAILED = 'Failed',
+}
+
+export enum AppointmentTypes {
+    PAID = 'Paid',
+    UNPAID = 'Unpaid'
+}

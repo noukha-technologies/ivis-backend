@@ -13,7 +13,6 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { APPOINTMENT_PAYMENT_MODES } from '../enums/appointment.enums';
 import {
   JOB_OVERALL_RESULTS,
   JOB_PAYMENT_TYPES,
@@ -34,10 +33,10 @@ export class JobPaymentDto {
   @IsIn([...JOB_PAYMENT_TYPES])
   type!: (typeof JOB_PAYMENT_TYPES)[number];
 
-  @ApiProperty({ description: 'Payment mode', enum: APPOINTMENT_PAYMENT_MODES, example: 'Card' })
+  @ApiProperty({ description: 'Payment mode (payment_types master value)', example: 'Card' })
   @IsString()
-  @IsIn([...APPOINTMENT_PAYMENT_MODES])
-  mode!: (typeof APPOINTMENT_PAYMENT_MODES)[number];
+  @IsNotEmpty()
+  mode!: string;
 
   @ApiPropertyOptional({ description: 'Capture image as base64 data URL or external URL' })
   @IsOptional()

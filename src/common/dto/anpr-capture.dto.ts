@@ -1,5 +1,6 @@
 import {
   IsDateString,
+  IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -8,6 +9,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { AnprCaptureStatus } from '../enums/camera.enums';
 
 export class CreateAnprCaptureDto {
   @ApiPropertyOptional({
@@ -83,7 +85,19 @@ export class CreateAnprCaptureDto {
   @IsOptional()
   @IsString()
   image_url?: string;
+
+  @ApiPropertyOptional({
+    description: 'Capture lifecycle status',
+    enum: ['Pending', 'Validated', 'Rejected'],
+    example: 'Validated',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['Pending', 'Validated', 'Rejected'], { message: 'status must be Pending, Validated or Rejected' })
+  status?: AnprCaptureStatus;
 }
 
-export class UpdateAnprCaptureDto extends PartialType(OmitType(CreateAnprCaptureDto, ['capture_id'] as const)) { }
+export class UpdateAnprCaptureDto extends PartialType(
+  OmitType(CreateAnprCaptureDto, ['capture_id', 'line_id'] as const)
+) { }
 

@@ -8,20 +8,22 @@ import {
   OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
-
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 
+import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
+import { IAnprCaptureFields } from 'src/common/interfaces/payments.interface';
+
+import { Line } from './line.entity';
 import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';
-import { IAnprCaptureFields } from 'src/common/interfaces/payments.interface';
 
 @Entity({ name: 'anpr_captures', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], { unique: true })
 @Index('IDX_ANPR_CAPTURE_PLATE_TIME', ['plate_number', 'capture_time'])
-@Index('IDX_ANPR_CAPTURE_CAMERA_TIME', ['camera_id', 'capture_time'])
-@Index('UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME', ['camera_id', 'plate_number', 'capture_time'], { unique: true })
+@Index('IDX_ANPR_CAPTURE_LINE_TIME', ['line_id', 'capture_time'])
+@Index('UQ_ANPR_CAPTURE_LINE_PLATE_TIME', ['line_id', 'plate_number', 'capture_time'], { unique: true })
 export class AnprCapture implements IAnprCaptureFields {
   @SnowflakePrimaryColumn()
   id!: string;
@@ -41,6 +43,7 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'timestamp', nullable: false })
   capture_time!: Date;
 
+
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
   camera_id!: string;
 
@@ -48,8 +51,16 @@ export class AnprCapture implements IAnprCaptureFields {
   @JoinColumn({ name: 'camera_id' })
   camera!: Camera;
 
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  line_id?: string;
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  line_id?: string | null;
+
+  @ManyToOne(() => Line, { nullable: true })
+  @JoinColumn({ name: 'line_id' })
+  line?: Line;
+
+  @OneToMany(() => RopVerification, (ropVerification) => ropVerification.anpr_capture)
+  rop_verifications?: RopVerification[];
+
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   direction?: string;
@@ -66,11 +77,13 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'varchar', nullable: true })
   image_url?: string;
 
+  @Column({ type: 'varchar', length: 32, default: AnprCaptureStatus.PENDING, nullable: false })
+  status!: AnprCaptureStatus;
+
   @Column({ type: 'jsonb', nullable: true })
   raw_payload?: Record<string, unknown>;
 
-  @OneToMany(() => RopVerification, (ropVerification) => ropVerification.anpr_capture)
-  rop_verifications?: RopVerification[];
+
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

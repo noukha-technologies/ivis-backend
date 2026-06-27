@@ -18,9 +18,11 @@ import { CentreDao } from '../../database/dao/centre.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
+import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
 
 import { Appointment } from '../../database/entity/appointment.entity';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { AppointmentStatus } from 'src/common/enums/common.enums';
 
 @Injectable()
 export class AppointmentService {
@@ -33,6 +35,7 @@ export class AppointmentService {
     private readonly customerDao: CustomerDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
+    private readonly paymentTypeDao: PaymentTypeDao,
   ) { }
 
   async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
@@ -82,9 +85,9 @@ export class AppointmentService {
         customer_phone: createDto.customer_phone,
         id_number: createDto.id_number,
         appointment_at: new Date(createDto.appointment_at),
-        status: createDto.status || 'Scheduled',
+        status: AppointmentStatus.QUEUED,
         notes: createDto.notes,
-        payment_mode: createDto.payment_mode,
+        payment_type_id: createDto.payment_type_id,
         type: createDto.type,
         created_by: getCreatedById(actor),
       });
@@ -234,7 +237,7 @@ export class AppointmentService {
 
   private async validateReferences(
     dto: Partial<
-      Pick<CreateAppointmentDto, 'anpr_capture_id' | 'centre_id' | 'line_id' | 'customer_id'>
+      Pick<CreateAppointmentDto, 'anpr_capture_id' | 'centre_id' | 'line_id' | 'customer_id' | 'payment_type_id'>
     >,
   ): Promise<void> {
     if (dto.anpr_capture_id) {
@@ -259,6 +262,12 @@ export class AppointmentService {
       const customer = await this.customerDao.findActiveById(dto.customer_id);
       if (!customer) {
         throw new ResourceNotFoundException('Customer', dto.customer_id);
+      }
+    }
+    if (dto.payment_type_id) {
+      const paymentType = await this.paymentTypeDao.findActiveById(dto.payment_type_id);
+      if (!paymentType) {
+        throw new ResourceNotFoundException('PaymentType', dto.payment_type_id);
       }
     }
   }

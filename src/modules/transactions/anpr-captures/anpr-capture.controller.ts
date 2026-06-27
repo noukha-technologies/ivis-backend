@@ -33,6 +33,7 @@ export class AnprCaptureController {
   async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAnprCaptureDto) {
     const data = await this.anprCaptureService.create(createDto, actor);
     return { message: 'ANPR capture created successfully', data };
+    
   }
 
   @Get()
@@ -69,6 +70,21 @@ export class AnprCaptureController {
   ) {
     const data = await this.anprCaptureService.update(id, updateDto);
     return { message: 'ANPR capture updated successfully', data };
+  }
+
+  @Patch(':id/validate')
+  @ApiOperation({ summary: 'Validate an ANPR capture and queue an appointment' })
+  @ApiParam({ name: 'id', type: String, description: 'ANPR capture snowflake ID' })
+  @ApiResponse({ status: 200, description: 'ANPR capture validated and appointment queued.' })
+  @ApiResponse({ status: 400, description: 'Selected line does not belong to the camera\'s centre.' })
+  @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
+  async validate(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Body() updateDto: UpdateAnprCaptureDto,
+  ) {
+    const data = await this.anprCaptureService.validate(id, updateDto, actor);
+    return { message: 'ANPR capture validated successfully', data };
   }
 
   @Delete(':id')

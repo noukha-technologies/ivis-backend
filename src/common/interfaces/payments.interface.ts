@@ -1,4 +1,5 @@
 import { PaymentStatusEnum } from "../enums/payment.enums";
+import { AnprCaptureStatus } from "../enums/camera.enums";
 
 export interface IPaymentsFields {
   id: string;
@@ -37,6 +38,7 @@ export interface IAnprCaptureFields {
   vehicle_color?: string | null;
   image_url?: string | null;
   raw_payload?: Record<string, unknown> | null;
+  status: AnprCaptureStatus;
   created_by?: string | null;
   created_at: Date;
   updated_at: Date;

@@ -2,11 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 
+import { RopVerificationStatus } from 'src/common/enums/common.enums';
+
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
-import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
-import { AppointmentDao } from '../../../database/dao/appointment.dao';
-import { JobDao } from '../../../database/dao/job.dao';
+import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { RopApiClientService } from '../../../integrations/rop/rop-api-client.service';
 
@@ -22,28 +22,19 @@ export class AnprOrchestrationService {
     private readonly vehicleDao: VehicleDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly customerDao: CustomerDao,
-    private readonly appointmentDao: AppointmentDao,
-    private readonly jobDao: JobDao,
     private readonly ropVerificationDao: RopVerificationDao,
     private readonly ropApiClient: RopApiClientService,
-  ) {}
+  ) { }
 
   runPostCapture(anprCapture: AnprCapture): void {
     this.executePostCapture(anprCapture).catch((err: Error) => {
-      this.logger.error(
-        `[Orchestration] Unhandled failure for plate ${anprCapture.plate_number}: ${err.message}`,
-        err.stack,
-        AnprOrchestrationService.context,
-      );
+      this.logger.error(`[Orchestration] Unhandled failure for plate ${anprCapture.plate_number}: ${err.message}`, err.stack, AnprOrchestrationService.context);
     });
   }
 
   private async executePostCapture(anprCapture: AnprCapture): Promise<void> {
     const plate = anprCapture.plate_number;
-    this.logger.log(
-      `[Orchestration] Starting post-capture pipeline for plate: ${plate}`,
-      AnprOrchestrationService.context,
-    );
+    this.logger.log(`[Orchestration] Starting post-capture pipeline for plate: ${plate}`, AnprOrchestrationService.context);
 
     // ─── Step 1: Vehicle master (master.vehicles) upsert by plate code ───
     let vehicleMasterId: string | undefined;
@@ -108,39 +99,50 @@ export class AnprOrchestrationService {
     let ownerPhone: string | undefined;
     let chassisNo: string | undefined;
     try {
-      const ropResult = await this.ropApiClient.fetchByPlate(plate);
-      const nextRopId = await this.ropVerificationDao.getNextRopVerificationId();
-      const ropVerification = this.ropVerificationDao.create({
+      const fetchRopFromApiResponse = await this.ropApiClient.fetchByPlate(plate);
+      const createRopVerificationPayload = this.ropVerificationDao.create({
         id: generateSnowflakeId(),
-        rop_verification_id: nextRopId,
+        rop_verification_id: await this.ropVerificationDao.getNextRopVerificationId(),
         anpr_capture_id: anprCapture.id,
-        owner_name: ropResult.owner_name,
-        vehicle_make: ropResult.vehicle_make,
-        vehicle_model: ropResult.vehicle_model,
-        reg_no: ropResult.reg_no,
-        chassis_no: ropResult.chassis_no,
-        insurance: ropResult.insurance,
-        reg_expiry: ropResult.reg_expiry,
-        fetch_status: 'Fetched',
+        owner_name: fetchRopFromApiResponse.owner_name,
+        vehicle_make: fetchRopFromApiResponse.vehicle_make,
+        vehicle_model: fetchRopFromApiResponse.vehicle_model,
+        reg_no: fetchRopFromApiResponse.reg_no,
+        chassis_no: fetchRopFromApiResponse.chassis_no,
+        insurance: fetchRopFromApiResponse.insurance,
+        reg_expiry: fetchRopFromApiResponse.reg_expiry,
+        fetch_status: RopVerificationStatus.VALIDATED,
         created_by: 'anpr-system',
       });
-      await this.ropVerificationDao.save(ropVerification);
-      ownerName = ropResult.owner_name;
-      ownerPhone = ropResult.owner_phone;
-      chassisNo = ropResult.chassis_no;
+      await this.ropVerificationDao.save(createRopVerificationPayload);
+      ownerName = fetchRopFromApiResponse.owner_name;
+      ownerPhone = fetchRopFromApiResponse.owner_phone;
+      chassisNo = fetchRopFromApiResponse.chassis_no;
       this.logger.log(
         `[Orchestration] ROP verification saved for capture: ${anprCapture.id}`,
         AnprOrchestrationService.context,
       );
     } catch (err) {
-      this.logger.warn(
-        `[Orchestration] ROP fetch/save failed for ${plate}: ${(err as Error).message}`,
-        AnprOrchestrationService.context,
-      );
+      this.logger.warn(`[Orchestration] ROP fetch/save failed for ${plate}: ${(err as Error).message}`, AnprOrchestrationService.context);
+      // Record the failed attempt so the ROP verification tab reflects it; the
+      // capture itself stays 'Pending' (not validated).
+      try {
+        const nextRopId = await this.ropVerificationDao.getNextRopVerificationId();
+        const failedVerification = this.ropVerificationDao.create({
+          id: generateSnowflakeId(),
+          rop_verification_id: nextRopId,
+          anpr_capture_id: anprCapture.id,
+          reg_no: plate,
+          fetch_status: RopVerificationStatus.FAILED,
+          created_by: 'anpr-system',
+        });
+        await this.ropVerificationDao.save(failedVerification);
+      } catch (saveErr) {
+        this.logger.warn(`[Orchestration] Failed to persist Failed ROP verification for ${plate}: ${(saveErr as Error).message}`, AnprOrchestrationService.context);
+      }
     }
 
     // ─── Step 4: Customer upsert ──────────────────────────────────────────
-    let customerId: string | undefined;
     try {
       const phoneLookup = ownerPhone ?? `ANPR-${plate.slice(0, 26)}`;
       let customer = await this.customerDao.findActiveByPhone(phoneLookup);
@@ -162,85 +164,9 @@ export class AnprOrchestrationService {
           AnprOrchestrationService.context,
         );
       }
-      customerId = customer.id;
     } catch (err) {
-      this.logger.warn(
-        `[Orchestration] Customer upsert failed for ${plate}: ${(err as Error).message}`,
-        AnprOrchestrationService.context,
-      );
+      this.logger.warn(`[Orchestration] Customer upsert failed for ${plate}: ${(err as Error).message}`, AnprOrchestrationService.context,);
+      this.logger.log(`[Orchestration] Post-capture pipeline complete for plate: ${plate} (awaiting validation)`, AnprOrchestrationService.context);
     }
-
-    if (!vehicleRecord || !customerId) {
-      this.logger.warn(
-        `[Orchestration] Skipping appointment/job creation — missing vehicleRecord or customer for plate: ${plate}`,
-        AnprOrchestrationService.context,
-      );
-      return;
-    }
-
-    // ─── Step 5: Appointment + Job creation in parallel ──────────────────
-    const [appointmentResult, jobResult] = await Promise.allSettled([
-      this.createQueuedAppointment(anprCapture.id, customerId, vehicleRecord.id),
-      this.createQueuedJob(anprCapture.id, customerId, vehicleRecord.id),
-    ]);
-
-    if (appointmentResult.status === 'rejected') {
-      this.logger.warn(
-        `[Orchestration] Appointment creation failed: ${(appointmentResult.reason as Error).message}`,
-        AnprOrchestrationService.context,
-      );
-    }
-    if (jobResult.status === 'rejected') {
-      this.logger.warn(
-        `[Orchestration] Job creation failed: ${(jobResult.reason as Error).message}`,
-        AnprOrchestrationService.context,
-      );
-    }
-  }
-
-  private async createQueuedAppointment(
-    anprCaptureId: string,
-    customerId: string,
-    vehicleRecordId: string,
-  ): Promise<void> {
-    const nextId = await this.appointmentDao.getNextAppointmentId();
-    const appointment = this.appointmentDao.create({
-      id: generateSnowflakeId(),
-      appointment_id: nextId,
-      anpr_capture_id: anprCaptureId,
-      customer_id: customerId,
-      vehicle_record_id: vehicleRecordId,
-      status: 'Queued',
-      appointment_at: new Date(),
-      created_by: 'anpr-system',
-    });
-    await this.appointmentDao.save(appointment);
-    this.logger.log(
-      `[Orchestration] Appointment queued: ${appointment.id}`,
-      AnprOrchestrationService.context,
-    );
-  }
-
-  private async createQueuedJob(
-    anprCaptureId: string,
-    customerId: string,
-    vehicleRecordId: string,
-  ): Promise<void> {
-    const nextId = await this.jobDao.getNextJobId();
-    const job = this.jobDao.create({
-      id: generateSnowflakeId(),
-      job_id: nextId,
-      source: 'ANPR',
-      status: 'Queued',
-      customer_id: customerId,
-      vehicle_record_id: vehicleRecordId,
-      anpr_capture_id: anprCaptureId,
-      created_by: 'anpr-system',
-    });
-    await this.jobDao.save(job);
-    this.logger.log(
-      `[Orchestration] Job queued: ${job.id}`,
-      AnprOrchestrationService.context,
-    );
   }
 }

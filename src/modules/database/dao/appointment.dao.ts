@@ -18,6 +18,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     vehicleRecord: { vehicleMaster: true },
     centre: true,
     line: true,
+    paymentType: true,
   } as const;
 
   constructor(
@@ -34,6 +35,12 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     });
   }
 
+  async findByAnprCaptureId(anprCaptureId: string): Promise<Appointment | null> {
+    return this.findOne({
+      where: { anpr_capture_id: anprCaptureId, is_deleted: false },
+    });
+  }
+
   async findByAppointmentId(appointmentId: number): Promise<Appointment | null> {
     return this.findOne({
       where: { appointment_id: appointmentId, is_deleted: false },
@@ -47,7 +54,8 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
       .leftJoinAndSelect('appointment.vehicleRecord', 'vehicleRecord')
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
       .leftJoinAndSelect('appointment.centre', 'centre')
-      .leftJoinAndSelect('appointment.line', 'line');
+      .leftJoinAndSelect('appointment.line', 'line')
+      .leftJoinAndSelect('appointment.paymentType', 'paymentType');
 
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(query, {
       searchFields: [

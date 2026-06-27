@@ -2,22 +2,27 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
-
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
 
-import { CameraDao } from '../../../database/dao/camera.dao';
 import { LineDao } from '../../../database/dao/line.dao';
+import { CameraDao } from '../../../database/dao/camera.dao';
+import { CustomerDao } from '../../../database/dao/customer.dao';
+import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
-import { AnprOrchestrationService } from './anpr-orchestration.service';
+import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 
-import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { Camera } from '../../../database/entity/camera.entity';
+import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
+
+import { AnprOrchestrationService } from './anpr-orchestration.service';
+import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
+import { AppointmentStatus } from 'src/common/enums/common.enums';
 
 @Injectable()
 export class AnprCaptureService {
@@ -25,16 +30,15 @@ export class AnprCaptureService {
 
   constructor(
     private readonly logger: AppLogger,
-    private readonly cameraDao: CameraDao,
     private readonly lineDao: LineDao,
+    private readonly cameraDao: CameraDao,
+    private readonly customerDao: CustomerDao,
     private readonly anprCaptureDao: AnprCaptureDao,
+    private readonly appointmentDao: AppointmentDao,
+    private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly orchestrationService: AnprOrchestrationService,
   ) { }
 
-  /**
-   * Ensures the chosen line exists and belongs to the same centre the camera is
-   * configured under (camera → line → centre). Skips when no line is supplied.
-   */
   private async validateLineForCamera(lineId: string | undefined, camera: Camera): Promise<void> {
     if (!lineId) {
       return;
@@ -59,23 +63,14 @@ export class AnprCaptureService {
 
       await this.validateLineForCamera(createDto.line_id, camera);
 
-      let captureId = createDto.capture_id;
-      if (!captureId) {
-        captureId = await this.anprCaptureDao.getNextCaptureId();
-      } else {
-        const existing = await this.anprCaptureDao.findByCaptureId(captureId);
-        if (existing) {
-          throw new DuplicateResourceException('AnprCapture', 'capture_id', captureId);
-        }
-      }
-
       const capture = this.anprCaptureDao.create({
         id: generateSnowflakeId(),
         ...createDto,
-        anpr_capture_id: captureId,
+        anpr_capture_id: await this.anprCaptureDao.getNextCaptureId(),
         capture_time: new Date(createDto.capture_time),
         created_by: getCreatedById(actor),
       });
+
       const saved = await this.anprCaptureDao.save(capture);
       this.orchestrationService.runPostCapture(saved);
 
@@ -141,14 +136,13 @@ export class AnprCaptureService {
     this.logger.log(`Updating ANPR capture ID: ${id}`, AnprCaptureService.context);
     try {
       const capture = await this.findOne(id);
-
-      const cameraId = updateDto.camera_id ?? capture.camera_id;
-      const camera = await this.cameraDao.findActiveById(cameraId);
-      if (!camera) {
-        throw new ResourceNotFoundException('Camera', cameraId);
+      if (!capture) {
+        throw new ResourceNotFoundException('AnprCapture', id);
       }
-      if (updateDto.line_id !== undefined) {
-        await this.validateLineForCamera(updateDto.line_id, camera);
+
+      const camera = await this.cameraDao.findActiveById(capture.camera_id);
+      if (!camera) {
+        throw new ResourceNotFoundException('Camera', capture.camera_id);
       }
 
       const merged = this.anprCaptureDao.merge(capture, {
@@ -172,6 +166,80 @@ export class AnprCaptureService {
       );
       throw new DatabaseException('Failed to update ANPR capture. Please try again.');
     }
+  }
+
+  async validate(id: string, updateDto: UpdateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
+    this.logger.log(`Validating ANPR capture ID: ${id}`, AnprCaptureService.context);
+    try {
+      const capture = await this.findOne(id);
+
+      if (!capture) {
+        throw new ResourceNotFoundException('Anpr', `No data found for given ${id}`)
+      }
+
+      const merged = this.anprCaptureDao.merge(capture, {
+        ...updateDto,
+        ...(updateDto.capture_time ? { capture_time: new Date(updateDto.capture_time) } : {}),
+        status: updateDto.status ?? AnprCaptureStatus.VALIDATED,
+      });
+      
+      const saved = await this.anprCaptureDao.save(merged);
+
+      // Queue an appointment only when the capture is actually validated.
+      if (saved.status === AnprCaptureStatus.VALIDATED) {
+        await this.ensureQueuedAppointment(saved, actor);
+      }
+
+      this.logger.log(`ANPR capture ${saved.status} ID: ${saved.id}`, AnprCaptureService.context);
+      return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;
+    } catch (error) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+      this.logger.error(
+        `Failed to validate ANPR capture: ${(error as Error).message}`,
+        (error as Error).stack,
+        AnprCaptureService.context,
+      );
+      throw new DatabaseException('Failed to validate ANPR capture. Please try again.');
+    }
+  }
+
+  private async ensureQueuedAppointment(capture: AnprCapture, actor: UserContext): Promise<void> {
+    const existing = await this.appointmentDao.findByAnprCaptureId(capture.id);
+    if (existing) {
+      this.logger.log(
+        `Appointment already exists for capture ${capture.id} — skipping`,
+        AnprCaptureService.context,
+      );
+      return;
+    }
+
+    const plate = capture.plate_number;
+    const vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plate);
+    const customer = await this.customerDao.findActiveByPhone(`ANPR-${plate.slice(0, 26)}`);
+
+    const nextId = await this.appointmentDao.getNextAppointmentId();
+    const appointment = this.appointmentDao.create({
+      id: generateSnowflakeId(),
+      appointment_id: nextId,
+      anpr_capture_id: capture.id,
+      customer_id: customer?.id ?? null,
+      vehicle_record_id: vehicleRecord?.id ?? null,
+      plate_number: plate,
+      customer_name: customer?.customer_name,
+      status: AppointmentStatus.QUEUED,
+      appointment_at: new Date(),
+      created_by: getCreatedById(actor),
+    });
+    await this.appointmentDao.save(appointment);
+    this.logger.log(
+      `Appointment queued for capture ${capture.id}: ${appointment.id}`,
+      AnprCaptureService.context,
+    );
   }
 
   async remove(id: string): Promise<void> {

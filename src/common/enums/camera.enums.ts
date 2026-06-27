@@ -9,3 +9,10 @@ export enum CameraStatus {
     ONLINE = 'ONLINE',
     DISCONNECTED = 'DISCONNECTED',
 }
+
+
+export enum AnprCaptureStatus {
+    PENDING = 'Pending',
+    VALIDATED = 'Validated',
+    REJECTED = 'Rejected',
+}

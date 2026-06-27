@@ -1,35 +1,28 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { CameraEntity } from '../../../database/entity/camera.entity';
-import { XmlParserService } from '../../../../common/shared/anpr/xml-parser.service';
-import { ImageProcessorService } from '../../../../common/shared/anpr/image-processor.service';
-import { RawFileResponseBuilder } from '../../../../common/shared/anpr/raw-file-response.builder.service';
-import { ParsedAnprEvent } from '../../../../common/interfaces/anpr.interface';
-import { FtpConnectionPoolService } from './ftp-connection-pool.service';
-import { joinFtpPath } from '../../../../common/utils/ftp-path.util';
-import { HikvisionOverlayOcrService } from '../../../../common/ocr-extraction/hikvision-overlay-ocr.service';
-import { JpegEventBundle } from '../../../../common/utils/hikvision-jpeg-filename.util';
-import { OmanPlateClassifierService } from '../../../../common/shared/anpr/oman-plate-classifier.service';
-import {
-    resolveActiveWatchPath,
-    stripCameraPathFromFtpRoot,
-} from '../../../../common/utils/ftp-path-resolver.util';
-import { AnprEventGuardService } from '../anpr-event-guard.service';
-import {
-    normalizeAnprColour,
-    pickBestPlateCandidate,
-    writeOcrExtractionDebugFile,
-    parseHikvisionOverlayFields,
-    type JpegOcrExtractionDebug,
-} from '../../../../common/ocr-extraction';
-import { AnprMethodConfigService } from '../anpr-method-config.service';
-import { CameraIntegrationMethod } from '../../../../common/enums/camera.enums';
 
-/**
- * Poll FTP directory, download XML + optional JPEGs, normalize to ParsedAnprEvent.
- * Persistence and WebSocket broadcast happen in AnprService.processEvent.
- */
+import { CameraEntity } from '../../../database/entity/camera.entity';
+
+import { AnprEventGuardService } from '../anpr-event-guard.service';
+import { AnprMethodConfigService } from '../anpr-method-config.service';
+import { FtpConnectionPoolService } from './ftp-connection-pool.service';
+
+import { joinFtpPath } from '../../../../common/utils/ftp-path.util';
+import { ParsedAnprEvent } from '../../../../common/interfaces/anpr.interface';
+import { CameraIntegrationMethod } from '../../../../common/enums/camera.enums';
+import { XmlParserService } from '../../../../common/shared/anpr/xml-parser.service';
+import { JpegEventBundle } from '../../../../common/utils/hikvision-jpeg-filename.util';
+import { normalizeAnprColour } from '../../../../common/ocr-extraction/anpr-colour.util';
+import { pickBestPlateCandidate } from 'src/common/ocr-extraction/oman-plate-normalizer.util';
+import { ImageProcessorService } from '../../../../common/shared/anpr/image-processor.service';
+import { parseHikvisionOverlayFields } from 'src/common/ocr-extraction/hikvision-overlay-parser.util';
+import { RawFileResponseBuilder } from '../../../../common/shared/anpr/raw-file-response.builder.service';
+import { OmanPlateClassifierService } from '../../../../common/shared/anpr/oman-plate-classifier.service';
+import { HikvisionOverlayOcrService } from '../../../../common/ocr-extraction/hikvision-overlay-ocr.service';
+import { resolveActiveWatchPath, stripCameraPathFromFtpRoot } from '../../../../common/utils/ftp-path-resolver.util';
+import { JpegOcrExtractionDebug, writeOcrExtractionDebugFile } from 'src/common/ocr-extraction/ocr-extraction-debug.util';
+
 @Injectable()
 export class FtpMethodService {
     private readonly logger = new Logger(FtpMethodService.name);
@@ -319,8 +312,8 @@ export class FtpMethodService {
         const start = Date.now();
         let metadata = bundle.vehicleDetectionPath
             ? await this.overlayOcr.extractFromDetectionImage(
-                  bundle.vehicleDetectionPath,
-              )
+                bundle.vehicleDetectionPath,
+            )
             : null;
 
         const plateHints = {
@@ -386,40 +379,40 @@ export class FtpMethodService {
                 },
                 detectionOverlay: metadata
                     ? {
-                          rawOcrText: metadata.rawOcrText,
-                          parsedPlate: metadata.plateNumber ?? null,
-                          parsedCategory: metadata.category ?? null,
-                          parsedPlateSize: metadata.plateSize ?? null,
-                          parsedConfidence: metadata.confidence ?? null,
-                          parsedFields: {
-                              plateNumber: overlayParsed?.plateNumber ?? metadata.plateNumber,
-                              normalizedPlate: metadata.plateNumber,
-                              category: metadata.category,
-                              plateSize: metadata.plateSize,
-                              plateColour: metadata.plateColour,
-                              plateType: metadata.plateType,
-                              vehicleType: metadata.vehicleType,
-                              vehicleColour: metadata.vehicleColour,
-                              vehicleBrand: metadata.vehicleBrand,
-                              direction: metadata.direction,
-                              confidence: metadata.confidence,
-                              province: metadata.province,
-                          },
-                      }
+                        rawOcrText: metadata.rawOcrText,
+                        parsedPlate: metadata.plateNumber ?? null,
+                        parsedCategory: metadata.category ?? null,
+                        parsedPlateSize: metadata.plateSize ?? null,
+                        parsedConfidence: metadata.confidence ?? null,
+                        parsedFields: {
+                            plateNumber: overlayParsed?.plateNumber ?? metadata.plateNumber,
+                            normalizedPlate: metadata.plateNumber,
+                            category: metadata.category,
+                            plateSize: metadata.plateSize,
+                            plateColour: metadata.plateColour,
+                            plateType: metadata.plateType,
+                            vehicleType: metadata.vehicleType,
+                            vehicleColour: metadata.vehicleColour,
+                            vehicleBrand: metadata.vehicleBrand,
+                            direction: metadata.direction,
+                            confidence: metadata.confidence,
+                            province: metadata.province,
+                        },
+                    }
                     : undefined,
                 plateCrop: plateCropDetail
                     ? {
-                          rawDigitOcr: plateCropDetail.rawDigitOcr,
-                          rawFullOcr: plateCropDetail.rawFullOcr,
-                          normalizedPlate: plateCropDetail.plate,
-                          method: plateCropDetail.method,
-                      }
+                        rawDigitOcr: plateCropDetail.rawDigitOcr,
+                        rawFullOcr: plateCropDetail.rawFullOcr,
+                        normalizedPlate: plateCropDetail.plate,
+                        method: plateCropDetail.method,
+                    }
                     : undefined,
                 scene: sceneDetail
                     ? {
-                          rawOcrText: sceneDetail.rawOcrText,
-                          normalizedPlate: scenePlate ?? null,
-                      }
+                        rawOcrText: sceneDetail.rawOcrText,
+                        normalizedPlate: scenePlate ?? null,
+                    }
                     : undefined,
                 selection: {
                     chosenPlate: bestPlate?.plate,
@@ -549,14 +542,14 @@ export class FtpMethodService {
                 ocrRaw: metadata?.rawOcrText ?? null,
                 ocrParsed: metadata
                     ? {
-                          vehicleBrand: metadata.vehicleBrand ?? null,
-                          plateSize: metadata.plateSize ?? null,
-                          plateType: metadata.plateType ?? null,
-                          direction: metadata.direction ?? null,
-                          province: metadata.province ?? null,
-                          category: metadata.category ?? null,
-                          plateSource: bestPlate?.source ?? null,
-                      }
+                        vehicleBrand: metadata.vehicleBrand ?? null,
+                        plateSize: metadata.plateSize ?? null,
+                        plateType: metadata.plateType ?? null,
+                        direction: metadata.direction ?? null,
+                        province: metadata.province ?? null,
+                        category: metadata.category ?? null,
+                        plateSource: bestPlate?.source ?? null,
+                    }
                     : null,
             },
             plateType: omanClassification.plateType,

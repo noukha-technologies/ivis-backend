@@ -74,6 +74,18 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   vehicle_color?: string;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  vehicle_brand?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  plate_size?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  plate_type?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  category?: string;
+
   @Column({ type: 'varchar', nullable: true })
   image_url?: string;
 

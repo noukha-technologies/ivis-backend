@@ -81,6 +81,26 @@ export class CreateAnprCaptureDto {
   @IsString()
   vehicle_color?: string;
 
+  @ApiPropertyOptional({ description: 'Vehicle brand', example: 'GWM Haval' })
+  @IsOptional()
+  @IsString()
+  vehicle_brand?: string;
+
+  @ApiPropertyOptional({ description: 'Plate size', example: 'Long' })
+  @IsOptional()
+  @IsString()
+  plate_size?: string;
+
+  @ApiPropertyOptional({ description: 'Plate type', example: 'Private' })
+  @IsOptional()
+  @IsString()
+  plate_type?: string;
+
+  @ApiPropertyOptional({ description: 'Plate category', example: 'R' })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
   @ApiPropertyOptional({ description: 'Compressed plate image path', example: '/uploads/OM1024_plate.jpg' })
   @IsOptional()
   @IsString()

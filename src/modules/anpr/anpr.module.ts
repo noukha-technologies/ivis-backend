@@ -1,51 +1,34 @@
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Module, Logger, OnApplicationBootstrap } from '@nestjs/common';
 
+import { DatabaseModule } from '../database/database.module';
+import { AnprCaptureModule } from '../transactions/anpr-captures/anpr-capture.module';
+
 import { AnprController } from './anpr.controller';
 import { AnprService } from './anpr.service';
 
 import { Camera } from '../database/entity/camera.entity';
 import { AnprEventEntity } from '../database/entity/anpr.entity';
 
-import { AnprGateway } from './services/http-push-service/anpr-gateway.service';
 // Shared services
-import { MultipartParserService } from '../../common/shared/anpr/multipart-parser.service';
 import { XmlParserService } from '../../common/shared/anpr/xml-parser.service';
 import { ImageProcessorService } from '../../common/shared/anpr/image-processor.service';
+import { MultipartParserService } from '../../common/shared/anpr/multipart-parser.service';
 import { RawFileResponseBuilder } from '../../common/shared/anpr/raw-file-response.builder.service';
 import { OmanPlateClassifierService } from '../../common/shared/anpr/oman-plate-classifier.service';
+import { HikvisionOverlayOcrService } from '../../common/ocr-extraction/hikvision-overlay-ocr.service';
 
 // Camera config service
-import { AnprMethodConfigService } from './services/anpr-method-config.service';
-import { FtpMethodService } from './services/ftp-service/ftp-method.service';
-import { FtpFileProcessorService } from './services/ftp-service/ftp-file-processor.service';
-import { FtpFolderWatcherService } from './services/ftp-service/ftp-folder-watcher.service';
-import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
-import { AnprWebhookService } from './services/http-push-service/anpr-webhook.service';
-import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-pool.service';
-import { HikvisionOverlayOcrService } from '../../common/ocr-extraction/hikvision-overlay-ocr.service';
 import { AnprEventGuardService } from './services/anpr-event-guard.service';
-import { AnprCaptureModule } from '../transactions/anpr-captures/anpr-capture.module';
-import { DatabaseModule } from '../database/database.module';
+import { FtpMethodService } from './services/ftp-service/ftp-method.service';
+import { AnprMethodConfigService } from './services/anpr-method-config.service';
+import { AnprGateway } from './services/http-push-service/anpr-gateway.service';
+import { AnprWebhookService } from './services/http-push-service/anpr-webhook.service';
+import { FtpFolderWatcherService } from './services/ftp-service/ftp-folder-watcher.service';
+import { FtpFileProcessorService } from './services/ftp-service/ftp-file-processor.service';
+import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-pool.service';
+import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
 
-/**
- * ═══════════════════════════════════════════════════════════════════
- * ANPR MODULE
- * ═══════════════════════════════════════════════════════════════════
- *
- * Main module that wires all ANPR-related services.
- *
- * Provides:
- * - HTTP endpoint for camera webhook (HTTP push)
- * - WebSocket gateway for real-time broadcast
- * - Core ANPR processing logic
- * - Integration-specific services (HTTP push / FTP)
- * - Shared utilities (parser, image, etc.)
- *
- * On module init:
- * - Validates camera configurations
- * - Starts FTP watchers
- */
 @Module({
     imports: [
         TypeOrmModule.forFeature([AnprEventEntity, Camera]),
@@ -79,7 +62,6 @@ import { DatabaseModule } from '../database/database.module';
 
         // ─── Helpers ──────────────────────────────────────────────
         AnprWebhookService,
-        // Bridge — AnprCaptureService is exported by AnprCaptureModule above
     ],
     exports: [AnprService, AnprGateway, FtpFolderWatcherService],
 })
@@ -91,9 +73,6 @@ export class AnprModule implements OnApplicationBootstrap {
         private readonly ftpFolderWatcher: FtpFolderWatcherService,
     ) { }
 
-    /**
-     * Runs after NestJS and the database connection are fully ready.
-     */
     async onApplicationBootstrap(): Promise<void> {
         this.logger.log('━━━ ANPR Module Bootstrap ━━━');
 

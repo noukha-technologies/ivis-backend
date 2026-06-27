@@ -694,6 +694,19 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "status" character varying(32) NOT NULL DEFAULT 'Pending'`,
     );
+    // anpr_captures: extra ANPR camera attributes (entity-aligned).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "vehicle_brand" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "plate_size" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "plate_type" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "category" character varying(32)`,
+    );
 
     // customers: align columns with entity — rename name → customer_name and
     // primary_vehicle_record_id → vehicle_record_id, add alternate_phone +
@@ -929,6 +942,18 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "vehicle_brand"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "plate_size"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "plate_type"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "category"`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,

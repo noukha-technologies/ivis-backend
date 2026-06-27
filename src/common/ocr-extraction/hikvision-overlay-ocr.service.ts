@@ -1,50 +1,26 @@
-import { Injectable, Logger } from '@nestjs/common';
 import sharp from 'sharp';
 import { createWorker } from 'tesseract.js';
-import {
-    parseCaptureTimeLabel,
-    parseHikvisionOverlayFields,
-} from './hikvision-overlay-parser.util';
+import { Injectable, Logger } from '@nestjs/common';
+
+import { HikvisionOverlayMetadata, PlateCropExtraction } from '../interfaces/anpr.interface';
+
 import { normalizeOcrPlateNumber } from './oman-plate-normalizer.util';
-
-export type HikvisionOverlayMetadata = {
-    plateNumber?: string;
-    confidence?: number;
-    captureTime?: Date;
-    vehicleType?: string;
-    vehicleColour?: string;
-    vehicleBrand?: string;
-    direction?: string;
-    plateColour?: string;
-    plateSize?: string;
-    plateType?: string;
-    province?: string;
-    category?: string;
-    rawOcrText: string;
-};
-
-export type PlateCropExtraction = {
-    plate: string | null;
-    rawDigitOcr: string;
-    rawFullOcr?: string;
-    method: 'digit_region' | 'full_crop';
-};
+import { parseCaptureTimeLabel, parseHikvisionOverlayFields } from './hikvision-overlay-parser.util';
 
 @Injectable()
 export class HikvisionOverlayOcrService {
     private readonly logger = new Logger(HikvisionOverlayOcrService.name);
+
     private readonly ocrLang: string;
     private readonly minConfidence: number;
 
     constructor() {
-        this.ocrLang = process.env.ANPR_FTP_OCR_LANG?.trim() || 'eng+ara';
-        const min = parseInt(process.env.ANPR_FTP_MIN_CONFIDENCE ?? '80', 10);
+        this.ocrLang = 'eng+ara';
+        const min = parseInt('80', 10);
         this.minConfidence = Number.isFinite(min) ? min : 80;
     }
 
-    async extractFromDetectionImage(
-        imagePath: string,
-    ): Promise<HikvisionOverlayMetadata | null> {
+    async extractFromDetectionImage(imagePath: string): Promise<HikvisionOverlayMetadata | null> {
         try {
             const meta = await sharp(imagePath).metadata();
             const height = meta.height ?? 0;
@@ -71,23 +47,10 @@ export class HikvisionOverlayOcrService {
         }
     }
 
-    private async extractPlateFromCropFullDetailed(
-        imagePath: string,
-    ): Promise<PlateCropExtraction> {
-        const prepped = await sharp(imagePath)
-            .greyscale()
-            .normalize()
-            .sharpen()
-            .png()
-            .toBuffer();
-        const text = await this.runOcr(
-            prepped,
-            '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-        );
-        const cleaned = text
-            .replace(/[^A-Za-z0-9؀-ۿ]/g, '')
-            .trim()
-            .toUpperCase();
+    private async extractPlateFromCropFullDetailed(imagePath: string): Promise<PlateCropExtraction> {
+        const prepped = await sharp(imagePath).greyscale().normalize().sharpen().png().toBuffer();
+        const text = await this.runOcr(prepped, '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+        const cleaned = text.replace(/[^A-Za-z0-9؀-ۿ]/g, '').trim().toUpperCase();
         const normalized = normalizeOcrPlateNumber(cleaned);
         return {
             plate: normalized && normalized.length >= 3 ? normalized : null,
@@ -102,9 +65,7 @@ export class HikvisionOverlayOcrService {
         return result.plate;
     }
 
-    async extractPlateFromCropDetailed(
-        imagePath: string,
-    ): Promise<PlateCropExtraction> {
+    async extractPlateFromCropDetailed(imagePath: string): Promise<PlateCropExtraction> {
         const empty: PlateCropExtraction = {
             plate: null,
             rawDigitOcr: '',
@@ -149,9 +110,7 @@ export class HikvisionOverlayOcrService {
         }
     }
 
-    async extractPlateFromSceneImage(
-        imagePath: string,
-    ): Promise<{ plateNumber?: string; confidence?: number } | null> {
+    async extractPlateFromSceneImage(imagePath: string): Promise<{ plateNumber?: string; confidence?: number } | null> {
         const detailed = await this.extractPlateFromSceneDetailed(imagePath);
         if (!detailed) {
             return null;
@@ -160,9 +119,7 @@ export class HikvisionOverlayOcrService {
         return rest;
     }
 
-    async extractPlateFromSceneDetailed(
-        imagePath: string,
-    ): Promise<{ plateNumber?: string; confidence?: number; rawOcrText: string } | null> {
+    async extractPlateFromSceneDetailed(imagePath: string): Promise<{ plateNumber?: string; confidence?: number; rawOcrText: string } | null> {
         try {
             const meta = await sharp(imagePath).metadata();
             const width = meta.width ?? 0;

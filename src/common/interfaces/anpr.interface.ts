@@ -101,3 +101,26 @@ export interface AnprWebhookContext {
     cameraCodeHint: string | null;
     receivedAt: string;
 }
+
+export interface HikvisionOverlayMetadata {
+    plateNumber?: string;
+    confidence?: number;
+    captureTime?: Date;
+    vehicleType?: string;
+    vehicleColour?: string;
+    vehicleBrand?: string;
+    direction?: string;
+    plateColour?: string;
+    plateSize?: string;
+    plateType?: string;
+    province?: string;
+    category?: string;
+    rawOcrText: string;
+};
+
+export interface PlateCropExtraction {
+    plate: string | null;
+    rawDigitOcr: string;
+    rawFullOcr?: string;
+    method: 'digit_region' | 'full_crop';
+};

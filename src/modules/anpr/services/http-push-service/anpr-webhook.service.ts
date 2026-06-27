@@ -607,6 +607,8 @@ export class AnprWebhookService {
 
             if (camera) {
                 try {
+                    // Overlay attributes parsed from the JPEG-bundle OCR (FTP path).
+                    const ocr = (savedEvent.rawPayload as { ocrParsed?: Record<string, unknown> } | null)?.ocrParsed;
                     await this.anprCaptureService.create(
                         {
                             plate_number: savedEvent.plateNumber,
@@ -620,6 +622,10 @@ export class AnprWebhookService {
                             plate_color: savedEvent.plateColour ?? undefined,
                             vehicle_type: savedEvent.vehicleType ?? undefined,
                             vehicle_color: savedEvent.vehicleColour ?? undefined,
+                            vehicle_brand: (ocr?.vehicleBrand as string) ?? undefined,
+                            plate_size: (ocr?.plateSize as string) ?? undefined,
+                            plate_type: (ocr?.plateType as string) ?? undefined,
+                            category: (ocr?.category as string) ?? undefined,
                             image_url: savedEvent.plateImagePath ?? undefined,
                         },
                         { id: 'system', email: 'system@ivis.internal' } as any,

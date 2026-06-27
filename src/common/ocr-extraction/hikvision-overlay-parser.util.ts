@@ -119,10 +119,14 @@ function normalizePlateType(raw: string | null | undefined): string | undefined 
 
 function normalizeVehicleBrand(raw: string | null | undefined): string | undefined {
     if (!raw?.trim()) return undefined;
-    const value = trimFieldValue(raw);
-    const word = value.split(/\s+/)[0];
-    if (!word || /^:/.test(word)) return undefined;
-    return word.charAt(0).toUpperCase() + word.slice(1);
+    // Keep the full brand (make + model, e.g. "GWM Haval") — trimFieldValue already
+    // bounds it to the next overlay label. Strip a stray leading colon only.
+    const value = trimFieldValue(raw).replace(/^:+\s*/, '').trim();
+    if (!value) return undefined;
+    return value
+        .split(/\s+/)
+        .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+        .join(' ');
 }
 
 const LABEL_SPECS: LabelSpec[] = [

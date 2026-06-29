@@ -89,6 +89,9 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'varchar', nullable: true })
   image_url?: string;
 
+  @Column({ type: 'varchar', nullable: true })
+  scene_image_url?: string;
+
   @Column({ type: 'varchar', length: 32, default: AnprCaptureStatus.PENDING, nullable: false })
   status!: AnprCaptureStatus;
 

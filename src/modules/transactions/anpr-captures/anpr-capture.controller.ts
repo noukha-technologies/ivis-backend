@@ -9,8 +9,13 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFiles,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+
+type UploadedImage = { buffer: Buffer; originalname: string };
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -33,7 +38,30 @@ export class AnprCaptureController {
   async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAnprCaptureDto) {
     const data = await this.anprCaptureService.create(createDto, actor);
     return { message: 'ANPR capture created successfully', data };
-    
+
+  }
+
+  @Post(':id/images')
+  @ApiOperation({ summary: 'Upload plate and/or scene images for an ANPR capture' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', type: String })
+  @ApiResponse({ status: 200, description: 'Images uploaded successfully.' })
+  @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'plate', maxCount: 1 },
+      { name: 'scene', maxCount: 1 },
+    ]),
+  )
+  async uploadImages(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @UploadedFiles() files: { plate?: UploadedImage[]; scene?: UploadedImage[] },
+  ) {
+    const data = await this.anprCaptureService.attachImages(id, {
+      plate: files?.plate?.[0]?.buffer,
+      scene: files?.scene?.[0]?.buffer,
+    });
+    return { message: 'ANPR capture images uploaded successfully', data };
   }
 
   @Get()

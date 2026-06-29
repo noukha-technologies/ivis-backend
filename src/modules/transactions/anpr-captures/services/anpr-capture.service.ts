@@ -21,6 +21,7 @@ import { Camera } from '../../../database/entity/camera.entity';
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 
 import { AnprOrchestrationService } from './anpr-orchestration.service';
+import { ImageProcessorService } from '../../../../common/shared/anpr/image-processor.service';
 import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
 import { AppointmentStatus } from 'src/common/enums/common.enums';
 
@@ -37,7 +38,42 @@ export class AnprCaptureService {
     private readonly appointmentDao: AppointmentDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly orchestrationService: AnprOrchestrationService,
+    private readonly imageProcessor: ImageProcessorService,
   ) { }
+
+  async attachImages(
+    id: string,
+    images: { plate?: Buffer; scene?: Buffer },
+  ): Promise<AnprCapture> {
+    const capture = await this.findOne(id);
+
+    if (!images.plate && !images.scene) {
+      return capture;
+    }
+
+    try {
+      const files: Record<string, Buffer> = {};
+      if (images.plate) files['licensePlatePicture'] = images.plate;
+      if (images.scene) files['detectionPicture'] = images.scene;
+
+      const saved = await this.imageProcessor.saveCompressedImages(files, capture.plate_number);
+
+      const merged = this.anprCaptureDao.merge(capture, {
+        ...(saved.plateImagePath ? { image_url: saved.plateImagePath } : {}),
+        ...(saved.sceneImagePath ? { scene_image_url: saved.sceneImagePath } : {}),
+      });
+      const result = await this.anprCaptureDao.save(merged);
+      this.logger.log(`ANPR capture images attached ID: ${result.id}`, AnprCaptureService.context);
+      return (await this.anprCaptureDao.findActiveById(result.id)) ?? result;
+    } catch (error) {
+      this.logger.error(
+        `Failed to attach ANPR capture images: ${(error as Error).message}`,
+        (error as Error).stack,
+        AnprCaptureService.context,
+      );
+      throw new DatabaseException('Failed to upload ANPR capture images. Please try again.');
+    }
+  }
 
   private async validateLineForCamera(lineId: string | undefined, camera: Camera): Promise<void> {
     if (!lineId) {

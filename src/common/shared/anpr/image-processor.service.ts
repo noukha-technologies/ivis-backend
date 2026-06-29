@@ -1,8 +1,10 @@
 import * as fs from "fs";
 import sharp from "sharp";
 import * as path from "path";
+import { randomBytes } from "crypto";
 import { Injectable } from "@nestjs/common";
 import { ProcessedAnprImagesDto } from "../../interfaces/anpr.interface";
+import { getUploadRoot } from "../../utils/file-storage.util";
 
 @Injectable()
 export class ImageProcessorService {
@@ -40,19 +42,23 @@ export class ImageProcessorService {
         const compressed = await this.compressAnprImages(files);
         const paths: { plateImagePath?: string; sceneImagePath?: string } = {};
 
-        const uploadDir = path.join(process.cwd(), "uploads");
+        const uploadDir = getUploadRoot();
         if (!fs.existsSync(uploadDir)) {
             fs.mkdirSync(uploadDir, { recursive: true });
         }
 
+        const safePlate = (plateNumber || "UNKNOWN").replace(/[^A-Za-z0-9]/g, "") || "UNKNOWN";
+        const uniqueName = (suffix: string) =>
+            `${safePlate}_${Date.now()}_${randomBytes(4).toString("hex")}_${suffix}.jpg`;
+
         if (compressed.plateImage) {
-            const filename = `${plateNumber}_${Date.now()}_plate.jpg`;
+            const filename = uniqueName("plate");
             fs.writeFileSync(path.join(uploadDir, filename), compressed.plateImage);
             paths.plateImagePath = `/uploads/${filename}`;
         }
 
         if (compressed.sceneImage) {
-            const filename = `${plateNumber}_${Date.now()}_scene.jpg`;
+            const filename = uniqueName("scene");
             fs.writeFileSync(path.join(uploadDir, filename), compressed.sceneImage);
             paths.sceneImagePath = `/uploads/${filename}`;
         }

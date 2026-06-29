@@ -707,6 +707,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "category" character varying(32)`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "scene_image_url" character varying`,
+    );
 
     // customers: align columns with entity — rename name → customer_name and
     // primary_vehicle_record_id → vehicle_record_id, add alternate_phone +
@@ -954,6 +957,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "category"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "scene_image_url"`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,

@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
@@ -8,6 +9,7 @@ import { AppLogger } from './common/logger/app.logger';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { buildValidationException } from './common/utils/validation-error.util.js';
+import { getUploadRoot } from './common/utils/file-storage.util';
 
 const NODE_ENV: string | undefined = process.env.NODE_ENV;
 const isDevelopment: boolean = NODE_ENV === 'development';
@@ -20,10 +22,13 @@ async function bootstrap() {
   const bootstrapLogger = new AppLogger();
 
   try {
-    const app = await NestFactory.create(AppModule, { bufferLogs: true });
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
     useContainer(app.select(AppModule), { fallbackOnErrors: true });
     const logger = app.get(AppLogger);
     app.useLogger(logger);
+
+    // Serve uploaded ANPR/job images. Static assets bypass the global API prefix.
+    app.useStaticAssets(getUploadRoot(), { prefix: '/uploads' });
 
     app.setGlobalPrefix(apiPrefix);
     app.useGlobalFilters(new HttpExceptionFilter());

@@ -106,6 +106,11 @@ export class CreateAnprCaptureDto {
   @IsString()
   image_url?: string;
 
+  @ApiPropertyOptional({ description: 'Compressed scene/vehicle image path', example: '/uploads/OM1024_scene.jpg' })
+  @IsOptional()
+  @IsString()
+  scene_image_url?: string;
+
   @ApiPropertyOptional({
     description: 'Capture lifecycle status',
     enum: ['Pending', 'Validated', 'Rejected'],

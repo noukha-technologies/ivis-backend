@@ -21,7 +21,7 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
   async findActiveById(id: string): Promise<AnprCapture | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { camera: true, rop_verifications: true },
+      relations: { camera: { line: { centre: true } }, rop_verifications: true },
     });
   }
 
@@ -32,6 +32,8 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>> {
     const qb = this.createQueryBuilder('anprCapture')
       .leftJoinAndSelect('anprCapture.camera', 'camera')
+      .leftJoinAndSelect('camera.line', 'cameraLine')
+      .leftJoinAndSelect('cameraLine.centre', 'cameraCentre')
       .leftJoinAndSelect(
         'anprCapture.rop_verifications',
         'rop_verifications',

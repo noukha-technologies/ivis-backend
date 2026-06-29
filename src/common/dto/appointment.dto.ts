@@ -75,17 +75,14 @@ export class CreateAppointmentDto {
   @IsString()
   id_number?: string;
 
-  @ApiProperty({
-    description: 'Vehicle VIN / chassis number (17-character alphanumeric)',
+  @ApiPropertyOptional({
+    description: 'Vehicle VIN / chassis number (optional; up to 17 alphanumeric chars)',
     example: 'JT2BF22K0W0123456',
   })
+  @IsOptional()
   @IsString({ message: 'chassis_no must be a string' })
-  @IsNotEmpty({ message: 'chassis_no is required' })
-  @Length(17, 17, { message: 'chassis_no must be exactly 17 characters' })
-  @Matches(/^[A-Za-z0-9]{17}$/, {
-    message: 'chassis_no must be a 17-character alphanumeric VIN code',
-  })
-  chassis_no!: string;
+  @Length(0, 17, { message: 'chassis_no must be at most 17 characters' })
+  chassis_no?: string;
 
   @ApiPropertyOptional({
     description: 'Oman Mulkiya ID (10 digits and 1 letter)',
@@ -128,6 +125,16 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsEnum(AppointmentTypes, { message: 'type must be a valid appointment type' })
   type?: AppointmentTypes;
+
+  @ApiPropertyOptional({ description: 'Vehicle body type (snapshot)', example: 'Sedan' })
+  @IsOptional()
+  @IsString({ message: 'vehicle_type must be a string' })
+  vehicle_type?: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle category — charge_categories master snowflake ID' })
+  @IsOptional()
+  @IsString({ message: 'charge_category_id must be a string' })
+  charge_category_id?: string;
 
   @ApiPropertyOptional({ description: 'Payment amount', example: 150.5 })
   @IsOptional()

@@ -44,14 +44,17 @@ export class WipeData1782020000000 implements MigrationInterface {
     // core link tables (deleted before master.lines they reference)
     '"core"."user_line_mappings"',
     '"core"."user_sessions"',
-    // master
+    // master — charges first (FKs → centres, vehicles, charge_categories)
+    '"master"."charges"',
     '"master"."admin_pc_line_mappings"',
     '"master"."cameras"',
     '"master"."admin_pcs"',
     '"master"."lines"',
+    // vehicles before charge_categories (vehicles.charge_category_id FK)
+    '"master"."vehicles"',
+    '"master"."charge_categories"',
     '"master"."centres"',
     '"master"."tests"',
-    '"master"."vehicles"',
   ] as const;
 
   /** Tables intentionally KEPT (identity / access control). */

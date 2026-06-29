@@ -123,6 +123,6 @@ export class CreateAnprCaptureDto {
 }
 
 export class UpdateAnprCaptureDto extends PartialType(
-  OmitType(CreateAnprCaptureDto, ['capture_id', 'line_id'] as const)
+  OmitType(CreateAnprCaptureDto, ['capture_id'] as const)
 ) { }
 

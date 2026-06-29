@@ -24,10 +24,10 @@ export class CreateChargeCategoryDto {
   @IsNotEmpty({ message: 'vehicle_weight is required' })
   vehicle_weight!: string;
 
-  @ApiProperty({ description: 'Engine capacity or equipment type', example: 'Less than 1500cc' })
+  @ApiPropertyOptional({ description: 'Engine capacity or equipment type', example: 'Less than 1500cc' })
+  @IsOptional()
   @IsString({ message: 'engine_capacity must be a string' })
-  @IsNotEmpty({ message: 'engine_capacity is required' })
-  engine_capacity!: string;
+  engine_capacity?: string;
 
   @ApiProperty({ description: 'Category fees (OMR)', example: 10.5 })
   @IsNumber({}, { message: 'fees must be a number' })

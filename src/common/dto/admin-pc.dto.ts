@@ -24,9 +24,6 @@ export class CreateAdminPcDto {
   @ApiProperty({ description: 'Admin PC name (alphabets only)', example: 'MCT Reception' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'name must contain only alphabets',
-  })
   name!: string;
 
 

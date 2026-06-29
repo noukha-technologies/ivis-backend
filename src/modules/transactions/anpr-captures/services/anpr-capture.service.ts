@@ -2,8 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
+
+import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
+import { AppointmentStatus } from 'src/common/enums/common.enums';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
@@ -22,8 +25,6 @@ import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 
 import { AnprOrchestrationService } from './anpr-orchestration.service';
 import { ImageProcessorService } from '../../../../common/shared/anpr/image-processor.service';
-import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
-import { AppointmentStatus } from 'src/common/enums/common.enums';
 
 @Injectable()
 export class AnprCaptureService {
@@ -31,14 +32,15 @@ export class AnprCaptureService {
 
   constructor(
     private readonly logger: AppLogger,
+
     private readonly lineDao: LineDao,
     private readonly cameraDao: CameraDao,
     private readonly customerDao: CustomerDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly orchestrationService: AnprOrchestrationService,
     private readonly imageProcessor: ImageProcessorService,
+    private readonly orchestrationService: AnprOrchestrationService,
   ) { }
 
   async attachImages(
@@ -213,12 +215,17 @@ export class AnprCaptureService {
         throw new ResourceNotFoundException('Anpr', `No data found for given ${id}`)
       }
 
+      // If the line is being (re)assigned, it must belong to the camera's centre.
+      if (updateDto.line_id && updateDto.line_id !== capture.line_id && capture.camera) {
+        await this.validateLineForCamera(updateDto.line_id, capture.camera);
+      }
+
       const merged = this.anprCaptureDao.merge(capture, {
         ...updateDto,
         ...(updateDto.capture_time ? { capture_time: new Date(updateDto.capture_time) } : {}),
         status: updateDto.status ?? AnprCaptureStatus.VALIDATED,
       });
-      
+
       const saved = await this.anprCaptureDao.save(merged);
 
       // Queue an appointment only when the capture is actually validated.
@@ -258,6 +265,10 @@ export class AnprCaptureService {
     const vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plate);
     const customer = await this.customerDao.findActiveByPhone(`ANPR-${plate.slice(0, 26)}`);
 
+    // Carry the capture's line (and its centre) onto the appointment so the queue
+    // shows Centre / Line. The chosen line's centre is resolved from the line master.
+    const line = capture.line_id ? await this.lineDao.findActiveById(capture.line_id) : null;
+
     const nextId = await this.appointmentDao.getNextAppointmentId();
     const appointment = this.appointmentDao.create({
       id: generateSnowflakeId(),
@@ -265,6 +276,8 @@ export class AnprCaptureService {
       anpr_capture_id: capture.id,
       customer_id: customer?.id ?? null,
       vehicle_record_id: vehicleRecord?.id ?? null,
+      centre_id: line?.centre_id ?? null,
+      line_id: capture.line_id ?? null,
       plate_number: plate,
       customer_name: customer?.customer_name,
       status: AppointmentStatus.QUEUED,

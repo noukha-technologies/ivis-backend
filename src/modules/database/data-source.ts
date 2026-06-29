@@ -28,6 +28,10 @@ import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 
 dotenv.config();
 
+// Canonical timezone for the migration CLI (matches the app — store UTC).
+process.env.TZ = process.env.TZ || 'UTC';
+process.env.PGTZ = process.env.PGTZ || 'UTC';
+
 const databaseOptions = buildDatabaseOptions();
 
 export const AppDataSource = new DataSource({

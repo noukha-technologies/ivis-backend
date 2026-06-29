@@ -8,10 +8,10 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Line } from './line.entity';
-import { User } from './user.entity';
 import { ICentreMasterFields } from '../../../common/interfaces/master.interface';
 
+import { Line } from './line.entity';
+import { User } from './user.entity';
 @Entity({ name: 'centres', schema: 'master' })
 export class Centre implements ICentreMasterFields {
   @SnowflakePrimaryColumn()
@@ -30,6 +30,9 @@ export class Centre implements ICentreMasterFields {
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;
+
+  @Column({ type: 'boolean', default: false })
+  auto_submit!: boolean;
 
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;

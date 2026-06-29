@@ -1,12 +1,14 @@
-/** Job lifecycle statuses (stored as varchar). UI: Created → Test & Submit */
+/**
+ * Job lifecycle statuses (stored as varchar), per the Opal scope:
+ * Pending → In Progress → Completed → Submitted → Closed.
+ * Pass/Fail/Redo is NOT a status — it lives in `overall_result` (JOB_OVERALL_RESULTS).
+ */
 export const JOB_STATUSES = [
-  'Queued',
   'Pending',
-  'Ready',
-  'InProgress',
-  'Passed',
-  'Failed',
-  'Cancelled',
+  'In Progress',
+  'Completed',
+  'Submitted',
+  'Closed',
 ] as const;
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
@@ -16,8 +18,8 @@ export const JOB_SOURCES = ['Booked', 'Walk-In', 'ANPR'] as const;
 
 export type JobSource = (typeof JOB_SOURCES)[number];
 
-/** Set when OUT file is processed */
-export const JOB_OVERALL_RESULTS = ['Passed', 'Failed'] as const;
+/** Set when OUT file is processed (test outcome — separate from lifecycle status) */
+export const JOB_OVERALL_RESULTS = ['Passed', 'Failed', 'Redo'] as const;
 
 export type JobOverallResult = (typeof JOB_OVERALL_RESULTS)[number];
 

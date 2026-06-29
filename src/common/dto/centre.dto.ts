@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -42,6 +43,14 @@ export class CreateCentreDto {
   @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
   @IsOptional()
   status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Auto-submit completed jobs to ROP for this centre',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'auto_submit must be a boolean' })
+  auto_submit?: boolean;
 
 }
 

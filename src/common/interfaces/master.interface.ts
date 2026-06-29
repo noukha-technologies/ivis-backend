@@ -4,6 +4,7 @@ export interface ICentreMasterFields {
     name: string;
     code: string;
     description?: string;
+    auto_submit: boolean;
     status: string;
     created_by?: string;
     created_at: Date;
@@ -73,7 +74,7 @@ export interface IChargeCategoryMasterFields {
     id: string;
     category_id: number;
     vehicle_weight: string;
-    engine_capacity: string;
+    engine_capacity?: string;
     fees: number;
     status: string;
     created_by?: string;

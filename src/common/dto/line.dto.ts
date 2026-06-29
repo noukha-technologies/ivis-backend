@@ -22,9 +22,6 @@ export class CreateLineDto {
   @ApiProperty({ description: 'Line name (alphabets only)', example: 'Line One' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'name must contain only alphabets',
-  })
   name!: string;
 
   @ApiProperty({ description: 'Line unique code (alphanumeric)', example: 'LN001' })

@@ -19,6 +19,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     centre: true,
     line: true,
     paymentType: true,
+    chargeCategory: true,
   } as const;
 
   constructor(
@@ -55,7 +56,8 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
       .leftJoinAndSelect('appointment.centre', 'centre')
       .leftJoinAndSelect('appointment.line', 'line')
-      .leftJoinAndSelect('appointment.paymentType', 'paymentType');
+      .leftJoinAndSelect('appointment.paymentType', 'paymentType')
+      .leftJoinAndSelect('appointment.chargeCategory', 'chargeCategory');
 
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(query, {
       searchFields: [

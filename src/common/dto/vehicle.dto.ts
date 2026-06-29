@@ -7,7 +7,7 @@ import {
   Min
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { VEHICLE_MASTER_STATUSES } from '../enums/vehicle-master.constants';
+import { VEHICLE_MASTER_STATUSES, VEHICLE_TYPES } from '../enums/vehicle-master.constants';
 
 export class CreateVehicleDto {
   @ApiPropertyOptional({
@@ -41,6 +41,20 @@ export class CreateVehicleDto {
   @IsString({ message: 'vin no must be a string' })
   @IsNotEmpty({ message: 'vin no is required' })
   vin_no!: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle body type', enum: VEHICLE_TYPES, example: 'Sedan' })
+  @IsString({ message: 'vehicle_type must be a string' })
+  @IsIn(VEHICLE_TYPES, { message: 'vehicle_type must be a valid vehicle type' })
+  @IsOptional()
+  vehicle_type?: string;
+
+  @ApiPropertyOptional({
+    description: 'Vehicle category — charge_categories master snowflake ID',
+    example: '2058858609483202561',
+  })
+  @IsString({ message: 'charge_category_id must be a string' })
+  @IsOptional()
+  charge_category_id?: string;
 
   @ApiPropertyOptional({
     description: 'Vehicle master status',

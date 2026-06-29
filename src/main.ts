@@ -11,6 +11,11 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { buildValidationException } from './common/utils/validation-error.util.js';
 import { getUploadRoot } from './common/utils/file-storage.util';
 
+// Canonical timezone: store/serve timestamps in UTC regardless of host machine.
+// The admin panel renders them in Oman time (Asia/Muscat). Override via .env if needed.
+process.env.TZ = process.env.TZ || 'UTC';
+process.env.PGTZ = process.env.PGTZ || 'UTC';
+
 const NODE_ENV: string | undefined = process.env.NODE_ENV;
 const isDevelopment: boolean = NODE_ENV === 'development';
 const isProduction: boolean = NODE_ENV === 'production';

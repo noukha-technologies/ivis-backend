@@ -567,7 +567,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "id"               bigint                  NOT NULL,
         "category_id"      integer                 NOT NULL,
         "vehicle_weight"   character varying(128)  NOT NULL,
-        "engine_capacity"  character varying(128)  NOT NULL,
+        "engine_capacity"  character varying(128),
         "fees"             numeric(12,3)           NOT NULL DEFAULT 0,
         "status"           character varying       NOT NULL DEFAULT 'Active',
         "created_by"       character varying,
@@ -580,6 +580,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     `);
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CC_CATEGORY_ID" ON "master"."charge_categories" ("category_id")`,
+    );
+    // engine_capacity is optional (existing DBs created it NOT NULL).
+    await queryRunner.query(
+      `ALTER TABLE "master"."charge_categories" ALTER COLUMN "engine_capacity" DROP NOT NULL`,
     );
 
     // charges: link to charge_categories master, relax legacy free-text category
@@ -607,6 +611,83 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         ON "master"."charges" ("centre_id", "vehicle_id", "charge_category_id")
         WHERE "is_deleted" = false
     `);
+
+    // vehicles: add body type + category (FK to charge_categories master)
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" ADD COLUMN IF NOT EXISTS "vehicle_type" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" ADD COLUMN IF NOT EXISTS "charge_category_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_VEHICLE_CHARGE_CATEGORY_ID" ON "master"."vehicles" ("charge_category_id")`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" DROP CONSTRAINT IF EXISTS "FK_vehicles_charge_category_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "master"."vehicles"
+      ADD CONSTRAINT "FK_vehicles_charge_category_id"
+      FOREIGN KEY ("charge_category_id") REFERENCES "master"."charge_categories"("id") ON DELETE NO ACTION
+    `);
+
+    // centres: auto-submit completed jobs to ROP (centre-level config).
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "auto_submit" boolean NOT NULL DEFAULT false`,
+    );
+
+    // Code uniqueness must ignore soft-deleted rows: replace ALL plain UNIQUE
+    // constraints/indexes on `code` with a PARTIAL unique index
+    // (WHERE is_deleted = false), so a `code` can be reused after its owning row
+    // is soft-deleted. Stray/legacy index names (e.g. IDX_LINES_CODE) are removed
+    // generically by inspecting the catalog, not by hardcoded names.
+    const codeUniques: Array<{ table: string; index: string }> = [
+      { table: 'vehicles', index: 'IDX_VEHICLE_CODE' },
+      { table: 'tests', index: 'IDX_TEST_CODE' },
+      { table: 'centres', index: 'IDX_CENTRE_CODE' },
+      { table: 'lines', index: 'IDX_LINE_CODE' },
+      { table: 'admin_pcs', index: 'IDX_ADMIN_PC_CODE' },
+      { table: 'cameras', index: 'IDX_CAMERA_CODE' },
+      { table: 'payments', index: 'IDX_PAYMENT_CODE' },
+      { table: 'payment_types', index: 'IDX_PT_CODE' },
+    ];
+    for (const u of codeUniques) {
+      // Drop every non-partial unique constraint/index on the `code` column,
+      // whatever it's named, then (re)create the canonical partial unique index.
+      await queryRunner.query(`
+        DO $$
+        DECLARE r record;
+        BEGIN
+          FOR r IN
+            SELECT con.conname
+            FROM pg_constraint con
+            JOIN pg_class t ON t.oid = con.conrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = 'master' AND t.relname = '${u.table}'
+              AND con.contype = 'u'
+              AND pg_get_constraintdef(con.oid) ILIKE '%(code)%'
+          LOOP
+            EXECUTE format('ALTER TABLE "master".%I DROP CONSTRAINT %I', '${u.table}', r.conname);
+          END LOOP;
+
+          FOR r IN
+            SELECT i.relname AS idxname
+            FROM pg_index x
+            JOIN pg_class i ON i.oid = x.indexrelid
+            JOIN pg_class t ON t.oid = x.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            WHERE n.nspname = 'master' AND t.relname = '${u.table}'
+              AND x.indisunique AND x.indpred IS NULL
+              AND pg_get_indexdef(x.indexrelid) ILIKE '%(code)%'
+          LOOP
+            EXECUTE format('DROP INDEX IF EXISTS "master".%I', r.idxname);
+          END LOOP;
+        END $$;
+      `);
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "${u.index}" ON "master"."${u.table}" ("code") WHERE "is_deleted" = false`,
+      );
+    }
   }
 
   // ─── transaction schema alterations ──────────────────────────────────────────
@@ -653,6 +734,25 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_mode"`,
     );
+
+    // appointments: vehicle attributes snapshot — body type + category (FK to charge_categories)
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "vehicle_type" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "charge_category_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_CHARGE_CATEGORY_ID" ON "transaction"."appointments" ("charge_category_id")`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_charge_category_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "transaction"."appointments"
+      ADD CONSTRAINT "FK_appointments_charge_category_id"
+      FOREIGN KEY ("charge_category_id") REFERENCES "master"."charge_categories"("id") ON DELETE NO ACTION
+    `);
 
     // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
     // free-text varchar column). Free-text values cannot cast to bigint, so the
@@ -971,6 +1071,18 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_type_id"`,
     );
     await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_charge_category_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_CHARGE_CATEGORY_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "charge_category_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "vehicle_type"`,
+    );
+    await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "type"`,
     );
     await queryRunner.query(
@@ -988,9 +1100,41 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
+    // Restore plain (non-partial) unique indexes on code.
+    const codeUniques: Array<{ table: string; index: string }> = [
+      { table: 'vehicles', index: 'IDX_VEHICLE_CODE' },
+      { table: 'tests', index: 'IDX_TEST_CODE' },
+      { table: 'centres', index: 'IDX_CENTRE_CODE' },
+      { table: 'lines', index: 'IDX_LINE_CODE' },
+      { table: 'admin_pcs', index: 'IDX_ADMIN_PC_CODE' },
+      { table: 'cameras', index: 'IDX_CAMERA_CODE' },
+      { table: 'payments', index: 'IDX_PAYMENT_CODE' },
+    ];
+    for (const u of codeUniques) {
+      await queryRunner.query(`DROP INDEX IF EXISTS "master"."${u.index}"`);
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "${u.index}" ON "master"."${u.table}" ("code")`,
+      );
+    }
+
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_CODE"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_PAYMENT_TYPE_ID"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."payment_types"`);
+
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "auto_submit"`,
+    );
+
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" DROP CONSTRAINT IF EXISTS "FK_vehicles_charge_category_id"`,
+    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_VEHICLE_CHARGE_CATEGORY_ID"`);
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "charge_category_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "vehicle_type"`,
+    );
 
     await queryRunner.query(
       `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_charge_category_id"`,

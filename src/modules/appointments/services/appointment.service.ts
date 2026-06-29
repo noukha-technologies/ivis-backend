@@ -89,6 +89,8 @@ export class AppointmentService {
         notes: createDto.notes,
         payment_type_id: createDto.payment_type_id,
         type: createDto.type,
+        vehicle_type: createDto.vehicle_type,
+        charge_category_id: createDto.charge_category_id,
         created_by: getCreatedById(actor),
       });
 

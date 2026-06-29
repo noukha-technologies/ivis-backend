@@ -20,7 +20,7 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
   }
 
   async findActiveById(id: string): Promise<Vehicle | null> {
-    return this.findOne({ where: { id, is_deleted: false } });
+    return this.findOne({ where: { id, is_deleted: false }, relations: { chargeCategory: true } });
   }
 
   async findByCode(code: string): Promise<Vehicle | null> {

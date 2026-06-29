@@ -20,6 +20,7 @@ import { Payments } from './payments.entity';
 import { PaymentType } from './payment-type.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
+import { ChargeCategory } from './charge-category.entity';
 
 @Entity({ name: 'appointments', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_APPOINTMENT_APPOINTMENT_ID', ['appointment_id'], { unique: true })
@@ -102,6 +103,17 @@ export class Appointment {
 
   @Column({ type: 'varchar', length: 16, nullable: true })
   type?: string;
+
+  /* Vehicle attributes (snapshot from the Vehicle Master) */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  vehicle_type?: string;
+
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  charge_category_id?: string | null;
+
+  @ManyToOne(() => ChargeCategory, { nullable: true })
+  @JoinColumn({ name: 'charge_category_id' })
+  chargeCategory?: ChargeCategory;
 
   @Column({ type: 'timestamp', nullable: false })
   appointment_at!: Date;

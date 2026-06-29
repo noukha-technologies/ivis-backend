@@ -29,8 +29,8 @@ export class Line implements ILineMasterFields {
   @Column({ type: 'varchar', nullable: false })
   name!: string;
 
-  @Column({ type: 'varchar', unique: true, nullable: false })
-  @Index('IDX_LINE_CODE', { unique: true })
+  @Column({ type: 'varchar', nullable: false })
+  @Index('IDX_LINE_CODE', { unique: true, where: '"is_deleted" = false' })
   code!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })

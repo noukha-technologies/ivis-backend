@@ -718,69 +718,38 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "IDX_CUSTOMER_MULKIYA_ID" ON "transaction"."customers" ("mulkiya_id")`,
     );
 
-    // appointments: type column is nullable per the entity — a queued ANPR
-    // appointment is created before any payment, so it must allow NULL.
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "type" character varying(64)`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ALTER COLUMN "type" DROP NOT NULL`,
-    );
-    // appointments: payment mode now references the payment_types master (FK),
-    // replacing the legacy free-text payment_mode column.
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "payment_type_id" bigint`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_PAYMENT_TYPE_ID" ON "transaction"."appointments" ("payment_type_id")`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,
-    );
-    await queryRunner.query(`
-      ALTER TABLE "transaction"."appointments"
-      ADD CONSTRAINT "FK_appointments_payment_type_id"
-      FOREIGN KEY ("payment_type_id") REFERENCES "master"."payment_types"("id") ON DELETE NO ACTION
-    `);
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_mode"`,
-    );
-
-    // appointments: vehicle attributes snapshot — body type + category (FK to charge_categories)
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "vehicle_type" character varying(64)`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "charge_category_id" bigint`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_CHARGE_CATEGORY_ID" ON "transaction"."appointments" ("charge_category_id")`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_charge_category_id"`,
-    );
-    await queryRunner.query(`
-      ALTER TABLE "transaction"."appointments"
-      ADD CONSTRAINT "FK_appointments_charge_category_id"
-      FOREIGN KEY ("charge_category_id") REFERENCES "master"."charge_categories"("id") ON DELETE NO ACTION
-    `);
-
-    // appointments: booking kind (Walk-in = manual entry, Online = ANPR-queued /
-    // online API). Backfill existing rows: ANPR-queued (has anpr_capture_id) = Online.
+    // appointments: thin booking record. The denormalized customer/vehicle
+    // snapshot columns are dropped — those details are read through the customer
+    // / vehicle_record / anpr_capture relations. Only the booking kind is kept
+    // on the row (the FK id columns remain). booking_type is NOT backfilled from
+    // anpr_capture_id: walk-ins also create an ANPR capture, so that heuristic
+    // wrongly flipped Walk-in → Online.
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "booking_type" character varying(16) NOT NULL DEFAULT 'Walk-in'`,
     );
     await queryRunner.query(
-      `UPDATE "transaction"."appointments" SET "booking_type" = 'Online' WHERE "anpr_capture_id" IS NOT NULL`,
-    );
-
-    // appointments: owner name + plate colour (auto-filled from vehicle records).
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "owner_name" character varying(128)`,
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_type_id"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "plate_color" character varying(64)`,
+      `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_charge_category_id"`,
     );
+    for (const col of [
+      'type',
+      'payment_type_id',
+      'payment_mode',
+      'vehicle_type',
+      'charge_category_id',
+      'owner_name',
+      'plate_color',
+      'plate_number',
+      'customer_name',
+      'customer_phone',
+      'id_number',
+    ]) {
+      await queryRunner.query(
+        `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "${col}"`,
+      );
+    }
 
     // jobs: driver + invoice + parsed OUT test results (job-management flow).
     await queryRunner.query(

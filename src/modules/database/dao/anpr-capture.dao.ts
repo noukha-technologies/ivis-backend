@@ -29,6 +29,14 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
     return this.findOne({ where: { anpr_capture_id: captureId, is_deleted: false } });
   }
 
+  /** Most recent capture for a plate (used to source plate colour for walk-ins). */
+  async findLatestByPlate(plateNumber: string): Promise<AnprCapture | null> {
+    return this.findOne({
+      where: { plate_number: plateNumber, is_deleted: false },
+      order: { capture_time: 'DESC' },
+    });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>> {
     const qb = this.createQueryBuilder('anprCapture')
       .leftJoinAndSelect('anprCapture.camera', 'camera')

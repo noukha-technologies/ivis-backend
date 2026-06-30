@@ -12,7 +12,9 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { AppointmentStatus, AppointmentTypes, BookingType } from '../enums/common.enums';
+import { normalizeOmanPhone } from '../shared/phone.util';
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -62,11 +64,12 @@ export class CreateAppointmentDto {
   })
   customer_name!: string;
 
-  @ApiProperty({ description: 'Customer phone (8 digits)', example: '+968 91234567' })
+  @ApiProperty({ description: 'Customer phone (Oman, stored as +968 XXXXXXXX)', example: '+968 91234567' })
+  @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString({ message: 'customer_phone must be a string' })
   @IsNotEmpty({ message: 'customer_phone is required' })
-  @Matches(/^(\+968\s?)?\d{8}$/, {
-    message: 'customer_phone must be an 8-digit number (example: +968 91234567)',
+  @Matches(/^\+968\s\d{8}$/, {
+    message: 'customer_phone must be a valid 8-digit Oman number (example: +968 91234567)',
   })
   customer_phone!: string;
 
@@ -99,6 +102,7 @@ export class CreateAppointmentDto {
     example: '1234567890A',
   })
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.replace(/\s+/g, '').toUpperCase() : value))
   @Matches(/^(?=(?:.*\d){10}(?:.*[A-Za-z]){1}$)[A-Za-z0-9]{11}$/, {
     message: 'mulkiya_id must contain 10 digits and 1 letter',
   })

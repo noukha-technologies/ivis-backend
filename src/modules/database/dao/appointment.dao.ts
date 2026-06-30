@@ -18,8 +18,6 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     vehicleRecord: { vehicleMaster: true },
     centre: true,
     line: true,
-    paymentType: true,
-    chargeCategory: true,
   } as const;
 
   constructor(
@@ -53,20 +51,18 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     const qb = this.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.customer', 'customer')
       .leftJoinAndSelect('appointment.vehicleRecord', 'vehicleRecord')
+      .leftJoinAndSelect('appointment.vehicleRecord.vehicleMaster', 'vehicleMaster')
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
       .leftJoinAndSelect('appointment.centre', 'centre')
-      .leftJoinAndSelect('appointment.line', 'line')
-      .leftJoinAndSelect('appointment.paymentType', 'paymentType')
-      .leftJoinAndSelect('appointment.chargeCategory', 'chargeCategory');
+      .leftJoinAndSelect('appointment.line', 'line');
 
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(query, {
       searchFields: [
         'status',
-        'plate_number',
-        'customer_name',
-        'customer_phone',
         'customer.customer_name',
+        'customer.phone',
         'vehicleRecord.plate_number',
+        'anprCapture.plate_number',
       ],
       allowedSortFields: [
         'appointment_id',

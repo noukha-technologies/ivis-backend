@@ -9,6 +9,7 @@ export interface IAnprCaptureDao {
   merge(entity: AnprCapture, entityLike: DeepPartial<AnprCapture>): AnprCapture;
   findActiveById(id: string): Promise<AnprCapture | null>;
   findByCaptureId(captureId: number): Promise<AnprCapture | null>;
+  findLatestByPlate(plateNumber: string): Promise<AnprCapture | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>>;
   getNextCaptureId(): Promise<number>;
 }

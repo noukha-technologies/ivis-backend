@@ -262,15 +262,35 @@ export class AnprCaptureService {
     }
 
     const plate = capture.plate_number;
-    const vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plate);
+
+    // Ensure a vehicle record exists for the plate and carries the ANPR vehicle
+    // type (#6 — the type entered on the ANPR capture flows into the records
+    // master). Created if missing, updated when the capture has a newer type.
+    let vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plate);
+    if (!vehicleRecord) {
+      vehicleRecord = await this.vehicleRecordDao.save(
+        this.vehicleRecordDao.create({
+          id: generateSnowflakeId(),
+          vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
+          plate_number: plate,
+          vehicle_type: capture.vehicle_type ?? undefined,
+          created_by: getCreatedById(actor),
+        }),
+      );
+    } else if (capture.vehicle_type && capture.vehicle_type !== vehicleRecord.vehicle_type) {
+      vehicleRecord = await this.vehicleRecordDao.save(
+        this.vehicleRecordDao.merge(vehicleRecord, { vehicle_type: capture.vehicle_type }),
+      );
+    }
 
     // Carry the capture's line (and its centre) onto the appointment so the queue
     // shows Centre / Line. The chosen line's centre is resolved from the line master.
     const line = capture.line_id ? await this.lineDao.findActiveById(capture.line_id) : null;
 
     // Check the third-party online appointment API by plate: if the plate is a
-    // pre-booked online appointment, mark it Online (and use that data); otherwise
-    // it's a direct Walk-in. (Returns null until the integration is configured.)
+    // pre-booked online appointment, mark it Online; otherwise it's a direct
+    // Walk-in. (Returns null until the integration is configured.) Customer
+    // details are entered later by the operator (thin appointment row).
     const online = await this.onlineAppointmentApi.findByPlate(plate);
 
     const nextId = await this.appointmentDao.getNextAppointmentId();
@@ -282,12 +302,7 @@ export class AnprCaptureService {
       vehicle_record_id: vehicleRecord?.id ?? null,
       centre_id: line?.centre_id ?? null,
       line_id: capture.line_id ?? null,
-      plate_number: plate,
       booking_type: online ? BookingType.ONLINE : BookingType.WALK_IN,
-      customer_name: online?.customer_name,
-      customer_phone: online?.customer_phone,
-      id_number: online?.id_number,
-      vehicle_type: online?.vehicle_type,
       status: AppointmentStatus.QUEUED,
       appointment_at: online?.appointment_at ? new Date(online.appointment_at) : new Date(),
       created_by: getCreatedById(actor),

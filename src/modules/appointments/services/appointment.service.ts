@@ -66,13 +66,17 @@ export class AppointmentService {
 
     const customer = await this.customerDao.findByVehicleRecordId(record.id);
 
+    // Plate colour is sourced from the ANPR capture (camera read); fall back to
+    // the vehicle record if the latest capture has none.
+    const latestCapture = await this.anprCaptureDao.findLatestByPlate(p);
+
     return {
       plate_number: record.plate_number,
       owner_name: customer?.owner_name ?? customer?.customer_name ?? null,
       customer_name: customer?.customer_name ?? null,
       customer_phone: customer?.phone ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
-      plate_color: record.plate_color ?? null,
+      plate_color: latestCapture?.plate_color ?? record.plate_color ?? null,
       vehicle_type: record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
       chassis_no: record.chassis_no ?? null,
       charge_category_id: record.vehicleMaster?.charge_category_id ?? null,
@@ -95,23 +99,30 @@ export class AppointmentService {
         }
       }
 
-      let customerId = createDto.customer_id;
-      let vehicleRecordId = createDto.vehicle_record_id;
+      // Resolve the plate (from the DTO or the linked ANPR capture).
       let plateNumber = createDto.plate_number;
-
+      let capture = null;
       if (createDto.anpr_capture_id) {
-        const capture = await this.anprCaptureDao.findActiveById(createDto.anpr_capture_id);
+        capture = await this.anprCaptureDao.findActiveById(createDto.anpr_capture_id);
         if (!capture) {
           throw new ResourceNotFoundException('AnprCapture', createDto.anpr_capture_id);
         }
         plateNumber = plateNumber || capture.plate_number;
       }
 
-      if (createDto.sync_customer !== false) {
-        const synced = await this.syncCustomerFromAppointment(createDto, plateNumber, actor);
-        customerId = synced.customerId;
-        vehicleRecordId = synced.vehicleRecordId;
-      }
+      // Ensure a vehicle record exists for the plate and carries the ANPR/DTO
+      // vehicle type + chassis (#6 — ANPR vehicle type flows into the record).
+      const vehicleRecordId = await this.ensureVehicleRecord(
+        createDto.vehicle_record_id,
+        plateNumber,
+        createDto.vehicle_type ?? capture?.vehicle_type ?? undefined,
+        createDto.chassis_no,
+        actor,
+      );
+
+      // Create / link the customer with all entered details (#4) and link it to
+      // the vehicle record. The appointment then only stores the customer id.
+      const customerId = await this.ensureCustomer(createDto, vehicleRecordId, actor);
 
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
@@ -121,20 +132,10 @@ export class AppointmentService {
         vehicle_record_id: vehicleRecordId,
         centre_id: createDto.centre_id,
         line_id: createDto.line_id,
-        plate_number: plateNumber,
-        customer_name: createDto.customer_name,
-        customer_phone: createDto.customer_phone,
-        id_number: createDto.id_number,
-        owner_name: createDto.owner_name,
-        plate_color: createDto.plate_color,
         appointment_at: new Date(createDto.appointment_at),
         status: AppointmentStatus.QUEUED,
         notes: createDto.notes,
-        payment_type_id: createDto.payment_type_id,
-        type: createDto.type,
         booking_type: createDto.booking_type ?? BookingType.WALK_IN,
-        vehicle_type: createDto.vehicle_type,
-        charge_category_id: createDto.charge_category_id,
         created_by: getCreatedById(actor),
       });
 
@@ -182,25 +183,36 @@ export class AppointmentService {
     const appointment = await this.findOne(id);
     await this.validateReferences(updateDto);
 
-    if (updateDto.sync_customer !== false && (updateDto.customer_name || updateDto.customer_id)) {
-      await this.syncCustomerFromAppointment(
-        {
-          ...updateDto,
-          customer_id: updateDto.customer_id ?? appointment.customer_id ?? undefined,
-          anpr_capture_id: updateDto.anpr_capture_id ?? appointment.anpr_capture_id ?? undefined,
-          customer_name: updateDto.customer_name ?? appointment.customer_name ?? '',
-          customer_phone: updateDto.customer_phone ?? appointment.customer_phone ?? '',
-          id_number: updateDto.id_number ?? appointment.id_number,
-          chassis_no: updateDto.chassis_no,
-          mulkiya_id: updateDto.mulkiya_id,
-        },
-        updateDto.plate_number ?? appointment.plate_number,
-        actor,
-      );
-    }
+    // Refresh the vehicle record (vehicle type / chassis) when those change (#6).
+    const vehicleRecordId = await this.ensureVehicleRecord(
+      updateDto.vehicle_record_id ?? appointment.vehicle_record_id ?? undefined,
+      updateDto.plate_number ?? appointment.vehicleRecord?.plate_number,
+      updateDto.vehicle_type,
+      updateDto.chassis_no,
+      actor,
+    );
 
+    // Update the linked customer's details (#4). Reuse the existing customer id.
+    const customerId =
+      updateDto.sync_customer !== false
+        ? await this.ensureCustomer(
+            { ...updateDto, customer_id: updateDto.customer_id ?? appointment.customer_id ?? undefined },
+            vehicleRecordId,
+            actor,
+          )
+        : (appointment.customer_id ?? undefined);
+
+    // Only the appointment's own columns are merged — booking_type is left
+    // untouched unless explicitly provided (#5: never silently flip Walk-in).
     const merged = this.appointmentDao.merge(appointment, {
-      ...updateDto,
+      ...(updateDto.anpr_capture_id !== undefined ? { anpr_capture_id: updateDto.anpr_capture_id } : {}),
+      ...(customerId !== undefined ? { customer_id: customerId } : {}),
+      ...(vehicleRecordId !== undefined ? { vehicle_record_id: vehicleRecordId } : {}),
+      ...(updateDto.centre_id !== undefined ? { centre_id: updateDto.centre_id } : {}),
+      ...(updateDto.line_id !== undefined ? { line_id: updateDto.line_id } : {}),
+      ...(updateDto.booking_type !== undefined ? { booking_type: updateDto.booking_type } : {}),
+      ...(updateDto.status !== undefined ? { status: updateDto.status } : {}),
+      ...(updateDto.notes !== undefined ? { notes: updateDto.notes } : {}),
       ...(updateDto.appointment_at ? { appointment_at: new Date(updateDto.appointment_at) } : {}),
     });
 
@@ -214,63 +226,99 @@ export class AppointmentService {
     await this.appointmentDao.save(appointment);
   }
 
-  private async syncCustomerFromAppointment(
-    dto: Pick<
-      CreateAppointmentDto,
-      | 'customer_id'
-      | 'anpr_capture_id'
-      | 'customer_name'
-      | 'customer_phone'
-      | 'id_number'
-      | 'mulkiya_id'
-      | 'vehicle_record_id'
-    > & {
-      chassis_no?: string;
-    },
+  /**
+   * Ensure a vehicle record exists for the plate and reflects the latest vehicle
+   * type / chassis (ANPR or operator entered). Returns the record id, or the
+   * passed id / undefined when there is no plate to resolve.
+   */
+  private async ensureVehicleRecord(
+    existingRecordId: string | null | undefined,
     plateNumber: string | undefined,
+    vehicleType: string | undefined,
+    chassisNo: string | undefined,
     actor: UserContext,
-  ): Promise<{ customerId: string; vehicleRecordId?: string }> {
-    let vehicleRecordId = dto.vehicle_record_id;
-
-    if (dto.anpr_capture_id) {
-      // const rop = await this.vehicleIntakeService.findLatestRopByCaptureId(dto.anpr_capture_id);
-      // const capture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
-      // if (rop && capture) {
-      //   const record = await this.vehicleIntakeService.upsertVehicleRecordFromRop(rop, capture, actor);
-      //   vehicleRecordId = record.id;
-      // }
+  ): Promise<string | undefined> {
+    if (existingRecordId) {
+      const record = await this.vehicleRecordDao.findActiveById(existingRecordId);
+      if (record) {
+        const merged = this.vehicleRecordDao.merge(record, {
+          vehicle_type: vehicleType ?? record.vehicle_type,
+          chassis_no: chassisNo ?? record.chassis_no,
+        });
+        const saved = await this.vehicleRecordDao.save(merged);
+        return saved.id;
+      }
     }
 
+    const plate = plateNumber?.trim();
+    if (!plate) return existingRecordId ?? undefined;
+
+    const found = await this.vehicleRecordDao.findByPlateNumber(plate);
+    if (found) {
+      const merged = this.vehicleRecordDao.merge(found, {
+        vehicle_type: vehicleType ?? found.vehicle_type,
+        chassis_no: chassisNo ?? found.chassis_no,
+      });
+      const saved = await this.vehicleRecordDao.save(merged);
+      return saved.id;
+    }
+
+    const created = await this.vehicleRecordDao.save(
+      this.vehicleRecordDao.create({
+        id: generateSnowflakeId(),
+        vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
+        plate_number: plate,
+        vehicle_type: vehicleType,
+        chassis_no: chassisNo,
+        created_by: getCreatedById(actor),
+      }),
+    );
+    return created.id;
+  }
+
+  /**
+   * Create or update the customer from the entered details and link it to the
+   * vehicle record. Returns the customer id (always set so the appointment can
+   * reference it).
+   */
+  private async ensureCustomer(
+    dto: Partial<
+      Pick<
+        CreateAppointmentDto,
+        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'mulkiya_id' | 'chassis_no'
+      >
+    >,
+    vehicleRecordId: string | undefined,
+    actor: UserContext,
+  ): Promise<string> {
     if (dto.customer_id) {
       const customer = await this.customerDao.findActiveById(dto.customer_id);
       if (!customer) {
         throw new ResourceNotFoundException('Customer', dto.customer_id);
       }
-
       const merged = this.customerDao.merge(customer, {
-        customer_name: dto.customer_name,
-        phone: dto.customer_phone,
-        id_number: dto.id_number,
-        chassis_no: dto.chassis_no,
-        mulkiya_id: dto.mulkiya_id,
-        owner_name: dto.customer_name,
+        customer_name: dto.customer_name ?? customer.customer_name,
+        phone: dto.customer_phone ?? customer.phone,
+        owner_name: dto.owner_name ?? customer.owner_name,
+        id_number: dto.id_number ?? customer.id_number,
+        chassis_no: dto.chassis_no ?? customer.chassis_no,
+        mulkiya_id: dto.mulkiya_id ?? customer.mulkiya_id,
         vehicle_record_id: vehicleRecordId ?? customer.vehicle_record_id,
       });
       const saved = await this.customerDao.save(merged);
-      return { customerId: saved.id, vehicleRecordId: saved.vehicle_record_id ?? undefined };
+      return saved.id;
     }
 
-    if (!plateNumber) {
-      throw new DatabaseException('Plate number is required to create a customer for appointment.');
+    if (!dto.customer_name || !dto.customer_phone) {
+      throw new DatabaseException('Customer name and phone are required to create a customer.');
     }
 
-    const customerId = await this.customerDao.getNextCustomerId();
     const customer = this.customerDao.create({
       id: generateSnowflakeId(),
-      customer_id: customerId,
+      customer_id: await this.customerDao.getNextCustomerId(),
       customer_name: dto.customer_name,
       phone: dto.customer_phone,
-      owner_name: dto.customer_name,
+      owner_name: dto.owner_name ?? dto.customer_name,
       id_number: dto.id_number,
       chassis_no: dto.chassis_no,
       mulkiya_id: dto.mulkiya_id,
@@ -278,7 +326,7 @@ export class AppointmentService {
       created_by: getCreatedById(actor),
     });
     const saved = await this.customerDao.save(customer);
-    return { customerId: saved.id, vehicleRecordId };
+    return saved.id;
   }
 
   private async validateReferences(

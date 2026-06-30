@@ -181,10 +181,11 @@ export class JobService {
       throw new BadRequestException('Enter customer details before converting to a job');
     }
 
-    // Ensure a vehicle record exists for the plate (jobs require one).
+    // Ensure a vehicle record exists for the plate (jobs require one). Plate +
+    // vehicle type are read from the appointment's relations (record / ANPR).
     let vehicleRecordId = appt.vehicle_record_id ?? null;
     if (!vehicleRecordId) {
-      const plate = appt.plate_number?.trim();
+      const plate = (appt.vehicleRecord?.plate_number ?? appt.anprCapture?.plate_number)?.trim();
       if (!plate) {
         throw new BadRequestException('Appointment has no plate number');
       }
@@ -195,7 +196,7 @@ export class JobService {
             id: generateSnowflakeId(),
             vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
             plate_number: plate,
-            vehicle_type: appt.vehicle_type ?? undefined,
+            vehicle_type: appt.vehicleRecord?.vehicle_type ?? appt.anprCapture?.vehicle_type ?? undefined,
             created_by: getCreatedById(actor),
           }),
         );

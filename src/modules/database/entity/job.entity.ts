@@ -89,6 +89,24 @@ export class Job {
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
+  /** Driver details (editable on the job; also synced to the customer). */
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  driver_name?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  driver_phone?: string;
+
+  /** Invoice identifiers (set when the job reaches the Invoice stage). */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  invoice_no?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  invoice_date?: Date;
+
+  /** Raw parsed OUT-file sections (for the Test & Submit display). */
+  @Column({ type: 'jsonb', nullable: true })
+  test_results?: Record<string, unknown> | null;
+
   /** Derived from OUT file — not stored per-test in DB */
   @Column({ type: 'varchar', length: 16, nullable: true })
   overall_result?: JobOverallResult | null;

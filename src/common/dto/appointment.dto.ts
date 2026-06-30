@@ -75,6 +75,16 @@ export class CreateAppointmentDto {
   @IsString()
   id_number?: string;
 
+  @ApiPropertyOptional({ description: 'Vehicle owner name (auto-filled from records)', example: 'Ahmed Al-Said' })
+  @IsOptional()
+  @IsString({ message: 'owner_name must be a string' })
+  owner_name?: string;
+
+  @ApiPropertyOptional({ description: 'Plate colour (auto-filled from records)', example: 'White' })
+  @IsOptional()
+  @IsString({ message: 'plate_color must be a string' })
+  plate_color?: string;
+
   @ApiPropertyOptional({
     description: 'Vehicle VIN / chassis number (optional; up to 17 alphanumeric chars)',
     example: 'JT2BF22K0W0123456',

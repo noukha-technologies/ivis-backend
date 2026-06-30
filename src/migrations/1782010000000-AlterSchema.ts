@@ -356,6 +356,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "centre_id"`,
     );
+    // admin_pcs: IN/OUT folder paths for the file-driven inspection flow.
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "in_file_path" character varying(512)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "out_file_path" character varying(512)`,
+    );
 
     // cameras: drop unique constraint added by Initalization and keep partial unique index
     await queryRunner.query(
@@ -505,7 +512,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "id"              bigint              NOT NULL,
         "charge_id"       integer             NOT NULL,
         "centre_id"       bigint,
-        "vehicle_id"      bigint              NOT NULL,
+        "vehicle_type"    character varying(64) NOT NULL DEFAULT '',
         "category"        character varying   NOT NULL,
         "center_charges"  numeric(12,3)       NOT NULL DEFAULT 0,
         "rop_charges"     numeric(12,3)       NOT NULL DEFAULT 0,
@@ -528,14 +535,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_CENTRE_ID" ON "master"."charges" ("centre_id")`,
     );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_VEHICLE_ID" ON "master"."charges" ("vehicle_id")`,
-    );
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_UNIQUE_COMBO"
-        ON "master"."charges" ("centre_id", "vehicle_id", "category")
-        WHERE "is_deleted" = false
-    `);
+    // (vehicle_id index + combo are created below on vehicle_type — charges use a
+    // free-text vehicle_type, not a FK to the vehicle master.)
 
     // payment_types: create table
     await queryRunner.query(`
@@ -771,6 +772,39 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `UPDATE "transaction"."appointments" SET "booking_type" = 'Online' WHERE "anpr_capture_id" IS NOT NULL`,
+    );
+
+    // appointments: owner name + plate colour (auto-filled from vehicle records).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "owner_name" character varying(128)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "plate_color" character varying(64)`,
+    );
+
+    // jobs: driver + invoice + parsed OUT test results (job-management flow).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "invoice_no" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "invoice_date" TIMESTAMP`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "test_results" jsonb`,
+    );
+
+    // customers: driver details (synced from the job).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
     );
 
     // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
@@ -1040,6 +1074,19 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "booking_type"`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "owner_name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "plate_color"`,
+    );
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_phone"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_no"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_date"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "test_results"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_CUSTOMER_ID"`,
@@ -1118,6 +1165,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "in_file_path"`);
+    await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "out_file_path"`);
+
     // Restore plain (non-partial) unique indexes on code.
     const codeUniques: Array<{ table: string; index: string }> = [
       { table: 'vehicles', index: 'IDX_VEHICLE_CODE' },

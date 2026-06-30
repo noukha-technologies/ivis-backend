@@ -312,4 +312,24 @@ export class UpdateJobDto extends PartialType(
   @IsOptional()
   @IsDateString()
   completed_at?: string;
+
+  @ApiPropertyOptional({ description: 'Driver name' })
+  @IsOptional()
+  @IsString()
+  driver_name?: string;
+
+  @ApiPropertyOptional({ description: 'Driver contact number' })
+  @IsOptional()
+  @IsString()
+  driver_phone?: string;
+
+  @ApiPropertyOptional({ description: 'Invoice number' })
+  @IsOptional()
+  @IsString()
+  invoice_no?: string;
+
+  @ApiPropertyOptional({ description: 'Invoice date' })
+  @IsOptional()
+  @IsDateString()
+  invoice_date?: string;
 }

@@ -30,6 +30,14 @@ export class AdminPc implements IAdminPcMasterFields {
   @Column({ type: 'varchar', nullable: false })
   ip_address!: string;
 
+  /** Folder the generated IN file is written to (shared Admin PC IN folder). */
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  in_file_path?: string;
+
+  /** Folder watched for the Admin PC's OUT result files. */
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  out_file_path?: string;
+
   @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.adminPc)
   lineMappings?: AdminPcLineMapping[];
 

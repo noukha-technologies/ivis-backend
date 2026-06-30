@@ -44,6 +44,14 @@ export class AppointmentController {
     return { message: 'Appointments retrieved successfully', ...result };
   }
 
+  @Get('plate-lookup')
+  @ApiOperation({ summary: 'Resolve known vehicle/customer details by plate (walk-in auto-fill)' })
+  @ApiQuery({ name: 'plate', required: true, type: String })
+  async lookupByPlate(@Query('plate') plate: string) {
+    const data = await this.appointmentService.resolveByPlate(plate);
+    return { message: 'Plate lookup completed', data };
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get appointment by ID' })
   @ApiParam({ name: 'id', type: String })

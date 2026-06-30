@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { CreateJobDto, UpdateJobDto } from '../../../common/dto/job.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
@@ -11,15 +11,34 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { AppointmentStatus } from '../../../common/enums/common.enums';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
+import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { CameraDao } from '../../database/dao/camera.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
+import { ChargeDao } from '../../database/dao/charge.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
 import { JobDao } from '../../database/dao/job.dao';
 import { LineDao } from '../../database/dao/line.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
+import { PaymentApiClientService } from '../../integrations/payment/payment-api-client.service';
+import { RopApiClientService } from '../../integrations/rop/rop-api-client.service';
+import { InfileGeneratorService } from './infile-generator.service';
 import { Job } from '../../database/entity/job.entity';
+
+/** Resolved invoice pricing for a job (Invoice Details stage). */
+export interface JobPricingResult {
+  charge_missing: boolean;
+  vehicle_type: string | null;
+  charge_category_id: string | null;
+  center_charges: number;
+  rop_charges: number;
+  vat_percent: number;
+  grand_total: number;
+  advance: number;
+  payable: number;
+}
 
 @Injectable()
 export class JobService {
@@ -29,13 +48,65 @@ export class JobService {
     private readonly jobDao: JobDao,
     private readonly customerDao: CustomerDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
+    private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
+    private readonly chargeDao: ChargeDao,
     private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
     private readonly adminPcDao: AdminPcDao,
     private readonly cameraDao: CameraDao,
+    private readonly paymentApi: PaymentApiClientService,
+    private readonly ropApi: RopApiClientService,
+    private readonly infileGenerator: InfileGeneratorService,
     private readonly logger: AppLogger,
   ) {}
+
+  private isSameOmanDay(a: Date, b: Date): boolean {
+    const fmt = (d: Date) =>
+      new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'Asia/Muscat',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }).format(d);
+    return fmt(a) === fmt(b);
+  }
+
+  /** Submit & Print — submit the result to ROP (same-day only) and complete. */
+  async submitJob(id: string): Promise<Job> {
+    const job = await this.findOne(id);
+    if (!this.isSameOmanDay(new Date(job.created_at), new Date())) {
+      throw new BadRequestException('ROP submission must be on the same day the job was created');
+    }
+    await this.ropApi.submitInspection(
+      job.vehicleRecord?.plate_number ?? '',
+      job.overall_result ?? 'Passed',
+    );
+    return this.update(id, {
+      status: 'Completed',
+      completed_at: new Date().toISOString(),
+    });
+  }
+
+  /** Redo Test — flag the job's overall result as Redo. */
+  async redoJob(id: string): Promise<Job> {
+    return this.update(id, { overall_result: 'Redo' });
+  }
+
+  /**
+   * Start the inspection: generate the IN file to the Admin PC folder and move
+   * the job to In Progress (records IN file name/path + started_at).
+   */
+  async startJob(id: string): Promise<Job> {
+    const job = await this.findOne(id);
+    const { name, path } = await this.infileGenerator.generateForJob(job);
+    return this.update(id, {
+      status: 'In Progress',
+      infile_name: name,
+      infile_path: path,
+      started_at: new Date().toISOString(),
+    });
+  }
 
   async create(createDto: CreateJobDto, actor: UserContext): Promise<Job> {
     this.logger.log(
@@ -90,6 +161,117 @@ export class JobService {
     }
   }
 
+  /**
+   * Create a Job from a queued walk-in appointment. Requires the appointment to
+   * already have a linked customer (operator entered details). Ensures a vehicle
+   * record exists (by plate), creates the job (Pending), and marks the
+   * appointment Converted.
+   */
+  async createFromAppointment(appointmentId: string, actor: UserContext): Promise<Job> {
+    this.logger.log(`Converting appointment ${appointmentId} to a job`, JobService.context);
+
+    const appt = await this.appointmentDao.findActiveById(appointmentId);
+    if (!appt) {
+      throw new ResourceNotFoundException('Appointment', appointmentId);
+    }
+    if (appt.status === AppointmentStatus.CONVERTED) {
+      throw new BadRequestException('Appointment has already been converted to a job');
+    }
+    if (!appt.customer_id) {
+      throw new BadRequestException('Enter customer details before converting to a job');
+    }
+
+    // Ensure a vehicle record exists for the plate (jobs require one).
+    let vehicleRecordId = appt.vehicle_record_id ?? null;
+    if (!vehicleRecordId) {
+      const plate = appt.plate_number?.trim();
+      if (!plate) {
+        throw new BadRequestException('Appointment has no plate number');
+      }
+      let record = await this.vehicleRecordDao.findByPlateNumber(plate);
+      if (!record) {
+        record = await this.vehicleRecordDao.save(
+          this.vehicleRecordDao.create({
+            id: generateSnowflakeId(),
+            vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
+            plate_number: plate,
+            vehicle_type: appt.vehicle_type ?? undefined,
+            created_by: getCreatedById(actor),
+          }),
+        );
+      }
+      vehicleRecordId = record.id;
+    }
+
+    const job = await this.create(
+      {
+        source: 'Walk-In',
+        status: 'Pending',
+        customer_id: appt.customer_id,
+        vehicle_record_id: vehicleRecordId,
+        centre_id: appt.centre_id ?? undefined,
+        line_id: appt.line_id ?? undefined,
+        anpr_capture_id: appt.anpr_capture_id ?? undefined,
+      } as CreateJobDto,
+      actor,
+    );
+
+    await this.appointmentDao.save(
+      this.appointmentDao.merge(appt, { status: AppointmentStatus.CONVERTED }),
+    );
+
+    return job;
+  }
+
+  /**
+   * Resolve invoice pricing for a job from the Charges master, keyed by
+   * (centre, vehicle_type, charge_category). Returns `charge_missing: true` with
+   * zeroed amounts when no matching charge exists (the FE blocks + warns).
+   * Advance currently 0 (wired to the payment API in a later milestone).
+   */
+  async resolvePricing(id: string): Promise<JobPricingResult> {
+    const job = await this.findOne(id);
+    const vehicleType =
+      job.vehicleRecord?.vehicle_type ?? job.vehicleRecord?.vehicleMaster?.vehicle_type ?? null;
+    const chargeCategoryId = job.vehicleRecord?.vehicleMaster?.charge_category_id ?? null;
+
+    const charge =
+      vehicleType && chargeCategoryId
+        ? await this.chargeDao.findByCombo(job.centre_id ?? undefined, vehicleType, chargeCategoryId)
+        : null;
+
+    if (!charge) {
+      return {
+        charge_missing: true,
+        vehicle_type: vehicleType,
+        charge_category_id: chargeCategoryId,
+        center_charges: 0,
+        rop_charges: 0,
+        vat_percent: 0,
+        grand_total: 0,
+        advance: 0,
+        payable: 0,
+      };
+    }
+
+    const grandTotal = Number(charge.grand_total);
+    // Advance already collected (from the third-party payment API; 0 until wired).
+    const plate = job.vehicleRecord?.plate_number;
+    const paymentInfo = plate ? await this.paymentApi.fetchByPlate(plate) : null;
+    const advance = paymentInfo?.advance ?? 0;
+    return {
+      charge_missing: false,
+      vehicle_type: vehicleType,
+      charge_category_id: chargeCategoryId,
+      center_charges: Number(charge.center_charges),
+      rop_charges: Number(charge.rop_charges),
+      vat_percent: Number(charge.vat_percent),
+      grand_total: grandTotal,
+      advance,
+      payable: Math.max(0, grandTotal - advance),
+    };
+  }
+
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Job>> {
     this.logger.log(
       `Fetching jobs — page: ${query.page}, limit: ${query.limit}`,
@@ -141,6 +323,7 @@ export class JobService {
         ...updateDto,
         ...(updateDto.started_at ? { started_at: new Date(updateDto.started_at) } : {}),
         ...(updateDto.completed_at ? { completed_at: new Date(updateDto.completed_at) } : {}),
+        ...(updateDto.invoice_date ? { invoice_date: new Date(updateDto.invoice_date) } : {}),
       });
 
       const saved = await this.jobDao.save(merged);

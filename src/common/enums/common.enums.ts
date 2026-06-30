@@ -58,9 +58,8 @@ export enum ProcessedStrategy {
 export enum AppointmentStatus {
     QUEUED = 'Queued',
     SCHEDULED = 'Scheduled',
-    CONFIRMED = 'Confirmed',
     CANCELLED = 'Cancelled',
-    COMPLETED = 'Completed'
+    CONVERTED = 'Converted',
 }
 
 export enum RopVerificationStatus {

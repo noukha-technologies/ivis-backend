@@ -93,6 +93,12 @@ export class Appointment {
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
 
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  owner_name?: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  plate_color?: string;
+
   /* Payment mode — payment_types master FK */
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   payment_type_id?: string | null;

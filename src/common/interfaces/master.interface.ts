@@ -47,6 +47,8 @@ export interface IAdminPcMasterFields {
     name: string;
     code: string;
     ip_address: string;
+    in_file_path?: string;
+    out_file_path?: string;
     description?: string;
     status: string;
     created_by?: string;

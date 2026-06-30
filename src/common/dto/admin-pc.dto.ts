@@ -62,6 +62,16 @@ export class CreateAdminPcDto {
   @IsString({ each: true, message: 'each line_id must be a string' })
   line_ids?: string[];
 
+  @ApiPropertyOptional({ description: 'IN-file folder path (generated IN files)', example: '//192.168.10.10/Admin1/Line1/Infolder' })
+  @IsOptional()
+  @IsString({ message: 'in_file_path must be a string' })
+  in_file_path?: string;
+
+  @ApiPropertyOptional({ description: 'OUT-file folder path (watched for results)', example: '//192.168.10.10/Admin1/Line1/Outfolder' })
+  @IsOptional()
+  @IsString({ message: 'out_file_path must be a string' })
+  out_file_path?: string;
+
   @ApiPropertyOptional({ description: 'Description details', example: 'Reception PC' })
   @IsOptional()
   @IsString({ message: 'description must be a string' })

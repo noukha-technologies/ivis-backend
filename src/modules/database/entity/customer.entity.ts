@@ -52,6 +52,12 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   mulkiya_id?: string;
 
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  driver_name?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  driver_phone?: string;
+
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   vehicle_record_id?: string | null;
 

@@ -72,6 +72,19 @@ export class JobController {
     return { message, data };
   }
 
+  @Post('from-appointment/:appointmentId')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Convert a queued appointment into a job' })
+  @ApiParam({ name: 'appointmentId', type: String, description: 'Appointment snowflake ID' })
+  @ApiResponse({ status: 201, description: 'Job created from appointment.' })
+  async createFromAppointment(
+    @CurrentUser() actor: UserContext,
+    @Param('appointmentId', ParseSnowflakeIdPipe) appointmentId: string,
+  ) {
+    const data = await this.jobService.createFromAppointment(appointmentId, actor);
+    return { message: 'Job created successfully', data };
+  }
+
   @Get()
   @ApiOperation({ summary: 'Retrieve jobs (paginated, filterable, sortable)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
@@ -94,6 +107,38 @@ export class JobController {
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.findOne(id);
     return { message: 'Job retrieved successfully', data };
+  }
+
+  @Get(':id/pricing')
+  @ApiOperation({ summary: 'Resolve invoice pricing for a job (charges master lookup)' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async pricing(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.resolvePricing(id);
+    return { message: 'Job pricing resolved', data };
+  }
+
+  @Post(':id/start')
+  @ApiOperation({ summary: 'Start the inspection (generate IN file, set In Progress)' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async start(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.startJob(id);
+    return { message: 'Job started', data };
+  }
+
+  @Post(':id/submit')
+  @ApiOperation({ summary: 'Submit the inspection to ROP (same-day) and complete the job' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async submit(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.submitJob(id);
+    return { message: 'Job submitted', data };
+  }
+
+  @Post(':id/redo')
+  @ApiOperation({ summary: 'Flag the job for a redo test' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async redo(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.redoJob(id);
+    return { message: 'Job flagged for redo', data };
   }
 
   @Patch(':id')

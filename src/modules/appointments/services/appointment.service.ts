@@ -19,6 +19,19 @@ import { CustomerDao } from '../../database/dao/customer.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
+import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
+
+export interface PlateLookupResult {
+  plate_number: string;
+  owner_name: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  id_number: string | null;
+  plate_color: string | null;
+  vehicle_type: string | null;
+  chassis_no: string | null;
+  charge_category_id: string | null;
+}
 
 import { Appointment } from '../../database/entity/appointment.entity';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
@@ -36,7 +49,35 @@ export class AppointmentService {
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly paymentTypeDao: PaymentTypeDao,
+    private readonly vehicleRecordDao: VehicleRecordDao,
   ) { }
+
+  /**
+   * Resolve known vehicle + customer details for a plate from the vehicle
+   * records (and the linked customer / vehicle master). Used by the walk-in
+   * drawer to auto-fill fields. Returns null when no record exists for the plate.
+   */
+  async resolveByPlate(plate: string): Promise<PlateLookupResult | null> {
+    const p = plate?.trim();
+    if (!p) return null;
+
+    const record = await this.vehicleRecordDao.findByPlateNumber(p);
+    if (!record) return null;
+
+    const customer = await this.customerDao.findByVehicleRecordId(record.id);
+
+    return {
+      plate_number: record.plate_number,
+      owner_name: customer?.owner_name ?? customer?.customer_name ?? null,
+      customer_name: customer?.customer_name ?? null,
+      customer_phone: customer?.phone ?? null,
+      id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
+      plate_color: record.plate_color ?? null,
+      vehicle_type: record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
+      chassis_no: record.chassis_no ?? null,
+      charge_category_id: record.vehicleMaster?.charge_category_id ?? null,
+    };
+  }
 
   async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
     this.logger.log('Creating appointment', AppointmentService.context);
@@ -84,6 +125,8 @@ export class AppointmentService {
         customer_name: createDto.customer_name,
         customer_phone: createDto.customer_phone,
         id_number: createDto.id_number,
+        owner_name: createDto.owner_name,
+        plate_color: createDto.plate_color,
         appointment_at: new Date(createDto.appointment_at),
         status: AppointmentStatus.QUEUED,
         notes: createDto.notes,

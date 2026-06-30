@@ -31,4 +31,16 @@ export class RopApiClientService {
       reg_expiry: undefined,
     };
   }
+
+  /**
+   * Submit a completed inspection result to ROP. Scaffold — wired to the real
+   * ROP submission API once Opal provides it. Returns success for now.
+   */
+  async submitInspection(plateNumber: string, result: string): Promise<{ submitted: boolean }> {
+    this.logger.log(
+      `ROP stub submit for plate ${plateNumber} → ${result}`,
+      RopApiClientService.context,
+    );
+    return { submitted: true };
+  }
 }

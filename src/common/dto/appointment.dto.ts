@@ -12,7 +12,7 @@ import {
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { AppointmentStatus, AppointmentTypes } from '../enums/common.enums';
+import { AppointmentStatus, AppointmentTypes, BookingType } from '../enums/common.enums';
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -125,6 +125,11 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsEnum(AppointmentTypes, { message: 'type must be a valid appointment type' })
   type?: AppointmentTypes;
+
+  @ApiPropertyOptional({ description: 'Booking kind', enum: BookingType, example: 'Walk-in' })
+  @IsOptional()
+  @IsEnum(BookingType, { message: 'booking_type must be Walk-in or Online' })
+  booking_type?: BookingType;
 
   @ApiPropertyOptional({ description: 'Vehicle body type (snapshot)', example: 'Sedan' })
   @IsOptional()

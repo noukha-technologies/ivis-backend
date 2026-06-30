@@ -31,12 +31,12 @@ export class CreateChargeDto {
   centre_id?: string;
 
   @ApiProperty({
-    description: 'Vehicle snowflake ID',
-    example: '2058858609483202562',
+    description: 'Vehicle type (free text, operator-entered)',
+    example: 'Sedan',
   })
-  @IsString({ message: 'vehicle_id must be a string' })
-  @IsNotEmpty({ message: 'vehicle_id is required' })
-  vehicle_id!: string;
+  @IsString({ message: 'vehicle_type must be a string' })
+  @IsNotEmpty({ message: 'vehicle_type is required' })
+  vehicle_type!: string;
 
   @ApiProperty({
     description: 'Charge category master snowflake ID',

@@ -22,7 +22,7 @@ import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
 
 import { Appointment } from '../../database/entity/appointment.entity';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import { AppointmentStatus } from 'src/common/enums/common.enums';
+import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
 
 @Injectable()
 export class AppointmentService {
@@ -89,6 +89,7 @@ export class AppointmentService {
         notes: createDto.notes,
         payment_type_id: createDto.payment_type_id,
         type: createDto.type,
+        booking_type: createDto.booking_type ?? BookingType.WALK_IN,
         vehicle_type: createDto.vehicle_type,
         charge_category_id: createDto.charge_category_id,
         created_by: getCreatedById(actor),

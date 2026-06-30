@@ -12,7 +12,6 @@ import { DATABASE_SCHEMAS } from '../../../common/enums/common.enums';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 
 import { Centre } from './centre.entity';
-import { Vehicle } from './vehicle.entity';
 import { ChargeCategory } from './charge-category.entity';
 
 import { IChargeMasterFields } from '../../../common/interfaces/master.interface';
@@ -34,13 +33,9 @@ export class Charge implements IChargeMasterFields {
   @JoinColumn({ name: 'centre_id' })
   centre?: Centre;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('IDX_CHARGE_VEHICLE_ID')
-  vehicle_id!: string;
-
-  @ManyToOne(() => Vehicle, { nullable: false })
-  @JoinColumn({ name: 'vehicle_id' })
-  vehicle!: Vehicle;
+  // Free-text vehicle type entered by the operator (not a FK to the vehicle master).
+  @Column({ type: 'varchar', length: 64, nullable: false, default: '' })
+  vehicle_type!: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   @Index('IDX_CHARGE_CATEGORY_ID')

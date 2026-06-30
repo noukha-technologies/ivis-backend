@@ -12,7 +12,6 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { Charge } from '../../../database/entity/charge.entity';
 import { ChargeDao } from '../../../database/dao/charge.dao';
 import { CentreDao } from '../../../database/dao/centre.dao';
-import { VehicleDao } from '../../../database/dao/vehicle.dao';
 import { ChargeCategoryDao } from '../../../database/dao/charge-category.dao';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
@@ -24,7 +23,6 @@ export class ChargeService {
   constructor(
     private readonly chargeDao: ChargeDao,
     private readonly centreDao: CentreDao,
-    private readonly vehicleDao: VehicleDao,
     private readonly chargeCategoryDao: ChargeCategoryDao,
     private readonly logger: AppLogger,
   ) {}
@@ -44,17 +42,12 @@ export class ChargeService {
         }
       }
 
-      const vehicle = await this.vehicleDao.findActiveById(dto.vehicle_id);
-      if (!vehicle) {
-        throw new ResourceNotFoundException('Vehicle', dto.vehicle_id);
-      }
-
       const chargeCategory = await this.chargeCategoryDao.findActiveById(dto.charge_category_id);
       if (!chargeCategory) {
         throw new ResourceNotFoundException('ChargeCategory', dto.charge_category_id);
       }
 
-      const existing = await this.chargeDao.findByCombo(dto.centre_id, dto.vehicle_id, dto.charge_category_id);
+      const existing = await this.chargeDao.findByCombo(dto.centre_id, dto.vehicle_type, dto.charge_category_id);
       if (existing) {
         throw new DuplicateResourceException('Charge', 'centre/vehicle/category combination', dto.charge_category_id);
       }
@@ -152,13 +145,6 @@ export class ChargeService {
         }
       }
 
-      if (dto.vehicle_id && dto.vehicle_id !== charge.vehicle_id) {
-        const vehicle = await this.vehicleDao.findActiveById(dto.vehicle_id);
-        if (!vehicle) {
-          throw new ResourceNotFoundException('Vehicle', dto.vehicle_id);
-        }
-      }
-
       if (dto.charge_category_id && dto.charge_category_id !== charge.charge_category_id) {
         const chargeCategory = await this.chargeCategoryDao.findActiveById(dto.charge_category_id);
         if (!chargeCategory) {
@@ -167,15 +153,15 @@ export class ChargeService {
       }
 
       const newCentreId = dto.centre_id !== undefined ? dto.centre_id : charge.centre_id;
-      const newVehicleId = dto.vehicle_id ?? charge.vehicle_id;
+      const newVehicleType = dto.vehicle_type ?? charge.vehicle_type;
       const newCategoryId = dto.charge_category_id ?? charge.charge_category_id;
 
       if (
         newCentreId !== charge.centre_id ||
-        newVehicleId !== charge.vehicle_id ||
+        newVehicleType !== charge.vehicle_type ||
         newCategoryId !== charge.charge_category_id
       ) {
-        const existing = await this.chargeDao.findByCombo(newCentreId, newVehicleId, newCategoryId!);
+        const existing = await this.chargeDao.findByCombo(newCentreId, newVehicleType, newCategoryId!);
         if (existing && existing.id !== id) {
           throw new DuplicateResourceException('Charge', 'centre/vehicle/category combination', newCategoryId!);
         }

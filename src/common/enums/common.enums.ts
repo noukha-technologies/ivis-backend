@@ -73,3 +73,11 @@ export enum AppointmentTypes {
     PAID = 'Paid',
     UNPAID = 'Unpaid'
 }
+
+// Booking kind — how the appointment originated. Distinct from AppointmentTypes
+// (Paid/Unpaid). Walk-in = created manually at the centre; Online = ANPR-queued
+// or external online-booking API.
+export enum BookingType {
+    WALK_IN = 'Walk-in',
+    ONLINE = 'Online',
+}

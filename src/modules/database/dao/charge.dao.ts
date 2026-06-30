@@ -22,7 +22,7 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
   async findActiveById(id: string): Promise<Charge | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { centre: true, vehicle: true, chargeCategory: true },
+      relations: { centre: true, chargeCategory: true },
     });
   }
 
@@ -32,13 +32,13 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
 
   async findByCombo(
     centreId: string | undefined,
-    vehicleId: string,
+    vehicleType: string,
     chargeCategoryId: string,
   ): Promise<Charge | null> {
     return this.findOne({
       where: {
         centre_id: centreId ?? IsNull(),
-        vehicle_id: vehicleId,
+        vehicle_type: vehicleType,
         charge_category_id: chargeCategoryId,
         is_deleted: false,
       },
@@ -48,12 +48,11 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Charge>> {
     const qb = this.createQueryBuilder('charge')
       .leftJoinAndSelect('charge.centre', 'centre')
-      .leftJoinAndSelect('charge.vehicle', 'vehicle')
       .leftJoinAndSelect('charge.chargeCategory', 'chargeCategory')
       .where('charge.is_deleted = :is_deleted', { is_deleted: false });
 
     const options = buildTypeOrmPaginationOptions<Charge, Charge>(query, {
-      searchFields: ['charge.category', 'charge.status', 'centre.name', 'vehicle.name', 'chargeCategory.vehicle_weight', 'chargeCategory.engine_capacity'],
+      searchFields: ['charge.category', 'charge.vehicle_type', 'charge.status', 'centre.name', 'chargeCategory.vehicle_weight', 'chargeCategory.engine_capacity'],
       allowedSortFields: ['charge_id', 'category', 'status', 'validate_to', 'created_at', 'updated_at'],
       defaultSort: { created_at: 'DESC' },
     });

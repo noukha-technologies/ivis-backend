@@ -604,11 +604,21 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."charges" ALTER COLUMN "category" DROP NOT NULL`,
     );
-    // Replace the old (centre/vehicle/category) combo with the FK-based combo
+
+    // charges: vehicle is now a FREE-TEXT vehicle_type (operator-entered), not a
+    // FK to the vehicle master. Drop the FK/index/column and re-key the combo.
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" ADD COLUMN IF NOT EXISTS "vehicle_type" character varying(64) NOT NULL DEFAULT ''`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_vehicle_id"`,
+    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
+    await queryRunner.query(`ALTER TABLE "master"."charges" DROP COLUMN IF EXISTS "vehicle_id"`);
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_UNIQUE_COMBO"
-        ON "master"."charges" ("centre_id", "vehicle_id", "charge_category_id")
+        ON "master"."charges" ("centre_id", "vehicle_type", "charge_category_id")
         WHERE "is_deleted" = false
     `);
 
@@ -753,6 +763,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ADD CONSTRAINT "FK_appointments_charge_category_id"
       FOREIGN KEY ("charge_category_id") REFERENCES "master"."charge_categories"("id") ON DELETE NO ACTION
     `);
+
+    // appointments: booking kind (Walk-in = manual entry, Online = ANPR-queued /
+    // online API). Backfill existing rows: ANPR-queued (has anpr_capture_id) = Online.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "booking_type" character varying(16) NOT NULL DEFAULT 'Walk-in'`,
+    );
+    await queryRunner.query(
+      `UPDATE "transaction"."appointments" SET "booking_type" = 'Online' WHERE "anpr_capture_id" IS NOT NULL`,
+    );
 
     // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
     // free-text varchar column). Free-text values cannot cast to bigint, so the
@@ -978,15 +997,11 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE RESTRICT
     `);
 
-    // master.charges → master.vehicles
+    // master.charges no longer references master.vehicles — vehicle is free-text
+    // vehicle_type now. Ensure any legacy FK is dropped.
     await queryRunner.query(
       `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_vehicle_id"`,
     );
-    await queryRunner.query(`
-      ALTER TABLE "master"."charges"
-      ADD CONSTRAINT "FK_charges_vehicle_id"
-        FOREIGN KEY ("vehicle_id") REFERENCES "master"."vehicles"("id") ON DELETE RESTRICT
-    `);
   }
 
   // ─── Revert helpers ───────────────────────────────────────────────────────────
@@ -1022,6 +1037,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertTransaction(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "booking_type"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_CUSTOMER_ID"`,

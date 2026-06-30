@@ -104,6 +104,10 @@ export class Appointment {
   @Column({ type: 'varchar', length: 16, nullable: true })
   type?: string;
 
+  // Booking kind: 'Walk-in' (manual entry) or 'Online' (ANPR-queued / online API).
+  @Column({ type: 'varchar', length: 16, default: 'Walk-in' })
+  booking_type!: string;
+
   /* Vehicle attributes (snapshot from the Vehicle Master) */
   @Column({ type: 'varchar', length: 64, nullable: true })
   vehicle_type?: string;

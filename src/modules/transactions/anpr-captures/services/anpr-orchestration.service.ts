@@ -5,13 +5,11 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { RopVerificationStatus } from 'src/common/enums/common.enums';
 
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
-import { CustomerDao } from '../../../database/dao/customer.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { RopApiClientService } from '../../../integrations/rop/rop-api-client.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
-import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
 
 @Injectable()
 export class AnprOrchestrationService {
@@ -21,7 +19,6 @@ export class AnprOrchestrationService {
     private readonly logger: AppLogger,
     private readonly vehicleDao: VehicleDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly customerDao: CustomerDao,
     private readonly ropVerificationDao: RopVerificationDao,
     private readonly ropApiClient: RopApiClientService,
   ) { }
@@ -65,7 +62,6 @@ export class AnprOrchestrationService {
     }
 
     // ─── Step 2: VehicleRecord (transaction.vehicle_records) upsert by plate ───
-    let vehicleRecord: VehicleRecord | undefined;
     try {
       let record = await this.vehicleRecordDao.findByPlateNumber(plate);
       if (!record) {
@@ -86,7 +82,6 @@ export class AnprOrchestrationService {
         record.vehicle_master_id = vehicleMasterId;
         record = await this.vehicleRecordDao.save(record);
       }
-      vehicleRecord = record;
     } catch (err) {
       this.logger.warn(
         `[Orchestration] VehicleRecord upsert failed for ${plate}: ${(err as Error).message}`,
@@ -95,9 +90,6 @@ export class AnprOrchestrationService {
     }
 
     // ─── Step 3: ROP API fetch + save rop_verification ───────────────────
-    let ownerName: string | undefined;
-    let ownerPhone: string | undefined;
-    let chassisNo: string | undefined;
     try {
       const fetchRopFromApiResponse = await this.ropApiClient.fetchByPlate(plate);
       const createRopVerificationPayload = this.ropVerificationDao.create({
@@ -115,9 +107,6 @@ export class AnprOrchestrationService {
         created_by: 'anpr-system',
       });
       await this.ropVerificationDao.save(createRopVerificationPayload);
-      ownerName = fetchRopFromApiResponse.owner_name;
-      ownerPhone = fetchRopFromApiResponse.owner_phone;
-      chassisNo = fetchRopFromApiResponse.chassis_no;
       this.logger.log(
         `[Orchestration] ROP verification saved for capture: ${anprCapture.id}`,
         AnprOrchestrationService.context,
@@ -142,31 +131,14 @@ export class AnprOrchestrationService {
       }
     }
 
-    // ─── Step 4: Customer upsert ──────────────────────────────────────────
-    try {
-      const phoneLookup = ownerPhone ?? `ANPR-${plate.slice(0, 26)}`;
-      let customer = await this.customerDao.findActiveByPhone(phoneLookup);
-      if (!customer) {
-        const nextId = await this.customerDao.getNextCustomerId();
-        customer = this.customerDao.create({
-          id: generateSnowflakeId(),
-          customer_id: nextId,
-          customer_name: ownerName ?? plate,
-          phone: phoneLookup,
-          owner_name: ownerName,
-          chassis_no: chassisNo,
-          vehicle_record_id: vehicleRecord?.id ?? null,
-          created_by: 'anpr-system',
-        });
-        customer = await this.customerDao.save(customer);
-        this.logger.log(
-          `[Orchestration] Customer created: ${customer.id}`,
-          AnprOrchestrationService.context,
-        );
-      }
-    } catch (err) {
-      this.logger.warn(`[Orchestration] Customer upsert failed for ${plate}: ${(err as Error).message}`, AnprOrchestrationService.context,);
-      this.logger.log(`[Orchestration] Post-capture pipeline complete for plate: ${plate} (awaiting validation)`, AnprOrchestrationService.context);
-    }
+    // NOTE: No customer is created here. A customer is created only when the
+    // appointment is processed with real customer details on the Appointments
+    // page (see AppointmentService.syncCustomerFromAppointment). ANPR only
+    // resolves the vehicle / vehicle-record and ROP verification.
+
+    this.logger.log(
+      `[Orchestration] Post-capture pipeline complete for plate: ${plate} (awaiting validation)`,
+      AnprOrchestrationService.context,
+    );
   }
 }

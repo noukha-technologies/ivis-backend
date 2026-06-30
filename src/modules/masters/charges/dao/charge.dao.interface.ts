@@ -5,7 +5,7 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 export interface IChargeDao {
   findActiveById(id: string): Promise<Charge | null>;
   findByChargeId(chargeId: number): Promise<Charge | null>;
-  findByCombo(centreId: string | undefined, vehicleId: string, chargeCategoryId: string): Promise<Charge | null>;
+  findByCombo(centreId: string | undefined, vehicleType: string, chargeCategoryId: string): Promise<Charge | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Charge>>;
   getNextChargeId(): Promise<number>;
 }

@@ -87,7 +87,7 @@ export interface IChargeMasterFields {
     id: string;
     charge_id: number;
     centre_id?: string;
-    vehicle_id: string;
+    vehicle_type: string;
     charge_category_id?: string;
     category?: string;
     center_charges: number;

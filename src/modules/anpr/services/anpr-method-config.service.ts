@@ -33,7 +33,12 @@ export class AnprMethodConfigService {
     }
 
     isMethodEnabled(camera: CameraEntity, method: string): boolean {
-        return String(camera.integrationMethod ?? CameraIntegrationMethod.PUSH) === method;
+        // Compare case-insensitively: the DB stores the integration method as
+        // 'ftp'/'http' (enum value) while callers pass the 'FTP'/'PUSH' literal.
+        return (
+            String(camera.integrationMethod ?? CameraIntegrationMethod.PUSH).toUpperCase() ===
+            method.toUpperCase()
+        );
     }
 
     configuredMethod(camera: CameraEntity): CameraIntegrationMethod {
@@ -77,11 +82,21 @@ export class AnprMethodConfigService {
     async findActiveCamerasWithFtp(): Promise<CameraEntity[]> {
         try {
             const cameras = await this.cameraRepo.find({ where: { status: 'Active', is_deleted: false } });
-            return cameras.filter(
+            const ftp = cameras.filter(
                 (c) =>
                     this.isMethodEnabled(c, 'FTP') &&
                     Boolean((c.ftpDirectory ?? '').trim()),
             );
+            // Diagnostic so it's clear WHY the watcher does/doesn't start.
+            this.logger.log(
+                `[Camera Config] Active cameras: ${cameras.length}, FTP-enabled with directory: ${ftp.length}` +
+                (cameras.length && !ftp.length
+                    ? ` — none matched (methods: ${cameras
+                        .map((c) => `${c.cameraCode}=${c.integrationMethod ?? 'null'}/${(c.ftpDirectory ?? '').trim() ? 'dir' : 'no-dir'}`)
+                        .join(', ')})`
+                    : ''),
+            );
+            return ftp;
         } catch (err) {
             if (err instanceof QueryFailedError) {
                 const code = (err.driverError as { code?: string } | undefined)?.code;

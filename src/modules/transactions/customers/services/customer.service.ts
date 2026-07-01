@@ -14,6 +14,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { generateIdNumber } from '../../../../common/shared/id-number.util';
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { Customer } from '../../../database/entity/customer.entity';
@@ -48,12 +49,13 @@ export class CustomerService {
       const customer = this.customerDao.create({
         id: generateSnowflakeId(),
         customer_id: customerId,
+        // id_number is a system-generated nanoid-style code (not user entered).
+        id_number: createDto.id_number ?? generateIdNumber(),
         customer_name: createDto.customer_name,
-        phone: createDto.phone,
-        alternate_phone: createDto.alternate_phone,
+        customer_phone_number: createDto.customer_phone_number,
         owner_name: createDto.owner_name,
         owner_phone_number: createDto.owner_phone_number,
-        id_number: createDto.id_number,
+        plate_number: createDto.plate_number,
         chassis_no: createDto.chassis_no,
         mulkiya_id: createDto.mulkiya_id,
         vehicle_record_id: vehicleRecordId,
@@ -128,10 +130,10 @@ export class CustomerService {
 
       const merged = this.customerDao.merge(customer, {
         customer_name: updateDto.customer_name,
-        phone: updateDto.phone,
-        alternate_phone: updateDto.alternate_phone,
+        customer_phone_number: updateDto.customer_phone_number,
         owner_name: updateDto.owner_name,
         owner_phone_number: updateDto.owner_phone_number,
+        plate_number: updateDto.plate_number,
         id_number: updateDto.id_number,
         chassis_no: updateDto.chassis_no,
         mulkiya_id: updateDto.mulkiya_id,

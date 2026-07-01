@@ -25,12 +25,7 @@ export class CreateCustomerDto {
   @ApiProperty({ description: 'Customer contact number', example: '+968 91000000' })
   @IsString()
   @IsNotEmpty()
-  phone!: string;
-
-  @ApiPropertyOptional({ description: 'Alternate contact number', example: '+968 92000000' })
-  @IsOptional()
-  @IsString()
-  alternate_phone?: string;
+  customer_phone_number!: string;
 
   @ApiPropertyOptional({ description: 'Vehicle owner name (if different from customer)', example: 'Ahmed Al-Said' })
   @IsOptional()

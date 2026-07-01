@@ -767,12 +767,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "test_results" jsonb`,
     );
 
-    // customers: driver details (synced from the job).
+    // customers: driver details removed from the entity — drop if present.
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone"`,
     );
 
     // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
@@ -832,9 +832,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "scene_image_url" character varying`,
     );
 
-    // customers: align columns with entity — rename name → customer_name and
-    // primary_vehicle_record_id → vehicle_record_id, add alternate_phone +
-    // owner_phone_number, and rename the related index / FK constraint.
+    // customers: align columns with entity — rename name → customer_name,
+    // phone → customer_phone_number, primary_vehicle_record_id → vehicle_record_id,
+    // add owner_phone_number + plate_number, drop the removed alternate_phone,
+    // and rename the related index / FK constraint.
     await queryRunner.query(`
       DO $$ BEGIN
         IF EXISTS (
@@ -842,6 +843,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
           WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'name'
         ) THEN
           ALTER TABLE "transaction"."customers" RENAME COLUMN "name" TO "customer_name";
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'phone'
+        ) THEN
+          ALTER TABLE "transaction"."customers" RENAME COLUMN "phone" TO "customer_phone_number";
         END IF;
         IF EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -856,10 +863,16 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       END $$;
     `);
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "alternate_phone" character varying(32)`,
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "customer_phone_number" character varying(32)`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "owner_phone_number" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "plate_number" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "alternate_phone"`,
     );
     await queryRunner.query(
       `ALTER INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PRIMARY_VEHICLE_RECORD_ID" RENAME TO "IDX_CUSTOMER_VEHICLE_RECORD_ID"`,
@@ -1055,6 +1068,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "test_results"`);
     await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`);
     await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "plate_number"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_CUSTOMER_ID"`,

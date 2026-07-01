@@ -14,6 +14,7 @@ import { DatabaseException, ResourceNotFoundException } from '../../../common/ex
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { saveBase64File } from '../../../common/utils/file-storage.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { generateIdNumber } from '../../../common/shared/id-number.util';
 
 import { JobDao } from '../../database/dao/job.dao';
 import { LineDao } from '../../database/dao/line.dao';
@@ -222,10 +223,12 @@ export class JobIntakeService {
     if (customer) {
       customer = manager.merge(Customer, customer, {
         customer_name: dto.customer_name.trim(),
-        phone,
+        customer_phone_number: phone,
         owner_name: dto.customer_name.trim(),
         mulkiya_id: dto.mulkiya_id?.trim() ?? customer.mulkiya_id,
         chassis_no: dto.vin_no?.trim() ?? customer.chassis_no,
+        // Backfill the system-generated id_number for legacy rows.
+        id_number: customer.id_number ?? generateIdNumber(),
       });
       return manager.save(Customer, customer);
     }
@@ -234,8 +237,9 @@ export class JobIntakeService {
     const created = manager.create(Customer, {
       id: generateSnowflakeId(),
       customer_id: customerId,
+      id_number: generateIdNumber(),
       customer_name: dto.customer_name.trim(),
-      phone,
+      customer_phone_number: phone,
       owner_name: dto.customer_name.trim(),
       mulkiya_id: dto.mulkiya_id?.trim(),
       chassis_no: dto.vin_no?.trim(),

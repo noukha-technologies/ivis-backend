@@ -3,7 +3,6 @@ import {
   IsDateString,
   IsEnum,
   IsInt,
-  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -56,22 +55,22 @@ export class CreateAppointmentDto {
   @IsString()
   plate_number?: string;
 
-  @ApiProperty({ description: 'Customer full name (alphabets only)', example: 'Ahmed Al Said' })
+  @ApiPropertyOptional({ description: 'Customer full name (alphabets only)', example: 'Ahmed Al Said' })
+  @IsOptional()
   @IsString({ message: 'customer_name must be a string' })
-  @IsNotEmpty({ message: 'customer_name is required' })
   @Matches(/^[A-Za-z\s'-]+$/, {
     message: 'customer_name must contain only alphabets',
   })
-  customer_name!: string;
+  customer_name?: string;
 
-  @ApiProperty({ description: 'Customer phone (Oman, stored as +968 XXXXXXXX)', example: '+968 91234567' })
+  @ApiPropertyOptional({ description: 'Customer phone (Oman, stored as +968 XXXXXXXX)', example: '+968 91234567' })
+  @IsOptional()
   @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString({ message: 'customer_phone must be a string' })
-  @IsNotEmpty({ message: 'customer_phone is required' })
   @Matches(/^\+968\s\d{8}$/, {
     message: 'customer_phone must be a valid 8-digit Oman number (example: +968 91234567)',
   })
-  customer_phone!: string;
+  customer_phone?: string;
 
   @ApiPropertyOptional({ description: 'National ID number', example: 'ID20000000' })
   @IsOptional()
@@ -82,6 +81,15 @@ export class CreateAppointmentDto {
   @IsOptional()
   @IsString({ message: 'owner_name must be a string' })
   owner_name?: string;
+
+  @ApiPropertyOptional({ description: 'Vehicle owner phone (Oman, stored as +968 XXXXXXXX)', example: '+968 91234567' })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOmanPhone(value))
+  @IsString({ message: 'owner_phone must be a string' })
+  @Matches(/^\+968\s\d{8}$/, {
+    message: 'owner_phone must be a valid 8-digit Oman number (example: +968 91234567)',
+  })
+  owner_phone?: string;
 
   @ApiPropertyOptional({ description: 'Plate colour (auto-filled from records)', example: 'White' })
   @IsOptional()

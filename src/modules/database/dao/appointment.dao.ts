@@ -60,7 +60,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
       searchFields: [
         'status',
         'customer.customer_name',
-        'customer.phone',
+        'customer.customer_phone_number',
         'vehicleRecord.plate_number',
         'anprCapture.plate_number',
       ],

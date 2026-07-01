@@ -45,7 +45,7 @@ export class InfileGeneratorService {
       ['ExhaustType', ''],
       ['InspectionNo', String(job.job_id)],
       ['Phone', ''],
-      ['Mobile', customer?.phone ?? ''],
+      ['Mobile', customer?.customer_phone_number ?? ''],
       ['NumberOfAxles', '2'],
     ];
     for (let i = 1; i <= 8; i += 1) lines.push([`ParkingBrakePos_${i}`, i === 2 ? 'true' : 'false']);

@@ -60,7 +60,7 @@ export class JobDao extends Repository<Job> implements IJobDao {
         'status',
         'source',
         'customer.customer_name',
-        'customer.phone',
+        'customer.customer_phone_number',
         'vehicleRecord.plate_number',
         'vehicleRecord.chassis_no',
       ],

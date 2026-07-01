@@ -13,6 +13,15 @@ import {
 
 @Injectable()
 export class TypeOrmFilterApplier {
+  /**
+   * Qualify a field with the base alias, unless it already carries its own
+   * (joined) alias via dotted notation, e.g. 'centre.name' → stays 'centre.name'
+   * while 'user_name' → 'user.user_name'.
+   */
+  private col(alias: string, field: string): string {
+    return field.includes('.') ? field : `${alias}.${field}`;
+  }
+
   apply<Entity extends ObjectLiteral>(
     qb: SelectQueryBuilder<Entity>,
     alias: string,
@@ -54,7 +63,7 @@ export class TypeOrmFilterApplier {
       new Brackets((sub) => {
         for (const field of filter.fields) {
           for (const term of terms) {
-            sub.orWhere(`${alias}.${field} ILIKE :searchTerm`, {
+            sub.orWhere(`${this.col(alias, field)} ILIKE :searchTerm`, {
               searchTerm: `%${term}%`,
             });
           }
@@ -91,9 +100,9 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `pf_${filter.field}`;
     if (filter.operator === 'EQUALS') {
-      qb.andWhere(`${alias}.${filter.field} = :${param}`, { [param]: filter.value });
+      qb.andWhere(`${this.col(alias, filter.field)} = :${param}`, { [param]: filter.value });
     } else {
-      qb.andWhere(`${alias}.${filter.field} != :${param}`, { [param]: filter.value });
+      qb.andWhere(`${this.col(alias, filter.field)} != :${param}`, { [param]: filter.value });
     }
   }
 
@@ -103,12 +112,12 @@ export class TypeOrmFilterApplier {
     filter: DateFieldFilter,
   ): void {
     if (filter.from) {
-      qb.andWhere(`${alias}.${filter.field} >= :${filter.field}_from`, {
+      qb.andWhere(`${this.col(alias, filter.field)} >= :${filter.field}_from`, {
         [`${filter.field}_from`]: new Date(filter.from),
       });
     }
     if (filter.to) {
-      qb.andWhere(`${alias}.${filter.field} <= :${filter.field}_to`, {
+      qb.andWhere(`${this.col(alias, filter.field)} <= :${filter.field}_to`, {
         [`${filter.field}_to`]: new Date(filter.to),
       });
     }
@@ -121,9 +130,9 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `rx_${filter.field}`;
     if (filter.caseSensitive) {
-      qb.andWhere(`${alias}.${filter.field} ~ :${param}`, { [param]: filter.pattern });
+      qb.andWhere(`${this.col(alias, filter.field)} ~ :${param}`, { [param]: filter.pattern });
     } else {
-      qb.andWhere(`${alias}.${filter.field} ~* :${param}`, { [param]: filter.pattern });
+      qb.andWhere(`${this.col(alias, filter.field)} ~* :${param}`, { [param]: filter.pattern });
     }
   }
 
@@ -134,9 +143,9 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `arr_${filter.field}`;
     if (filter.operator === 'ANY') {
-      qb.andWhere(`${alias}.${filter.field} IN (:...${param})`, { [param]: filter.values });
+      qb.andWhere(`${this.col(alias, filter.field)} IN (:...${param})`, { [param]: filter.values });
     } else {
-      qb.andWhere(`${alias}.${filter.field} NOT IN (:...${param})`, { [param]: filter.values });
+      qb.andWhere(`${this.col(alias, filter.field)} NOT IN (:...${param})`, { [param]: filter.values });
     }
   }
 

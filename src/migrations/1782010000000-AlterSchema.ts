@@ -133,10 +133,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_USER_ROLE_ID" ON "core"."users" ("role_id")`,
     );
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_USER_CENTER_ID" ON "core"."users" ("center_id")
-      WHERE "is_deleted" = false AND "center_id" IS NOT NULL
-    `);
+    // Multiple users may share the same centre — drop the old unique constraint
+    // and keep a plain index for center_id lookups.
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_USER_CENTER_ID" ON "core"."users" ("center_id")`,
+    );
 
     // user_sessions: add created_by (migration 1779720300000)
     await queryRunner.query(
@@ -164,11 +166,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ON "core"."user_line_mappings" ("user_id", "line_id")
       WHERE "is_deleted" = false
     `);
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_USER_LINE_MAPPING_LINE"
-      ON "core"."user_line_mappings" ("line_id")
-      WHERE "is_deleted" = false
-    `);
+    // Lines are shareable across users — drop the one-user-per-line constraint.
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`);
 
     // permissions table (migration 1780140000000) — recreated with new shape
     await queryRunner.query(`
@@ -1290,6 +1289,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_LINE_MAPPING_USER_ID"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."user_line_mappings"`);
 
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_CENTER_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_ROLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_USER_CODE"`);

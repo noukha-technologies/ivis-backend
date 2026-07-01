@@ -1,15 +1,16 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import {
-  buildTypeOrmPaginationOptions,
-  toPaginatedResult,
-} from '../../../common/shared/pagination/pagination-query.util';
-import { PaginationService } from '../../../common/shared/pagination/pagination.service';
-import { IUserDao } from '../../users/dao/user.dao.interface';
+
 import { User } from '../entity/user.entity';
+
+import { IUserDao } from '../../users/dao/user.dao.interface';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { PaginationService } from '../../../common/shared/pagination/pagination.service';
+
+import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
+import { buildTypeOrmPaginationOptions, toPaginatedResult } from '../../../common/shared/pagination/pagination-query.util';
 
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {
@@ -41,6 +42,8 @@ export class UsersDao extends Repository<User> implements IUserDao {
       .getOne();
   }
 
+
+  
   async findByEmail(email: string): Promise<User | null> {
     return this.activeUserQueryBuilder()
       .andWhere('user.email = :email', { email: email.trim().toLowerCase() })
@@ -80,6 +83,8 @@ export class UsersDao extends Repository<User> implements IUserDao {
       where: { center_id: centerId, is_deleted: false },
     });
   }
+
+
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
     const qb = this.activeUserQueryBuilder();

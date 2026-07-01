@@ -5,7 +5,6 @@ import {
 } from '../exceptions/custom.exception';
 import { CentreDao } from '../../modules/database/dao/centre.dao';
 import { LineDao } from '../../modules/database/dao/line.dao';
-import { UsersDao } from '../../modules/database/dao/users.dao';
 import { CameraDao } from '../../modules/database/dao/camera.dao';
 import { AdminPcLineMappingDao } from '../../modules/database/dao/admin-pc-line-mapping.dao';
 
@@ -14,7 +13,6 @@ export class MasterScopeService {
   constructor(
     private readonly centreDao: CentreDao,
     private readonly lineDao: LineDao,
-    private readonly usersDao: UsersDao,
     private readonly cameraDao: CameraDao,
     private readonly adminPcLineMappingDao: AdminPcLineMappingDao,
   ) {}
@@ -25,16 +23,6 @@ export class MasterScopeService {
       throw new ResourceNotFoundException('Centre', centreId);
     }
     return centre.id;
-  }
-
-  async assertCentreNotAssignedToOtherUser(
-    centreId: string,
-    excludeUserId?: string,
-  ): Promise<void> {
-    const existing = await this.usersDao.findActiveByCenterId(centreId);
-    if (existing && existing.id !== excludeUserId) {
-      throw new DuplicateResourceException('Centre', 'center_id', centreId);
-    }
   }
 
   async assertLinesBelongToCentre(lineIds: string[], centreId: string): Promise<void> {

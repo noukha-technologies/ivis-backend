@@ -51,7 +51,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     const qb = this.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.customer', 'customer')
       .leftJoinAndSelect('appointment.vehicleRecord', 'vehicleRecord')
-      .leftJoinAndSelect('appointment.vehicleRecord.vehicleMaster', 'vehicleMaster')
+      .leftJoinAndSelect('vehicleRecord.vehicleMaster', 'vehicleMaster')
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
       .leftJoinAndSelect('appointment.centre', 'centre')
       .leftJoinAndSelect('appointment.line', 'line');

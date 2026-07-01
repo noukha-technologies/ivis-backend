@@ -46,6 +46,48 @@ export class UserLineMappingDao extends Repository<UserLineMapping> implements I
     });
   }
 
+  /**
+   * Diff-based update: compares the user's current active lines against the
+   * desired set — inserts the added ones, soft-deletes the removed ones, and
+   * leaves unchanged mappings intact (preserving their created_at / created_by).
+   */
+  async syncForUser(userId: string, lineIds: string[], createdBy?: string): Promise<void> {
+    const desired = [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+
+    const existing = await this.find({ where: { user_id: userId, is_deleted: false } });
+    const existingByLine = new Set(existing.map((m) => m.line_id));
+    const desiredSet = new Set(desired);
+
+    const toAdd = desired.filter((id) => !existingByLine.has(id));
+    const toRemove = existing.filter((m) => !desiredSet.has(m.line_id));
+
+    if (toAdd.length === 0 && toRemove.length === 0) {
+      return;
+    }
+
+    await this.dataSource.transaction(async (manager) => {
+      if (toRemove.length > 0) {
+        await manager.update(
+          UserLineMapping,
+          { id: In(toRemove.map((m) => m.id)) },
+          { is_deleted: true },
+        );
+      }
+      if (toAdd.length > 0) {
+        const rows = toAdd.map((lineId) =>
+          manager.create(UserLineMapping, {
+            id: generateSnowflakeId(),
+            user_id: userId,
+            line_id: lineId,
+            created_by: createdBy,
+            is_deleted: false,
+          }),
+        );
+        await manager.save(UserLineMapping, rows);
+      }
+    });
+  }
+
   async softDeleteByUserId(userId: string): Promise<void> {
     await this.update({ user_id: userId, is_deleted: false }, { is_deleted: true });
   }

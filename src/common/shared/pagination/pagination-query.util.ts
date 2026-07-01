@@ -3,18 +3,18 @@ import { PaginationQueryDto, SortOrder } from '../../dto/pagination.dto';
 import { PaginatedResult, PaginationResponse } from '../../interfaces/pagination.interface';
 import { QueryFilter } from '../filter/filter.dto';
 import { TypeOrmPaginationOptions } from './typeorm-pagination.service';
+import { RelationJoin } from './relation-join.util';
 
 export type EntityPaginationConfig = {
   searchFields?: string[];
   defaultSort?: Record<string, 'ASC' | 'DESC'>;
   allowedSortFields?: string[];
   baseWhere?: Record<string, unknown>;
+  /** Relations to join declaratively (applied by the paginator before filter/sort). */
+  joinRelations?: RelationJoin[];
 };
 
-export function parseQueryFilters(
-  query: PaginationQueryDto,
-  searchFields: string[] = [],
-): QueryFilter[] {
+export function parseQueryFilters(query: PaginationQueryDto, searchFields: string[] = []): QueryFilter[] {
   const filters: QueryFilter[] = [];
 
   if (query.search?.trim() && searchFields.length > 0) {
@@ -66,10 +66,7 @@ export function parseSort(
   return { [sortBy]: direction };
 }
 
-export function buildTypeOrmPaginationOptions<Entity, K>(
-  query: PaginationQueryDto,
-  config: EntityPaginationConfig,
-): TypeOrmPaginationOptions<Entity, K> {
+export function buildTypeOrmPaginationOptions<Entity, K>(query: PaginationQueryDto, config: EntityPaginationConfig): TypeOrmPaginationOptions<Entity, K> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 10;
   const skip = (page - 1) * limit;
@@ -81,6 +78,7 @@ export function buildTypeOrmPaginationOptions<Entity, K>(
     sort: parseSort(query, config),
     nonPaginated: query.nonPaginated,
     baseWhere: config.baseWhere,
+    joinRelations: config.joinRelations,
   };
 }
 

@@ -16,7 +16,18 @@ export class CameraHealthCheckService {
 
   async pingCamera(ip: string): Promise<boolean> {
     try {
-      const res = await ping.promise.probe(ip, { timeout: 2 });
+      let targetIp = ip ? ip.trim() : '';
+      if (targetIp.includes('://')) {
+        try {
+          const parsed = new URL(targetIp);
+          targetIp = parsed.hostname;
+        } catch {
+          targetIp = targetIp.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
+        }
+      } else if (targetIp.includes(':')) {
+        targetIp = targetIp.split(':')[0];
+      }
+      const res = await ping.promise.probe(targetIp, { timeout: 2 });
       return res.alive;
     } catch (error) {
       this.logger.log(`Ping failed for ${ip}: ${error}`, CameraHealthCheckService.context);

@@ -14,6 +14,20 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
 
+function cleanIpAddress(ip: string): string {
+  if (!ip) return ip;
+  const trimmed = ip.trim();
+  if (trimmed.includes('://')) {
+    try {
+      const parsed = new URL(trimmed);
+      return parsed.hostname;
+    } catch {
+      return trimmed.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
+    }
+  }
+  return trimmed.split(':')[0];
+}
+
 @Injectable()
 export class CameraService {
   private static readonly context = 'CameraService';
@@ -49,6 +63,7 @@ export class CameraService {
       const camera = this.cameraDao.create({
         id: generateSnowflakeId(),
         ...createCameraDto,
+        ip_address: cleanIpAddress(createCameraDto.ip_address),
         camera_id,
         status: createCameraDto.status || 'Active',
         created_by: getCreatedById(actor),
@@ -129,6 +144,7 @@ export class CameraService {
       const mergedCamera = this.cameraDao.merge(camera, {
         ...updateCameraDto,
         line_id: targetLineId,
+        ip_address: updateCameraDto.ip_address ? cleanIpAddress(updateCameraDto.ip_address) : camera.ip_address,
       });
       const savedCamera = await this.cameraDao.save(mergedCamera);
 

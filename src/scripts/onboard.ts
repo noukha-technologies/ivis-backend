@@ -31,6 +31,10 @@ import {
 
 dotenv.config();
 
+// Ensure the schema creation and alteration migrations are allowed to run during onboarding
+process.env.RUN_CREATE_SCHEMA = 'true';
+process.env.RUN_ALTER_SCHEMA = 'true';
+
 const ADMIN_EMAIL       = 'admin@opalivis.in';
 const ADMIN_PASSWORD    = 'Admin@123';
 const ADMIN_USER_CODE   = 'SYSADMIN';

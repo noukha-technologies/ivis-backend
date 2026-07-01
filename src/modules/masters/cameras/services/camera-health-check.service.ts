@@ -91,33 +91,55 @@ export class CameraHealthCheckService {
     });
     const now = Date.now();
 
-    for (const cam of cameras) {
-      try {
-        const camera = await this.cameraDao.findOne({
-          where: { id: cam.id, is_deleted: false },
-        });
-        if (!camera || camera.status !== 'Active') continue;
+    // Only cameras whose ping interval has elapsed are due this sweep.
+    const due = cameras.filter((camera) => {
+      const intervalMs = Math.max(10, camera.health_ping_interval_seconds ?? 30) * 1000;
+      const lastCheck = camera.last_health_check?.getTime() ?? 0;
+      return now - lastCheck >= intervalMs;
+    });
 
-        const intervalMs = Math.max(10, camera.health_ping_interval_seconds ?? 30) * 1000;
-        const lastCheck = camera.last_health_check?.getTime() ?? 0;
-
-        if (now - lastCheck >= intervalMs) {
-          await this.pingCheck(camera);
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.logger.error(
-          `[Health Check] Failed for camera id ${cam.id}: ${message}`,
-          undefined,
-          CameraHealthCheckService.context,
-        );
-      }
+    if (due.length === 0) {
+      return;
     }
+
+    // Ping every due camera in parallel — a slow/offline camera (up to the 2s
+    // timeout) never blocks the others, so a whole centre is swept at once.
+    const results = await Promise.allSettled(due.map((camera) => this.pingCheck(camera)));
+
+    const online = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    this.logger.log(
+      `[Camera Health] Checked ${due.length} camera(s) → ${online} online, ${due.length - online} offline`,
+      CameraHealthCheckService.context,
+    );
   }
 
-  private async pingCheck(camera: Camera): Promise<void> {
-    const isAlive = await this.pingCamera(camera.ip_address);
-    await this.persistHealthFromPingResult(camera, isAlive);
+  /**
+   * Ping one camera, persist its status, and log a line only when it transitions
+   * ONLINE↔OFFLINE (keeps the terminal clean between changes). Returns reachability.
+   */
+  private async pingCheck(camera: Camera): Promise<boolean> {
+    const wasOnline = camera.is_online;
+    let isAlive = false;
+    try {
+      isAlive = await this.pingCamera(camera.ip_address);
+      await this.persistHealthFromPingResult(camera, isAlive);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(
+        `[Camera Health] Check failed for ${camera.code} (${camera.ip_address}): ${message}`,
+        undefined,
+        CameraHealthCheckService.context,
+      );
+      return false;
+    }
+
+    if (wasOnline !== isAlive) {
+      this.logger.log(
+        `[Camera Health] ${isAlive ? '✓' : '✗'} ${camera.code} (${camera.ip_address}) ${isAlive ? 'ONLINE' : camera.health_status}`,
+        CameraHealthCheckService.context,
+      );
+    }
+    return isAlive;
   }
 
   async runAllChecksNow(): Promise<void> {

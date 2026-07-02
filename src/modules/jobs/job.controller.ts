@@ -47,7 +47,6 @@ export class JobController {
     if (isLegacyJobCreate(createDto)) {
       const legacyDto: CreateJobDto = {
         job_id: createDto.job_id,
-        source: createDto.source!,
         status: createDto.status,
         customer_id: createDto.customer_id!,
         vehicle_record_id: createDto.vehicle_record_id!,
@@ -58,18 +57,21 @@ export class JobController {
         camera_id: createDto.camera_id,
       };
       const data = await this.jobService.create(legacyDto, actor);
-      return { message: 'Job created successfully', data };
+      const pricing = await this.jobService.resolvePricingForJob(data);
+      return { message: 'Job created successfully', data: { ...data, pricing } };
     }
 
     const data = await this.jobIntakeService.createFromIntake(
       createDto as CreateJobIntakeDto,
       actor,
     );
+    // Attach the calculated payment (from the configured charges) when a job exists.
+    const pricing = data.job ? await this.jobService.resolvePricingForJob(data.job) : null;
     const message = data.job
       ? 'Job created successfully'
       : 'Payment recorded (FOC). Job will be created when payment is marked Paid.';
 
-    return { message, data };
+    return { message, data: { ...data, pricing } };
   }
 
   @Post('from-appointment/:appointmentId')
@@ -82,7 +84,8 @@ export class JobController {
     @Param('appointmentId', ParseSnowflakeIdPipe) appointmentId: string,
   ) {
     const data = await this.jobService.createFromAppointment(appointmentId, actor);
-    return { message: 'Job created successfully', data };
+    const pricing = await this.jobService.resolvePricingForJob(data);
+    return { message: 'Job created successfully', data: { ...data, pricing } };
   }
 
   @Get()
@@ -106,7 +109,8 @@ export class JobController {
   @ApiResponse({ status: 200, description: 'Job retrieved successfully.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.findOne(id);
-    return { message: 'Job retrieved successfully', data };
+    const pricing = await this.jobService.resolvePricingForJob(data);
+    return { message: 'Job retrieved successfully', data: { ...data, pricing } };
   }
 
   @Get(':id/pricing')

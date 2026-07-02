@@ -74,10 +74,10 @@ export class AppointmentService {
 
     return {
       plate_number: record.plate_number,
-      owner_name: customer?.owner_name ?? customer?.customer_name ?? null,
+      owner_name: customer?.owner_name ?? null,
       owner_phone: customer?.owner_phone_number ?? null,
-      customer_name: customer?.customer_name ?? null,
-      customer_phone: customer?.customer_phone_number ?? null,
+      customer_name: customer?.owner_name ?? null,
+      customer_phone: customer?.owner_phone_number ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
       plate_color: latestCapture?.plate_color ?? record.plate_color ?? null,
       vehicle_type: record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
@@ -296,7 +296,7 @@ export class AppointmentService {
     dto: Partial<
       Pick<
         CreateAppointmentDto,
-        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'owner_phone' | 'mulkiya_id' | 'chassis_no' | 'plate_number'
+        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'owner_phone' | 'driver_name' | 'driver_phone' | 'mulkiya_id' | 'chassis_no' | 'plate_number'
       >
     >,
     vehicleRecordId: string | undefined,
@@ -308,10 +308,10 @@ export class AppointmentService {
         throw new ResourceNotFoundException('Customer', dto.customer_id);
       }
       const merged = this.customerDao.merge(customer, {
-        customer_name: dto.customer_name ?? customer.customer_name,
-        customer_phone_number: dto.customer_phone ?? customer.customer_phone_number,
-        owner_name: dto.owner_name ?? customer.owner_name,
-        owner_phone_number: dto.owner_phone ?? customer.owner_phone_number,
+        owner_name: dto.owner_name ?? dto.customer_name ?? customer.owner_name,
+        owner_phone_number: dto.owner_phone ?? dto.customer_phone ?? customer.owner_phone_number,
+        driver_name: dto.driver_name ?? customer.driver_name,
+        driver_phone_number: dto.driver_phone ?? customer.driver_phone_number,
         plate_number: dto.plate_number ?? customer.plate_number,
         // id_number is a system-generated code — backfill it if the row lacks one.
         id_number: customer.id_number ?? dto.id_number ?? generateIdNumber(),
@@ -332,10 +332,11 @@ export class AppointmentService {
       customer_id: await this.customerDao.getNextCustomerId(),
       // id_number is a system-generated nanoid-style code (not user entered).
       id_number: dto.id_number ?? generateIdNumber(),
-      customer_name: dto.customer_name,
-      customer_phone_number: dto.customer_phone,
       owner_name: dto.owner_name ?? dto.customer_name,
-      owner_phone_number: dto.owner_phone,
+      owner_phone_number: dto.owner_phone ?? dto.customer_phone,
+      // Driver defaults to the owner/customer when not provided.
+      driver_name: dto.driver_name ?? dto.owner_name ?? dto.customer_name,
+      driver_phone_number: dto.driver_phone,
       plate_number: dto.plate_number,
       chassis_no: dto.chassis_no,
       mulkiya_id: dto.mulkiya_id,

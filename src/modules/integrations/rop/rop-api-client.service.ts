@@ -18,18 +18,18 @@ export class RopApiClientService {
 
   constructor(private readonly logger: AppLogger) {}
 
-  async fetchByPlate(plateNumber: string): Promise<RopApiResult> {
-    this.logger.log(`ROP stub fetch for plate: ${plateNumber}`, RopApiClientService.context);
-    return {
-      owner_name: `Owner — ${plateNumber}`,
-      owner_phone: undefined,
-      vehicle_make: undefined,
-      vehicle_model: undefined,
-      reg_no: plateNumber,
-      chassis_no: undefined,
-      insurance: undefined,
-      reg_expiry: undefined,
-    };
+  /**
+   * Fetch vehicle/owner details from ROP by plate.
+   * Returns `null` when no real ROP API is configured yet (the current state) —
+   * the caller then leaves the verification as `Pending` instead of `Fetched`.
+   * Wire the real Opal ROP API here; a thrown error is treated as `Failed`.
+   */
+  async fetchByPlate(plateNumber: string): Promise<RopApiResult | null> {
+    this.logger.log(
+      `ROP API not configured — skipping fetch for plate: ${plateNumber} (status stays Pending)`,
+      RopApiClientService.context,
+    );
+    return null;
   }
 
   /**

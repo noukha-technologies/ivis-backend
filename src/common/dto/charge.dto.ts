@@ -10,7 +10,9 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import { normalizeVehicleType } from '../utils/normalize-vehicle-type.util';
 
 export class CreateChargeDto {
   @ApiPropertyOptional({
@@ -31,9 +33,10 @@ export class CreateChargeDto {
   centre_id?: string;
 
   @ApiProperty({
-    description: 'Vehicle type (free text, operator-entered)',
-    example: 'Sedan',
+    description: 'Vehicle type (free text, stored lowercase for charge comparison)',
+    example: 'sedan',
   })
+  @Transform(({ value }) => normalizeVehicleType(value))
   @IsString({ message: 'vehicle_type must be a string' })
   @IsNotEmpty({ message: 'vehicle_type is required' })
   vehicle_type!: string;

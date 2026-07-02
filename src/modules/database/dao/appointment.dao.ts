@@ -59,8 +59,8 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(query, {
       searchFields: [
         'status',
-        'customer.customer_name',
-        'customer.customer_phone_number',
+        'customer.owner_name',
+        'customer.owner_phone_number',
         'vehicleRecord.plate_number',
         'anprCapture.plate_number',
       ],

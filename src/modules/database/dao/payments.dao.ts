@@ -57,7 +57,7 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     const options = buildTypeOrmPaginationOptions<Payments, Payments>(
       query,
       {
-        searchFields: ['status', 'paymentType.name', 'customer.customer_name'],
+        searchFields: ['status', 'paymentType.name', 'customer.owner_name'],
         allowedSortFields: ['payment_id', 'status', 'pay_date', 'grand_total', 'created_at'],
         defaultSort: { created_at: 'DESC' },
         baseWhere: { is_deleted: false },

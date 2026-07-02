@@ -45,6 +45,23 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
     });
   }
 
+  /**
+   * Resolve the applicable charge by vehicle type alone (used when no charge
+   * category is known, e.g. walk-ins without a vehicle master). Prefers a
+   * centre-specific charge, then falls back to a global (null-centre) charge.
+   */
+  async findByVehicleType(
+    centreId: string | undefined,
+    vehicleType: string,
+  ): Promise<Charge | null> {
+    const base = { vehicle_type: vehicleType, status: 'Active', is_enabled: true, is_deleted: false };
+    if (centreId) {
+      const centreCharge = await this.findOne({ where: { ...base, centre_id: centreId } });
+      if (centreCharge) return centreCharge;
+    }
+    return this.findOne({ where: { ...base, centre_id: IsNull() } });
+  }
+
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Charge>> {
     const qb = this.createQueryBuilder('charge')
       .leftJoinAndSelect('charge.centre', 'centre')

@@ -61,6 +61,16 @@ export class AnprCapture implements IAnprCaptureFields {
   @OneToMany(() => RopVerification, (ropVerification) => ropVerification.anpr_capture)
   rop_verifications?: RopVerification[];
 
+  /* Current / latest ROP verification pointer — set by the auto pipeline and
+     manual ROP edits so the capture resolves its ROP details unambiguously. */
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Index('IDX_ANPR_CAPTURE_ROP_VERIFICATION_ID')
+  rop_verification_id?: string | null;
+
+  @ManyToOne(() => RopVerification, { nullable: true })
+  @JoinColumn({ name: 'rop_verification_id' })
+  currentRopVerification?: RopVerification;
+
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   direction?: string;

@@ -222,10 +222,10 @@ export class CreateJobDto {
   @IsOptional()
   job_id?: number;
 
-  @ApiProperty({ description: 'Job source', example: 'Booked', enum: JOB_SOURCES })
+  @ApiPropertyOptional({ description: 'Appointment snowflake ID this job was converted from' })
+  @IsOptional()
   @IsString()
-  @IsIn([...JOB_SOURCES])
-  source!: (typeof JOB_SOURCES)[number];
+  appointment_id?: string;
 
   @ApiPropertyOptional({
     description: 'Job status',
@@ -312,16 +312,6 @@ export class UpdateJobDto extends PartialType(
   @IsOptional()
   @IsDateString()
   completed_at?: string;
-
-  @ApiPropertyOptional({ description: 'Driver name' })
-  @IsOptional()
-  @IsString()
-  driver_name?: string;
-
-  @ApiPropertyOptional({ description: 'Driver contact number' })
-  @IsOptional()
-  @IsString()
-  driver_phone?: string;
 
   @ApiPropertyOptional({ description: 'Invoice number' })
   @IsOptional()

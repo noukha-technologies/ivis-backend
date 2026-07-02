@@ -21,7 +21,11 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
   async findActiveById(id: string): Promise<AnprCapture | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { camera: { line: { centre: true } }, rop_verifications: true },
+      relations: {
+        camera: { line: { centre: true } },
+        rop_verifications: true,
+        currentRopVerification: true,
+      },
     });
   }
 
@@ -46,7 +50,8 @@ export class AnprCaptureDao extends Repository<AnprCapture> implements IAnprCapt
         'anprCapture.rop_verifications',
         'rop_verifications',
         'rop_verifications.is_deleted = false',
-      );
+      )
+      .leftJoinAndSelect('anprCapture.currentRopVerification', 'currentRopVerification');
 
     const options = buildTypeOrmPaginationOptions<AnprCapture, AnprCapture>(query, {
       searchFields: ['plate_number', 'normalized_plate', 'line_id', 'direction'],

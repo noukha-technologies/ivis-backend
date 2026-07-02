@@ -6,8 +6,10 @@ import {
   IsString,
   Min
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { VEHICLE_MASTER_STATUSES, VEHICLE_TYPES } from '../enums/vehicle-master.constants';
+import { VEHICLE_MASTER_STATUSES } from '../enums/vehicle-master.constants';
+import { normalizeVehicleType } from '../utils/normalize-vehicle-type.util';
 
 export class CreateVehicleDto {
   @ApiPropertyOptional({
@@ -42,10 +44,10 @@ export class CreateVehicleDto {
   @IsNotEmpty({ message: 'vin no is required' })
   vin_no!: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle body type', enum: VEHICLE_TYPES, example: 'Sedan' })
-  @IsString({ message: 'vehicle_type must be a string' })
-  @IsIn(VEHICLE_TYPES, { message: 'vehicle_type must be a valid vehicle type' })
+  @ApiPropertyOptional({ description: 'Vehicle body type (free text, stored lowercase)', example: 'sedan' })
   @IsOptional()
+  @Transform(({ value }) => normalizeVehicleType(value))
+  @IsString({ message: 'vehicle_type must be a string' })
   vehicle_type?: string;
 
   @ApiPropertyOptional({

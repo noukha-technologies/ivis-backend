@@ -5,7 +5,6 @@ import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
 
 import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
-import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
@@ -15,16 +14,14 @@ import { DatabaseException, DuplicateResourceException, ResourceNotFoundExceptio
 
 import { LineDao } from '../../../database/dao/line.dao';
 import { CameraDao } from '../../../database/dao/camera.dao';
-import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
-import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 
 import { Camera } from '../../../database/entity/camera.entity';
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 
 import { AnprOrchestrationService } from './anpr-orchestration.service';
+import { CaptureValidationService } from './capture-validation.service';
 import { ImageProcessorService } from '../../../../common/shared/anpr/image-processor.service';
-import { OnlineAppointmentApiClientService } from '../../../integrations/online-appointment/online-appointment-api-client.service';
 
 @Injectable()
 export class AnprCaptureService {
@@ -36,11 +33,9 @@ export class AnprCaptureService {
     private readonly lineDao: LineDao,
     private readonly cameraDao: CameraDao,
     private readonly anprCaptureDao: AnprCaptureDao,
-    private readonly appointmentDao: AppointmentDao,
-    private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly imageProcessor: ImageProcessorService,
     private readonly orchestrationService: AnprOrchestrationService,
-    private readonly onlineAppointmentApi: OnlineAppointmentApiClientService,
+    private readonly captureValidation: CaptureValidationService,
   ) { }
 
   async attachImages(
@@ -230,7 +225,7 @@ export class AnprCaptureService {
 
       // Queue an appointment only when the capture is actually validated.
       if (saved.status === AnprCaptureStatus.VALIDATED) {
-        await this.ensureQueuedAppointment(saved, actor);
+        await this.captureValidation.ensureQueuedAppointment(saved, getCreatedById(actor));
       }
 
       this.logger.log(`ANPR capture ${saved.status} ID: ${saved.id}`, AnprCaptureService.context);
@@ -249,69 +244,6 @@ export class AnprCaptureService {
       );
       throw new DatabaseException('Failed to validate ANPR capture. Please try again.');
     }
-  }
-
-  private async ensureQueuedAppointment(capture: AnprCapture, actor: UserContext): Promise<void> {
-    const existing = await this.appointmentDao.findByAnprCaptureId(capture.id);
-    if (existing) {
-      this.logger.log(
-        `Appointment already exists for capture ${capture.id} — skipping`,
-        AnprCaptureService.context,
-      );
-      return;
-    }
-
-    const plate = capture.plate_number;
-
-    // Ensure a vehicle record exists for the plate and carries the ANPR vehicle
-    // type (#6 — the type entered on the ANPR capture flows into the records
-    // master). Created if missing, updated when the capture has a newer type.
-    let vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plate);
-    if (!vehicleRecord) {
-      vehicleRecord = await this.vehicleRecordDao.save(
-        this.vehicleRecordDao.create({
-          id: generateSnowflakeId(),
-          vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
-          plate_number: plate,
-          vehicle_type: capture.vehicle_type ?? undefined,
-          created_by: getCreatedById(actor),
-        }),
-      );
-    } else if (capture.vehicle_type && capture.vehicle_type !== vehicleRecord.vehicle_type) {
-      vehicleRecord = await this.vehicleRecordDao.save(
-        this.vehicleRecordDao.merge(vehicleRecord, { vehicle_type: capture.vehicle_type }),
-      );
-    }
-
-    // Carry the capture's line (and its centre) onto the appointment so the queue
-    // shows Centre / Line. The chosen line's centre is resolved from the line master.
-    const line = capture.line_id ? await this.lineDao.findActiveById(capture.line_id) : null;
-
-    // Check the third-party online appointment API by plate: if the plate is a
-    // pre-booked online appointment, mark it Online; otherwise it's a direct
-    // Walk-in. (Returns null until the integration is configured.) Customer
-    // details are entered later by the operator (thin appointment row).
-    const online = await this.onlineAppointmentApi.findByPlate(plate);
-
-    const nextId = await this.appointmentDao.getNextAppointmentId();
-    const appointment = this.appointmentDao.create({
-      id: generateSnowflakeId(),
-      appointment_id: nextId,
-      anpr_capture_id: capture.id,
-      customer_id: null,
-      vehicle_record_id: vehicleRecord?.id ?? null,
-      centre_id: line?.centre_id ?? null,
-      line_id: capture.line_id ?? null,
-      booking_type: online ? BookingType.ONLINE : BookingType.WALK_IN,
-      status: AppointmentStatus.QUEUED,
-      appointment_at: online?.appointment_at ? new Date(online.appointment_at) : new Date(),
-      created_by: getCreatedById(actor),
-    });
-    await this.appointmentDao.save(appointment);
-    this.logger.log(
-      `Appointment queued for capture ${capture.id}: ${appointment.id}`,
-      AnprCaptureService.context,
-    );
   }
 
   async remove(id: string): Promise<void> {

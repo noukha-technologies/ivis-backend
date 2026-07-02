@@ -4,10 +4,10 @@ export interface ICustomerFields {
     id: string;
     customer_id: number;
     id_number?: string;
-    customer_name: string;
-    customer_phone_number: string;
-    owner_name?: string;
-    owner_phone_number?: string;
+    owner_name: string;
+    owner_phone_number: string;
+    driver_name?: string;
+    driver_phone_number?: string;
     plate_number?: string;
     chassis_no?: string;
     mulkiya_id?: string;

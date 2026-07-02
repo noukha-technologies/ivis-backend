@@ -14,6 +14,7 @@ import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs
 import { Transform } from 'class-transformer';
 import { AppointmentStatus, AppointmentTypes, BookingType } from '../enums/common.enums';
 import { normalizeOmanPhone } from '../shared/phone.util';
+import { normalizeVehicleType } from '../utils/normalize-vehicle-type.util';
 
 export class CreateAppointmentDto {
   @ApiPropertyOptional({
@@ -91,6 +92,21 @@ export class CreateAppointmentDto {
   })
   owner_phone?: string;
 
+  @ApiPropertyOptional({ description: 'Driver full name (defaults to the owner/customer name)', example: 'Ahmed Al Said' })
+  @IsOptional()
+  @IsString({ message: 'driver_name must be a string' })
+  @Matches(/^[A-Za-z\s'-]+$/, { message: 'driver_name must contain only alphabets' })
+  driver_name?: string;
+
+  @ApiPropertyOptional({ description: 'Driver phone (Oman, stored as +968 XXXXXXXX)', example: '+968 91234567' })
+  @IsOptional()
+  @Transform(({ value }) => normalizeOmanPhone(value))
+  @IsString({ message: 'driver_phone must be a string' })
+  @Matches(/^\+968\s\d{8}$/, {
+    message: 'driver_phone must be a valid 8-digit Oman number (example: +968 91234567)',
+  })
+  driver_phone?: string;
+
   @ApiPropertyOptional({ description: 'Plate colour (auto-filled from records)', example: 'White' })
   @IsOptional()
   @IsString({ message: 'plate_color must be a string' })
@@ -153,8 +169,9 @@ export class CreateAppointmentDto {
   @IsEnum(BookingType, { message: 'booking_type must be Walk-in or Online' })
   booking_type?: BookingType;
 
-  @ApiPropertyOptional({ description: 'Vehicle body type (snapshot)', example: 'Sedan' })
+  @ApiPropertyOptional({ description: 'Vehicle body type (snapshot, stored lowercase)', example: 'sedan' })
   @IsOptional()
+  @Transform(({ value }) => normalizeVehicleType(value))
   @IsString({ message: 'vehicle_type must be a string' })
   vehicle_type?: string;
 

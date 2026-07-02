@@ -1,20 +1,15 @@
 import {
     BadRequestException,
-    Body,
     Controller,
-    Delete,
-    Get,
     HttpCode,
     Param,
     Post,
-    Put,
     Query,
     Req,
     Res,
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import { UpdateAnprEventDto } from '../../common/dto/anpr-event.dto';
 import { AnprService } from './anpr.service';
 import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
 
@@ -46,47 +41,5 @@ export class AnprController {
             message: `FTP directory scan completed for camera ${cameraId}`,
             timestamp: new Date().toISOString(),
         };
-    }
-
-    @Get('events')
-    @HttpCode(200)
-    async getRecentEvents(
-        @Query('limit') limitStr?: string,
-        @Query('cameraCode') cameraCode?: string,
-    ) {
-        const parsed = parseInt(limitStr ?? '100', 10);
-        const limit = Number.isFinite(parsed) ? Math.min(Math.max(parsed, 1), 500) : 100;
-        return this.anprService.getRecentEvents(limit, cameraCode);
-    }
-
-    @Get('events/:id')
-    @HttpCode(200)
-    async getEventById(@Param('id') id: string) {
-        const eventId = parseInt(id, 10);
-        if (Number.isNaN(eventId)) {
-            throw new BadRequestException(`Invalid event id: ${id}`);
-        }
-        return this.anprService.getEventById(eventId);
-    }
-
-    @Put('events/:id')
-    @HttpCode(200)
-    async updateEvent(@Param('id') id: string, @Body() dto: UpdateAnprEventDto) {
-        const eventId = parseInt(id, 10);
-        if (Number.isNaN(eventId)) {
-            throw new BadRequestException(`Invalid event id: ${id}`);
-        }
-        return this.anprService.updateEvent(eventId, dto);
-    }
-
-    @Delete('events/:id')
-    @HttpCode(200)
-    async deleteEvent(@Param('id') id: string) {
-        const eventId = parseInt(id, 10);
-        if (Number.isNaN(eventId)) {
-            throw new BadRequestException(`Invalid event id: ${id}`);
-        }
-        await this.anprService.deleteEvent(eventId);
-        return { message: `ANPR event ${eventId} deleted` };
     }
 }

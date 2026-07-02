@@ -3,6 +3,7 @@ import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { QueryFilter } from '../filter/filter.dto';
 import { TypeOrmFilterApplier } from '../filter/typeorm-filter.applier';
 import { PaginationResponse } from '../../interfaces/pagination.interface';
+import { RelationJoin, applyRelationJoins } from './relation-join.util';
 
 export type TypeOrmPaginationOptions<T, K> = {
   filter?: QueryFilter[];
@@ -13,6 +14,8 @@ export type TypeOrmPaginationOptions<T, K> = {
   mapper?: (item: T) => K;
   /** Extra WHERE, e.g. { is_deleted: false } */
   baseWhere?: Record<string, unknown>;
+  /** Relations to left/inner join (declaratively) before filter/sort run. */
+  joinRelations?: RelationJoin[];
 };
 
 @Injectable()
@@ -41,7 +44,11 @@ export class TypeOrmPaginationService {
       nonPaginated,
       mapper,
       baseWhere = {},
+      joinRelations,
     } = options;
+
+    // Apply declarative relation joins first so filter/sort can reference them.
+    applyRelationJoins(qb, joinRelations);
 
     for (const [key, value] of Object.entries(baseWhere)) {
       qb.andWhere(`${alias}.${key} = :base_${key}`, { [`base_${key}`]: value });
@@ -50,7 +57,9 @@ export class TypeOrmPaginationService {
     this.filterApplier.apply(qb, alias, filter);
 
     for (const [field, direction] of Object.entries(sort)) {
-      qb.addOrderBy(`${alias}.${field}`, direction);
+      // A dotted field already carries its (joined) alias, e.g. 'centre.name'.
+      const column = field.includes('.') ? field : `${alias}.${field}`;
+      qb.addOrderBy(column, direction);
     }
 
     if (nonPaginated) {

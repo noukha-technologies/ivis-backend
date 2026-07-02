@@ -51,7 +51,7 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     const qb = this.createQueryBuilder('appointment')
       .leftJoinAndSelect('appointment.customer', 'customer')
       .leftJoinAndSelect('appointment.vehicleRecord', 'vehicleRecord')
-      .leftJoinAndSelect('appointment.vehicleRecord.vehicleMaster', 'vehicleMaster')
+      .leftJoinAndSelect('vehicleRecord.vehicleMaster', 'vehicleMaster')
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
       .leftJoinAndSelect('appointment.centre', 'centre')
       .leftJoinAndSelect('appointment.line', 'line');
@@ -59,8 +59,8 @@ export class AppointmentDao extends Repository<Appointment> implements IAppointm
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(query, {
       searchFields: [
         'status',
-        'customer.customer_name',
-        'customer.phone',
+        'customer.owner_name',
+        'customer.owner_phone_number',
         'vehicleRecord.plate_number',
         'anprCapture.plate_number',
       ],

@@ -3,12 +3,12 @@ import type { AppointmentStatus } from '../enums/common.enums';
 export interface ICustomerFields {
     id: string;
     customer_id: number;
-    customer_name: string;
-    phone: string;
-    alternate_phone?: string;
-    owner_name?: string;
-    owner_phone_number?: string;
     id_number?: string;
+    owner_name: string;
+    owner_phone_number: string;
+    driver_name?: string;
+    driver_phone_number?: string;
+    plate_number?: string;
     chassis_no?: string;
     mulkiya_id?: string;
     vehicle_record_id?: string | null;

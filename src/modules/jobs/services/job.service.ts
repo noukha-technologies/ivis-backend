@@ -21,11 +21,13 @@ import { ChargeDao } from '../../database/dao/charge.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
 import { JobDao } from '../../database/dao/job.dao';
 import { LineDao } from '../../database/dao/line.dao';
+import { PaymentsDao } from '../../database/dao/payments.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { PaymentApiClientService } from '../../integrations/payment/payment-api-client.service';
 import { RopApiClientService } from '../../integrations/rop/rop-api-client.service';
 import { InfileGeneratorService } from './infile-generator.service';
 import { Job } from '../../database/entity/job.entity';
+import { Charge } from '../../database/entity/charge.entity';
 
 /** Resolved invoice pricing for a job (Invoice Details stage). */
 export interface JobPricingResult {
@@ -38,6 +40,8 @@ export interface JobPricingResult {
   grand_total: number;
   advance: number;
   payable: number;
+  /** The payments_id that will be generated for this job's next payment. */
+  next_payment_id: number;
 }
 
 @Injectable()
@@ -55,6 +59,7 @@ export class JobService {
     private readonly lineDao: LineDao,
     private readonly adminPcDao: AdminPcDao,
     private readonly cameraDao: CameraDao,
+    private readonly paymentsDao: PaymentsDao,
     private readonly paymentApi: PaymentApiClientService,
     private readonly ropApi: RopApiClientService,
     private readonly infileGenerator: InfileGeneratorService,
@@ -130,7 +135,7 @@ export class JobService {
       const job = this.jobDao.create({
         id: generateSnowflakeId(),
         job_id: jobId,
-        source: createDto.source,
+        appointment_id: createDto.appointment_id ?? null,
         status: createDto.status || 'Pending',
         customer_id: createDto.customer_id,
         vehicle_record_id: createDto.vehicle_record_id,
@@ -206,7 +211,7 @@ export class JobService {
 
     const job = await this.create(
       {
-        source: 'Walk-In',
+        appointment_id: appt.id,
         status: 'Pending',
         customer_id: appt.customer_id,
         vehicle_record_id: vehicleRecordId,
@@ -232,14 +237,31 @@ export class JobService {
    */
   async resolvePricing(id: string): Promise<JobPricingResult> {
     const job = await this.findOne(id);
-    const vehicleType =
+    return this.resolvePricingForJob(job);
+  }
+
+  /**
+   * Resolve the payment for a job from the configured charges, filtered by the
+   * job's vehicle type (lowercased). Uses the (centre, vehicle_type, category)
+   * combo when a charge category is known, otherwise falls back to matching by
+   * vehicle type alone. Returned inline on job create / get responses.
+   */
+  async resolvePricingForJob(job: Job): Promise<JobPricingResult> {
+    const rawVehicleType =
       job.vehicleRecord?.vehicle_type ?? job.vehicleRecord?.vehicleMaster?.vehicle_type ?? null;
+    const vehicleType = rawVehicleType ? rawVehicleType.trim().toLowerCase() : null;
     const chargeCategoryId = job.vehicleRecord?.vehicleMaster?.charge_category_id ?? null;
 
-    const charge =
-      vehicleType && chargeCategoryId
+    const nextPaymentId = await this.paymentsDao.getNextPaymentsId();
+
+    let charge: Charge | null = null;
+    if (vehicleType) {
+      charge = chargeCategoryId
         ? await this.chargeDao.findByCombo(job.centre_id ?? undefined, vehicleType, chargeCategoryId)
         : null;
+      // Fallback: match by vehicle type alone (e.g. walk-ins with no category).
+      charge ??= await this.chargeDao.findByVehicleType(job.centre_id ?? undefined, vehicleType);
+    }
 
     if (!charge) {
       return {
@@ -252,6 +274,7 @@ export class JobService {
         grand_total: 0,
         advance: 0,
         payable: 0,
+        next_payment_id: nextPaymentId,
       };
     }
 
@@ -270,6 +293,7 @@ export class JobService {
       grand_total: grandTotal,
       advance,
       payable: Math.max(0, grandTotal - advance),
+      next_payment_id: nextPaymentId,
     };
   }
 

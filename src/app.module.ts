@@ -15,9 +15,9 @@ import databaseConfig from './modules/database/database.config';
 
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { AnprModule } from './modules/anpr/anpr.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
-import { AnprModule } from './modules/anpr/anpr.module';
 import { LoggerModule } from './common/logger/logger.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';

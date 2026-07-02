@@ -7,6 +7,7 @@ import { CreateAppointmentDto, UpdateAppointmentDto } from '../../../common/dto/
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { generateIdNumber } from '../../../common/shared/id-number.util';
 import {
   DatabaseException,
   DuplicateResourceException,
@@ -24,6 +25,7 @@ import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 export interface PlateLookupResult {
   plate_number: string;
   owner_name: string | null;
+  owner_phone: string | null;
   customer_name: string | null;
   customer_phone: string | null;
   id_number: string | null;
@@ -72,9 +74,10 @@ export class AppointmentService {
 
     return {
       plate_number: record.plate_number,
-      owner_name: customer?.owner_name ?? customer?.customer_name ?? null,
-      customer_name: customer?.customer_name ?? null,
-      customer_phone: customer?.phone ?? null,
+      owner_name: customer?.owner_name ?? null,
+      owner_phone: customer?.owner_phone_number ?? null,
+      customer_name: customer?.owner_name ?? null,
+      customer_phone: customer?.owner_phone_number ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
       plate_color: latestCapture?.plate_color ?? record.plate_color ?? null,
       vehicle_type: record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
@@ -122,7 +125,15 @@ export class AppointmentService {
 
       // Create / link the customer with all entered details (#4) and link it to
       // the vehicle record. The appointment then only stores the customer id.
-      const customerId = await this.ensureCustomer(createDto, vehicleRecordId, actor);
+      // Walk-ins may be created without customer details — those are filled later
+      // via the customer popup (PATCH), so only link a customer when we have one.
+      const hasCustomer = !!(
+        createDto.customer_id ||
+        (createDto.customer_name && createDto.customer_phone)
+      );
+      const customerId = hasCustomer
+        ? await this.ensureCustomer(createDto, vehicleRecordId, actor)
+        : undefined;
 
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
@@ -285,7 +296,7 @@ export class AppointmentService {
     dto: Partial<
       Pick<
         CreateAppointmentDto,
-        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'mulkiya_id' | 'chassis_no'
+        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'owner_phone' | 'driver_name' | 'driver_phone' | 'mulkiya_id' | 'chassis_no' | 'plate_number'
       >
     >,
     vehicleRecordId: string | undefined,
@@ -297,10 +308,13 @@ export class AppointmentService {
         throw new ResourceNotFoundException('Customer', dto.customer_id);
       }
       const merged = this.customerDao.merge(customer, {
-        customer_name: dto.customer_name ?? customer.customer_name,
-        phone: dto.customer_phone ?? customer.phone,
-        owner_name: dto.owner_name ?? customer.owner_name,
-        id_number: dto.id_number ?? customer.id_number,
+        owner_name: dto.owner_name ?? dto.customer_name ?? customer.owner_name,
+        owner_phone_number: dto.owner_phone ?? dto.customer_phone ?? customer.owner_phone_number,
+        driver_name: dto.driver_name ?? customer.driver_name,
+        driver_phone_number: dto.driver_phone ?? customer.driver_phone_number,
+        plate_number: dto.plate_number ?? customer.plate_number,
+        // id_number is a system-generated code — backfill it if the row lacks one.
+        id_number: customer.id_number ?? dto.id_number ?? generateIdNumber(),
         chassis_no: dto.chassis_no ?? customer.chassis_no,
         mulkiya_id: dto.mulkiya_id ?? customer.mulkiya_id,
         vehicle_record_id: vehicleRecordId ?? customer.vehicle_record_id,
@@ -316,10 +330,14 @@ export class AppointmentService {
     const customer = this.customerDao.create({
       id: generateSnowflakeId(),
       customer_id: await this.customerDao.getNextCustomerId(),
-      customer_name: dto.customer_name,
-      phone: dto.customer_phone,
+      // id_number is a system-generated nanoid-style code (not user entered).
+      id_number: dto.id_number ?? generateIdNumber(),
       owner_name: dto.owner_name ?? dto.customer_name,
-      id_number: dto.id_number,
+      owner_phone_number: dto.owner_phone ?? dto.customer_phone,
+      // Driver defaults to the owner/customer when not provided.
+      driver_name: dto.driver_name ?? dto.owner_name ?? dto.customer_name,
+      driver_phone_number: dto.driver_phone,
+      plate_number: dto.plate_number,
       chassis_no: dto.chassis_no,
       mulkiya_id: dto.mulkiya_id,
       vehicle_record_id: vehicleRecordId,

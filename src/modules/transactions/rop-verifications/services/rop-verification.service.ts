@@ -14,9 +14,11 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { RopVerificationStatus } from '../../../../common/enums/common.enums';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { RopVerification } from '../../../database/entity/rop-verification.entity';
+import { CaptureValidationService } from '../../anpr-captures/services/capture-validation.service';
 
 @Injectable()
 export class RopVerificationService {
@@ -25,8 +27,24 @@ export class RopVerificationService {
   constructor(
     private readonly ropVerificationDao: RopVerificationDao,
     private readonly anprCaptureDao: AnprCaptureDao,
+    private readonly captureValidation: CaptureValidationService,
     private readonly logger: AppLogger,
   ) {}
+
+  /**
+   * When a ROP verification is "Fetched", validate the linked capture and queue
+   * the appointment (same pipeline as the automatic ROP fetch). No-op otherwise.
+   */
+  private async syncCaptureFromRop(rop: RopVerification): Promise<void> {
+    if (rop.fetch_status !== RopVerificationStatus.VALIDATED || !rop.anpr_capture_id) {
+      return;
+    }
+    const capture = await this.anprCaptureDao.findActiveById(rop.anpr_capture_id);
+    if (!capture) {
+      return;
+    }
+    await this.captureValidation.applyRopFetched(capture, rop, rop.created_by ?? 'operator');
+  }
 
   async create(createDto: CreateRopVerificationDto, actor: UserContext): Promise<RopVerification> {
     this.logger.log(
@@ -60,11 +78,14 @@ export class RopVerificationService {
         ...createDto,
         rop_verification_id: ropVerificationId,
         reg_expiry: createDto.reg_expiry ? new Date(createDto.reg_expiry) : undefined,
-        fetch_status: createDto.fetch_status || 'Not Fetched',
+        // Manually entered ROP details are treated as Fetched unless stated otherwise.
+        fetch_status: createDto.fetch_status || RopVerificationStatus.VALIDATED,
         created_by: getCreatedById(actor),
       });
 
       const saved = await this.ropVerificationDao.save(ropVerification);
+      // Fetched → validate the linked capture + queue the appointment.
+      await this.syncCaptureFromRop(saved);
       this.logger.log(
         `ROP verification created with ID: ${saved.id}`,
         RopVerificationService.context,
@@ -136,6 +157,8 @@ export class RopVerificationService {
         ...(updateDto.reg_expiry ? { reg_expiry: new Date(updateDto.reg_expiry) } : {}),
       });
       const saved = await this.ropVerificationDao.save(merged);
+      // Fetched → validate the linked capture + queue the appointment.
+      await this.syncCaptureFromRop(saved);
       this.logger.log(
         `ROP verification updated with ID: ${saved.id}`,
         RopVerificationService.context,

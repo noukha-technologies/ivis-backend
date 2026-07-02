@@ -31,7 +31,7 @@ export class CreateJobRequestConstraint implements ValidatorConstraintInterface 
   validate(_value: unknown, args: ValidationArguments): boolean {
     const dto = args.object as JobCreateRequestShape;
     if (isLegacyJobCreate(dto)) {
-      return !!(dto.source && dto.customer_id && dto.vehicle_record_id);
+      return !!(dto.customer_id && dto.vehicle_record_id);
     }
     return !!(
       dto.customer_name &&

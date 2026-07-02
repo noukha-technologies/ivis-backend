@@ -6,21 +6,21 @@ import {
   Index,
   ManyToOne,
   OneToMany,
-  OneToOne,
   JoinColumn,
   BeforeInsert,
   BeforeUpdate,
 } from 'typeorm';
 import * as bcrypt from 'bcrypt';
-
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Centre } from './centre.entity';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
 import { Role } from './role.entity';
+import { Centre } from './centre.entity';
 import { UserLineMapping } from './user-line-mapping.entity';
+import { IUserFields } from '../../../common/interfaces/user.interface';
 
 @Entity({ name: 'users', schema: 'core' })
-export class User {
+export class User implements IUserFields {
   @SnowflakePrimaryColumn()
   id!: string;
 
@@ -51,13 +51,11 @@ export class User {
   role!: Role;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  @Index('UQ_USER_CENTER_ID', {
-    unique: true,
-    where: '"is_deleted" = false AND "center_id" IS NOT NULL',
-  })
+  @Index('IDX_USER_CENTER_ID')
   center_id?: string | null;
 
-  @OneToOne(() => Centre, (centre) => centre.assignedUser, { nullable: true })
+  // Multiple users may share the same centre.
+  @ManyToOne(() => Centre, (centre) => centre.assignedUsers, { nullable: true })
   @JoinColumn({ name: 'center_id' })
   assignedCentre!: Centre;
 

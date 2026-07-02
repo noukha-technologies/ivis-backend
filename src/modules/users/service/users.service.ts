@@ -5,7 +5,7 @@ import { getCreatedById } from '../../../common/utils/created-by.util';
 import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
-import { resolveUserLineIds } from '../../../common/validators/user-centre-line.validator.js';
+import { resolveUserLineIds } from '../../../common/validators/user-centre-line.validator';
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -61,9 +61,8 @@ export class UsersService implements IUsersService {
       const lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
       const centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
       if (centreFkId) {
-        await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId);
+        // Multiple users may share the same centre and lines — no uniqueness check.
         await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
-        await this.assertLinesAvailable(lineIds);
       }
 
       const {
@@ -77,7 +76,6 @@ export class UsersService implements IUsersService {
       } = createUserDto;
 
       const nextUserId = await this.usersDao.getNextUserId();
-
       const createdBy = getCreatedById(actor);
 
       const user = this.usersDao.create({
@@ -202,14 +200,7 @@ export class UsersService implements IUsersService {
         }
       }
 
-      const {
-        role_id: updatedRoleId,
-        center_id,
-        line_ids,
-        line_id,
-        user_code: _userCode,
-        ...updateFields
-      } = updateUserDto;
+      const { role_id: updatedRoleId, center_id, line_ids, line_id, user_code: _userCode, ...updateFields } = updateUserDto;
       const hasLinesUpdate = line_ids !== undefined || line_id !== undefined;
       const resolvedLineIds = hasLinesUpdate
         ? this.normalizeLineIds(resolveUserLineIds({ line_ids, line_id }))
@@ -225,33 +216,29 @@ export class UsersService implements IUsersService {
 
       let centreFkId: string | null | undefined;
       if (center_id !== undefined) {
+        // Multiple users may share the same centre — no uniqueness check.
         centreFkId = await this.resolveCentreForUser(center_id, resolvedLineIds ?? []);
-        if (centreFkId) {
-          await this.masterScope.assertCentreNotAssignedToOtherUser(centreFkId, id);
-        }
       }
 
-      const effectiveCentreId =
-        centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
-
+      const effectiveCentreId = centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
       const createdBy = getCreatedById(actor);
 
       if (hasLinesUpdate) {
         const normalizedLineIds = resolvedLineIds!;
         if (effectiveCentreId) {
-          if (normalizedLineIds.length === 0) {
-            throw new BadRequestException(
-              'At least one line is required when a centre is assigned.',
-            );
+          // Lines are optional (admins have none); validate only when provided.
+          if (normalizedLineIds.length > 0) {
+            // Lines are shareable across users — only ensure they belong to the centre.
+            await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
           }
-          await this.masterScope.assertLinesBelongToCentre(normalizedLineIds, effectiveCentreId);
-          await this.assertLinesAvailable(normalizedLineIds, id);
         } else if (normalizedLineIds.length > 0) {
           throw new BadRequestException('Centre is required when assigning lines.');
         }
-        await this.userLineMappingDao.replaceForUser(id, normalizedLineIds, createdBy);
+        // Diff-based: only the added/removed lines change; unchanged rows are kept.
+        await this.userLineMappingDao.syncForUser(id, normalizedLineIds, createdBy);
       } else if (centreFkId !== undefined && centreFkId !== user.center_id) {
-        await this.userLineMappingDao.replaceForUser(id, [], createdBy);
+        // Centre changed but no explicit line update → clear stale line mappings.
+        await this.userLineMappingDao.syncForUser(id, [], createdBy);
       }
 
       const mergedUser = this.usersDao.merge(user, {
@@ -260,6 +247,10 @@ export class UsersService implements IUsersService {
         ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
         ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
       });
+      // Detach the loaded line-mappings collection before saving: otherwise
+      // TypeORM syncs the stale (pre-update) array and deletes the rows that
+      // syncForUser just wrote. Line mappings are managed only via the DAO.
+      mergedUser.lineMappings = undefined;
       await this.usersDao.save(mergedUser);
 
       this.logger.log(`User updated ID: ${id}`, UsersService.context);
@@ -317,9 +308,7 @@ export class UsersService implements IUsersService {
       }
       return null;
     }
-    if (lineIds.length === 0) {
-      throw new BadRequestException('At least one line is required when a centre is assigned.');
-    }
+    // Lines are optional (admins have a centre but no lines) — do not require them.
     return this.masterScope.resolveCentreId(trimmed);
   }
 
@@ -330,16 +319,4 @@ export class UsersService implements IUsersService {
     return [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
   }
 
-  private async assertLinesAvailable(lineIds: string[], excludeUserId?: string): Promise<void> {
-    if (!lineIds.length) {
-      return;
-    }
-    const conflicts = await this.userLineMappingDao.findActiveByLineIds(lineIds);
-    for (const mapping of conflicts) {
-      if (excludeUserId && mapping.user_id === excludeUserId) {
-        continue;
-      }
-      throw new DuplicateResourceException('Line', 'line_id', mapping.line_id);
-    }
-  }
 }

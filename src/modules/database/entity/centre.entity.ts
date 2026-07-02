@@ -4,7 +4,6 @@ import {
   Entity,
   Index,
   OneToMany,
-  OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
@@ -52,6 +51,6 @@ export class Centre implements ICentreMasterFields {
   @OneToMany(() => Line, (line) => line.centre)
   lines?: Line[];
 
-  @OneToOne(() => User, (user) => user.assignedCentre)
-  assignedUser?: User;
+  @OneToMany(() => User, (user) => user.assignedCentre)
+  assignedUsers?: User[];
 }

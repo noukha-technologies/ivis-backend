@@ -8,7 +8,6 @@ import { AnprController } from './anpr.controller';
 import { AnprService } from './anpr.service';
 
 import { Camera } from '../database/entity/camera.entity';
-import { AnprEventEntity } from '../database/entity/anpr.entity';
 
 // Shared services
 import { XmlParserService } from '../../common/shared/anpr/xml-parser.service';
@@ -31,7 +30,7 @@ import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory
 
 @Module({
     imports: [
-        TypeOrmModule.forFeature([AnprEventEntity, Camera]),
+        TypeOrmModule.forFeature([Camera]),
         AnprCaptureModule,
         DatabaseModule
     ],

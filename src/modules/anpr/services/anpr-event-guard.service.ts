@@ -1,14 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { AnprEventEntity } from '../../database/entity/anpr.entity';
+import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 
 export type AnprGuardRejectReason = 'invalid_plate' | 'duplicate_day';
 
 export type AnprAcceptanceResult = {
     accept: boolean;
     reason?: AnprGuardRejectReason;
-    existingEventId?: number;
+    existingCaptureId?: string;
     existingCaptureTime?: Date;
 };
 
@@ -17,12 +15,8 @@ export class AnprEventGuardService {
     private readonly logger = new Logger(AnprEventGuardService.name);
     private readonly dayTimezone: string;
 
-    constructor(
-        @InjectRepository(AnprEventEntity)
-        private readonly anprEventRepo: Repository<AnprEventEntity>,
-    ) {
-        this.dayTimezone =
-            process.env.ANPR_DAY_TIMEZONE?.trim() || 'Asia/Muscat';
+    constructor(private readonly anprCaptureDao: AnprCaptureDao) {
+        this.dayTimezone = process.env.ANPR_DAY_TIMEZONE?.trim() || 'Asia/Muscat';
     }
 
     isInvalidPlate(plate: string): boolean {
@@ -42,23 +36,26 @@ export class AnprEventGuardService {
         return false;
     }
 
+    /** First capture already stored for this plate on the same calendar day. */
     async findExistingPlateOnDay(
         plate: string,
         captureTime: Date,
-    ): Promise<AnprEventEntity | null> {
+    ): Promise<{ id: string; capture_time: Date } | null> {
         const plateKey = plate.trim().toUpperCase();
         if (!plateKey || Number.isNaN(captureTime.getTime())) {
             return null;
         }
 
-        return this.anprEventRepo
-            .createQueryBuilder('e')
-            .where('UPPER(e.plate_number) = :plate', { plate: plateKey })
+        return this.anprCaptureDao
+            .createQueryBuilder('c')
+            .where('c.is_deleted = false')
+            .andWhere('UPPER(c.plate_number) = :plate', { plate: plateKey })
             .andWhere(
-                `DATE(e.capture_time AT TIME ZONE :tz) = DATE(:captureTime AT TIME ZONE :tz)`,
+                `DATE(c.capture_time AT TIME ZONE :tz) = DATE(:captureTime AT TIME ZONE :tz)`,
                 { tz: this.dayTimezone, captureTime },
             )
-            .orderBy('e.capture_time', 'ASC')
+            .orderBy('c.capture_time', 'ASC')
+            .select(['c.id', 'c.capture_time'])
             .getOne();
     }
 
@@ -75,8 +72,8 @@ export class AnprEventGuardService {
             return {
                 accept: false,
                 reason: 'duplicate_day',
-                existingEventId: existing.id,
-                existingCaptureTime: existing.captureTime,
+                existingCaptureId: existing.id,
+                existingCaptureTime: existing.capture_time,
             };
         }
 
@@ -92,7 +89,7 @@ export class AnprEventGuardService {
         if (result.reason === 'duplicate_day') {
             const at = result.existingCaptureTime?.toISOString() ?? 'unknown';
             this.logger.log(
-                `${prefix} Skipped duplicate day: ${plate} (first seen id=${result.existingEventId} at ${at})`,
+                `${prefix} Skipped duplicate day: ${plate} (first seen capture=${result.existingCaptureId} at ${at})`,
             );
         }
     }

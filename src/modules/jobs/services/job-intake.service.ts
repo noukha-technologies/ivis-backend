@@ -4,7 +4,6 @@ import { DataSource, EntityManager, EntityTarget, ObjectLiteral } from 'typeorm'
 import { CreateJobIntakeDto } from '../../../common/dto/job.dto';
 import type { UserContext } from '../../../common/dto/auth.dto';
 
-import type { JobSource } from '../../../common/enums/job.enums';
 import { PaymentStatusEnum, PaymentTypeEnum } from '../../../common/enums/payment.enums';
 import { JobIntakeResult } from '../../../common/interfaces/job.interface';
 
@@ -14,6 +13,7 @@ import { DatabaseException, ResourceNotFoundException } from '../../../common/ex
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { saveBase64File } from '../../../common/utils/file-storage.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { generateIdNumber } from '../../../common/shared/id-number.util';
 
 import { JobDao } from '../../database/dao/job.dao';
 import { LineDao } from '../../database/dao/line.dao';
@@ -76,7 +76,6 @@ export class JobIntakeService {
 
     const isPaid = createDto.payment.type === 'Paid';
     const grandTotal = isPaid ? (createDto.payment.amount ?? 0) : 0;
-    const jobSource = createDto.source ?? 'Walk-In';
     const createdBy = getCreatedById(actor);
 
     try {
@@ -129,7 +128,6 @@ export class JobIntakeService {
           job = await this.createJobRecord(
             manager,
             {
-              source: jobSource as JobSource,
               customerId: customer.id,
               vehicleRecordId: vehicleRecord.id,
               centreId: createDto.centre_id,
@@ -221,11 +219,12 @@ export class JobIntakeService {
 
     if (customer) {
       customer = manager.merge(Customer, customer, {
-        customer_name: dto.customer_name.trim(),
-        phone,
         owner_name: dto.customer_name.trim(),
+        owner_phone_number: phone,
         mulkiya_id: dto.mulkiya_id?.trim() ?? customer.mulkiya_id,
         chassis_no: dto.vin_no?.trim() ?? customer.chassis_no,
+        // Backfill the system-generated id_number for legacy rows.
+        id_number: customer.id_number ?? generateIdNumber(),
       });
       return manager.save(Customer, customer);
     }
@@ -234,9 +233,9 @@ export class JobIntakeService {
     const created = manager.create(Customer, {
       id: generateSnowflakeId(),
       customer_id: customerId,
-      customer_name: dto.customer_name.trim(),
-      phone,
+      id_number: generateIdNumber(),
       owner_name: dto.customer_name.trim(),
+      owner_phone_number: phone,
       mulkiya_id: dto.mulkiya_id?.trim(),
       chassis_no: dto.vin_no?.trim(),
       created_by: createdBy,
@@ -282,7 +281,6 @@ export class JobIntakeService {
   private async createJobRecord(
     manager: EntityManager,
     input: {
-      source: JobSource;
       customerId: string;
       vehicleRecordId: string;
       centreId?: string;
@@ -293,10 +291,10 @@ export class JobIntakeService {
     },
   ): Promise<Job> {
     const jobId = await this.getNextNumericId(manager, Job, 'job_id');
+    // Intake jobs are created directly (no appointment) — appointment_id stays null.
     const job = manager.create(Job, {
       id: generateSnowflakeId(),
       job_id: jobId,
-      source: input.source ?? 'Walk-In',
       status: 'Pending',
       customer_id: input.customerId,
       vehicle_record_id: input.vehicleRecordId,

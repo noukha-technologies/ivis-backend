@@ -16,7 +16,7 @@ import { ICustomerFields } from 'src/common/interfaces/transaction.interface';
 
 @Entity({ name: 'customers', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_CUSTOMER_CUSTOMER_ID', ['customer_id'], { unique: true })
-@Index('IDX_CUSTOMER_PHONE', ['phone'])
+@Index('IDX_CUSTOMER_PHONE', ['owner_phone_number'])
 @Index('IDX_CUSTOMER_ID_NUMBER', ['id_number'])
 @Index('IDX_CUSTOMER_VEHICLE_RECORD_ID', ['vehicle_record_id'])
 @Index('IDX_CUSTOMER_CHASSIS_NO', ['chassis_no'])
@@ -28,23 +28,25 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'integer', unique: true, nullable: false })
   customer_id!: number;
 
-  @Column({ type: 'varchar', length: 128, nullable: false })
-  customer_name!: string;
-
-  @Column({ type: 'varchar', length: 32, nullable: false })
-  phone!: string;
-
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  alternate_phone?: string;
-
-  @Column({ type: 'varchar', length: 128, nullable: true })
-  owner_name?: string;
-
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  owner_phone_number?: string;
-
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
+
+
+  @Column({ type: 'varchar', length: 128, nullable: false })
+  owner_name!: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: false })
+  owner_phone_number!: string;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  driver_name!: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  driver_phone_number?: string;
+
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  plate_number?: string;
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   chassis_no?: string;
@@ -52,11 +54,6 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   mulkiya_id?: string;
 
-  @Column({ type: 'varchar', length: 128, nullable: true })
-  driver_name?: string;
-
-  @Column({ type: 'varchar', length: 32, nullable: true })
-  driver_phone?: string;
 
   @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
   vehicle_record_id?: string | null;
@@ -64,6 +61,7 @@ export class Customer implements ICustomerFields {
   @ManyToOne(() => VehicleRecord, { nullable: true })
   @JoinColumn({ name: 'vehicle_record_id' })
   vehicleRecord?: VehicleRecord;
+
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

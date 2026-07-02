@@ -8,8 +8,10 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
 import { AnprCaptureStatus } from '../enums/camera.enums';
+import { normalizeVehicleType } from '../utils/normalize-vehicle-type.util';
 
 export class CreateAnprCaptureDto {
   @ApiPropertyOptional({
@@ -71,8 +73,9 @@ export class CreateAnprCaptureDto {
   @IsString()
   plate_color?: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle type', example: 'car' })
+  @ApiPropertyOptional({ description: 'Vehicle type (stored lowercase)', example: 'car' })
   @IsOptional()
+  @Transform(({ value }) => normalizeVehicleType(value))
   @IsString()
   vehicle_type?: string;
 

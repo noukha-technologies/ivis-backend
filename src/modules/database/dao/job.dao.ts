@@ -13,9 +13,10 @@ import { Job } from '../entity/job.entity';
 @Injectable()
 export class JobDao extends Repository<Job> implements IJobDao {
   private static readonly detailRelations = {
+    appointment: true,
     customer: { vehicleRecord: true },
     vehicleRecord: { vehicleMaster: true },
-    anprCapture: true,
+    anprCapture: { currentRopVerification: true },
     centre: true,
     line: true,
     adminPc: true,
@@ -45,11 +46,13 @@ export class JobDao extends Repository<Job> implements IJobDao {
 
   async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Job>> {
     const qb = this.createQueryBuilder('job')
+      .leftJoinAndSelect('job.appointment', 'appointment')
       .leftJoinAndSelect('job.customer', 'customer')
       .leftJoinAndSelect('customer.vehicleRecord', 'customerVehicle')
       .leftJoinAndSelect('job.vehicleRecord', 'vehicleRecord')
       .leftJoinAndSelect('vehicleRecord.vehicleMaster', 'vehicleMaster')
       .leftJoinAndSelect('job.anprCapture', 'anprCapture')
+      .leftJoinAndSelect('anprCapture.currentRopVerification', 'anprRop')
       .leftJoinAndSelect('job.centre', 'centre')
       .leftJoinAndSelect('job.line', 'line')
       .leftJoinAndSelect('job.adminPc', 'adminPc')
@@ -59,8 +62,8 @@ export class JobDao extends Repository<Job> implements IJobDao {
       searchFields: [
         'status',
         'source',
-        'customer.customer_name',
-        'customer.phone',
+        'customer.owner_name',
+        'customer.owner_phone_number',
         'vehicleRecord.plate_number',
         'vehicleRecord.chassis_no',
       ],

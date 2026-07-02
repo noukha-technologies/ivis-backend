@@ -287,8 +287,19 @@ Rules that follow from this:
 - **Paid vs FOC is derived, not stored**: FOC ⇔ `grand_total = 0`. Service uses `grand_total > 0` to mean "paid" (sets `pay_date`, may auto-create a job). The mapper shows `FOC` when `status = Paid && grand_total = 0`.
 - The payments entity does NOT store `payment_mode`, `charges`, or `vat` — those were intentionally removed. Mode is the `payment_type_id` master FK; charges/vat are not persisted on the payment.
 
+## Migrations — keep DB in sync with entities (MANDATORY)
+
+**Whenever you change an entity (or a related schema-affecting file — new/removed/renamed `@Column`, `@Index`, `@ManyToOne`/FK, table, nullability, type), you MUST reflect it in the migrations in the SAME change.**
+
+- Fold changes into the single consolidated migration **`src/migrations/1782010000000-AlterSchema.ts`** — do **not** create new migration files.
+- Make every statement **idempotent**: `ADD COLUMN IF NOT EXISTS`, `DROP COLUMN IF EXISTS`, `CREATE INDEX IF NOT EXISTS`, `DROP CONSTRAINT IF EXISTS`, guarded FK adds. The migration is re-run with `npm run migration:alter`.
+- After editing, run `npm run migration:alter` to apply, and keep the `down()` section consistent.
+- Adding a column that must be non-null on existing rows: add it nullable (or with a default) + backfill, don't blindly `SET NOT NULL` on a table with existing rows.
+- A pure TypeScript-only change (filling an interface, adding a class `implements`, DTO validation, getters that don't map to columns) needs **no** migration — only actual DB schema changes do.
+
 ## Live Rules
 
 **When I say "update the rules" or "add this to rules" in conversation, immediately update this CLAUDE.md file with the new rule.**
 
 <!-- Add new rules discovered during development below this line -->
+- Entity/schema changes must always be mirrored in `1782010000000-AlterSchema.ts` (idempotent) — see **Migrations** section above.

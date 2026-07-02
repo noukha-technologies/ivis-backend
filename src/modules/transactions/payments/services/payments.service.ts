@@ -78,7 +78,7 @@ export class PaymentsService {
       if (isPaid && createDto.auto_create_job !== false) {
         const job = await this.jobService.create(
           {
-            source: createDto.job_source || 'Booked',
+            appointment_id: resolved.appointment_id ?? undefined,
             status: 'Pending',
             customer_id: resolved.customer_id,
             vehicle_record_id: resolved.vehicle_record_id,
@@ -163,7 +163,7 @@ export class PaymentsService {
     ) {
       const job = await this.jobService.create(
         {
-          source: updateDto.job_source || 'Booked',
+          appointment_id: saved.appointment_id ?? undefined,
           status: 'Pending',
           customer_id: saved.customer_id,
           vehicle_record_id: saved.vehicle_record_id,
@@ -192,7 +192,7 @@ export class PaymentsService {
     const job = await this.jobService.findOne(jobId);
     return {
       customer_id: job.customer_id,
-      customer_name: job.customer?.customer_name ?? null,
+      customer_name: job.customer?.owner_name ?? null,
       vehicle_record_id: job.vehicle_record_id,
       anpr_capture_id: job.anpr_capture_id ?? null,
       centre_id: job.centre_id ?? null,

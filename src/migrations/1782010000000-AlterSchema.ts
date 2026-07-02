@@ -133,10 +133,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_USER_ROLE_ID" ON "core"."users" ("role_id")`,
     );
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_USER_CENTER_ID" ON "core"."users" ("center_id")
-      WHERE "is_deleted" = false AND "center_id" IS NOT NULL
-    `);
+    // Multiple users may share the same centre — drop the old unique constraint
+    // and keep a plain index for center_id lookups.
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_USER_CENTER_ID" ON "core"."users" ("center_id")`,
+    );
 
     // user_sessions: add created_by (migration 1779720300000)
     await queryRunner.query(
@@ -164,11 +166,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ON "core"."user_line_mappings" ("user_id", "line_id")
       WHERE "is_deleted" = false
     `);
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_USER_LINE_MAPPING_LINE"
-      ON "core"."user_line_mappings" ("line_id")
-      WHERE "is_deleted" = false
-    `);
+    // Lines are shareable across users — drop the one-user-per-line constraint.
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`);
 
     // permissions table (migration 1780140000000) — recreated with new shape
     await queryRunner.query(`
@@ -751,13 +750,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       );
     }
 
-    // jobs: driver + invoice + parsed OUT test results (job-management flow).
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
-    );
-    await queryRunner.query(
-      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
-    );
+    // jobs: invoice + parsed OUT test results (job-management flow). Driver
+    // details now live on the customer, and source is replaced by appointment_id.
     await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "invoice_no" character varying(64)`,
     );
@@ -767,14 +761,53 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "test_results" jsonb`,
     );
+    // jobs: driver columns removed (moved to customers).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_phone"`,
+    );
+    // jobs: source replaced by an appointment FK (booking type read via relation).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "source"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "appointment_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_JOB_APPOINTMENT_ID" ON "transaction"."jobs" ("appointment_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_jobs_appointment_id') THEN
+          ALTER TABLE "transaction"."jobs"
+            ADD CONSTRAINT "FK_jobs_appointment_id"
+            FOREIGN KEY ("appointment_id") REFERENCES "transaction"."appointments"("id") ON DELETE NO ACTION;
+        END IF;
+      END $$;
+    `);
 
-    // customers: driver details (synced from the job).
+    // customers: driver details now stored here (driver_phone_number).
     await queryRunner.query(
       `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_phone_number" character varying(32)`,
     );
+    // Rename any legacy driver_phone → driver_phone_number, then drop the leftover.
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'driver_phone'
+        ) THEN
+          UPDATE "transaction"."customers"
+            SET "driver_phone_number" = COALESCE("driver_phone_number", "driver_phone");
+          ALTER TABLE "transaction"."customers" DROP COLUMN "driver_phone";
+        END IF;
+      END $$;
+    `);
 
     // anpr_captures: line_id is a bigint FK to master.lines (replaces the legacy
     // free-text varchar column). Free-text values cannot cast to bigint, so the
@@ -832,10 +865,56 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "scene_image_url" character varying`,
     );
+    // anpr_captures: pointer to the current/latest ROP verification row.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" ADD COLUMN IF NOT EXISTS "rop_verification_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ANPR_CAPTURE_ROP_VERIFICATION_ID" ON "transaction"."anpr_captures" ("rop_verification_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_anpr_captures_rop_verification_id') THEN
+          ALTER TABLE "transaction"."anpr_captures"
+            ADD CONSTRAINT "FK_anpr_captures_rop_verification_id"
+            FOREIGN KEY ("rop_verification_id") REFERENCES "transaction"."rop_verifications"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
 
-    // customers: align columns with entity — rename name → customer_name and
-    // primary_vehicle_record_id → vehicle_record_id, add alternate_phone +
-    // owner_phone_number, and rename the related index / FK constraint.
+    // ROP fetch status: auto-created (anpr-system) verifications were wrongly
+    // marked 'Fetched' by the stub. With no real ROP API yet they must be
+    // 'Pending'; also clear the capture pointer that was stamped for them.
+    await queryRunner.query(`
+      UPDATE "transaction"."anpr_captures" SET "rop_verification_id" = NULL
+      WHERE "rop_verification_id" IN (
+        SELECT "id" FROM "transaction"."rop_verifications"
+        WHERE "created_by" = 'anpr-system' AND "fetch_status" = 'Fetched'
+      )
+    `);
+    await queryRunner.query(
+      `UPDATE "transaction"."rop_verifications" SET "fetch_status" = 'Pending' WHERE "created_by" = 'anpr-system' AND "fetch_status" = 'Fetched'`,
+    );
+
+    // vehicle_type is free text stored lowercase for reliable charge comparison —
+    // normalize any existing values across the tables that carry it.
+    await queryRunner.query(
+      `UPDATE "master"."charges" SET "vehicle_type" = LOWER(TRIM("vehicle_type")) WHERE "vehicle_type" IS NOT NULL AND "vehicle_type" <> LOWER(TRIM("vehicle_type"))`,
+    );
+    await queryRunner.query(
+      `UPDATE "master"."vehicles" SET "vehicle_type" = LOWER(TRIM("vehicle_type")) WHERE "vehicle_type" IS NOT NULL AND "vehicle_type" <> LOWER(TRIM("vehicle_type"))`,
+    );
+    await queryRunner.query(
+      `UPDATE "transaction"."vehicle_records" SET "vehicle_type" = LOWER(TRIM("vehicle_type")) WHERE "vehicle_type" IS NOT NULL AND "vehicle_type" <> LOWER(TRIM("vehicle_type"))`,
+    );
+    await queryRunner.query(
+      `UPDATE "transaction"."anpr_captures" SET "vehicle_type" = LOWER(TRIM("vehicle_type")) WHERE "vehicle_type" IS NOT NULL AND "vehicle_type" <> LOWER(TRIM("vehicle_type"))`,
+    );
+
+    // customers: align columns with entity — rename name → customer_name,
+    // phone → customer_phone_number, primary_vehicle_record_id → vehicle_record_id,
+    // add owner_phone_number + plate_number, drop the removed alternate_phone,
+    // and rename the related index / FK constraint.
     await queryRunner.query(`
       DO $$ BEGIN
         IF EXISTS (
@@ -843,6 +922,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
           WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'name'
         ) THEN
           ALTER TABLE "transaction"."customers" RENAME COLUMN "name" TO "customer_name";
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'phone'
+        ) THEN
+          ALTER TABLE "transaction"."customers" RENAME COLUMN "phone" TO "customer_phone_number";
         END IF;
         IF EXISTS (
           SELECT 1 FROM information_schema.columns
@@ -857,10 +942,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       END $$;
     `);
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "alternate_phone" character varying(32)`,
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "owner_phone_number" character varying(32)`,
     );
     await queryRunner.query(
-      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "owner_phone_number" character varying(32)`,
+      `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "plate_number" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "alternate_phone"`,
     );
     await queryRunner.query(
       `ALTER INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PRIMARY_VEHICLE_RECORD_ID" RENAME TO "IDX_CUSTOMER_VEHICLE_RECORD_ID"`,
@@ -877,6 +965,45 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         END IF;
       END $$;
     `);
+
+    // customers: the customer's identity is the owner. Consolidate the legacy
+    // customer_name / customer_phone_number into owner_name / owner_phone_number,
+    // drop the duplicates, then enforce NOT NULL (backfilling any gaps).
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'customer_name'
+        ) THEN
+          UPDATE "transaction"."customers" SET "owner_name" = COALESCE("owner_name", "customer_name");
+          ALTER TABLE "transaction"."customers" DROP COLUMN "customer_name";
+        END IF;
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_schema = 'transaction' AND table_name = 'customers' AND column_name = 'customer_phone_number'
+        ) THEN
+          UPDATE "transaction"."customers" SET "owner_phone_number" = COALESCE("owner_phone_number", "customer_phone_number");
+          ALTER TABLE "transaction"."customers" DROP COLUMN "customer_phone_number";
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(
+      `UPDATE "transaction"."customers" SET "owner_name" = 'Unknown' WHERE "owner_name" IS NULL`,
+    );
+    await queryRunner.query(
+      `UPDATE "transaction"."customers" SET "owner_phone_number" = '' WHERE "owner_phone_number" IS NULL`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ALTER COLUMN "owner_name" SET NOT NULL`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" ALTER COLUMN "owner_phone_number" SET NOT NULL`,
+    );
+    // Phone index now tracks owner_phone_number.
+    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PHONE"`);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CUSTOMER_PHONE" ON "transaction"."customers" ("owner_phone_number")`,
+    );
 
     // anpr_captures / rop_verifications / jobs / payment_transactions indexes
     // (idempotent — only created if absent)
@@ -1049,13 +1176,17 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "plate_color"`,
     );
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP CONSTRAINT IF EXISTS "FK_jobs_appointment_id"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_JOB_APPOINTMENT_ID"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "appointment_id"`);
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`);
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_phone"`);
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_no"`);
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_date"`);
     await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "test_results"`);
     await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone_number"`);
+    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "plate_number"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`);
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_CUSTOMER_ID"`,
@@ -1070,6 +1201,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."anpr_captures" DROP CONSTRAINT IF EXISTS "FK_anpr_captures_line_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP CONSTRAINT IF EXISTS "FK_anpr_captures_rop_verification_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_ROP_VERIFICATION_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."anpr_captures" DROP COLUMN IF EXISTS "rop_verification_id"`,
     );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_LINE_TIME"`,
@@ -1290,6 +1430,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_LINE_MAPPING_USER_ID"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."user_line_mappings"`);
 
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_CENTER_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_ROLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_USER_CODE"`);
@@ -1393,49 +1534,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `DROP TABLE IF EXISTS "transaction"."payment_transactions" CASCADE`,
     );
 
-    // opal_ivis.anpr_events — raw Hikvision ANPR ingestion table (FTP + HTTP push)
-    await queryRunner.query(`CREATE SCHEMA IF NOT EXISTS "opal_ivis"`);
-    await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS "opal_ivis"."anpr_events" (
-        "id"                    SERIAL PRIMARY KEY,
-        "plate_number"          CHARACTER VARYING(50)  NOT NULL,
-        "capture_time"          TIMESTAMPTZ            NOT NULL,
-        "confidence_score"      INTEGER                NOT NULL,
-        "plate_char_confidence" CHARACTER VARYING(255),
-        "camera_ip"             CHARACTER VARYING(45),
-        "camera_mac"            CHARACTER VARYING(17),
-        "camera_code"           CHARACTER VARYING(50),
-        "centre_code"           CHARACTER VARYING(50),
-        "lane_number"           INTEGER,
-        "vehicle_type"          CHARACTER VARYING(50),
-        "vehicle_colour"        CHARACTER VARYING(50),
-        "plate_colour"          CHARACTER VARYING(50),
-        "plate_image_path"      TEXT,
-        "scene_image_path"      TEXT,
-        "integration_method"    CHARACTER VARYING(20),
-        "source_method"         CHARACTER VARYING(10),
-        "raw_file_response"     JSONB,
-        "raw_payload"           JSONB,
-        "received_at"           TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
-        "created_at"            TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
-        "updated_at"            TIMESTAMPTZ
-      )
-    `);
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_anpr_events_plate_capture" ON "opal_ivis"."anpr_events" ("plate_number", "capture_time")`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_plate_number" ON "opal_ivis"."anpr_events" ("plate_number")`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_capture_time" ON "opal_ivis"."anpr_events" ("capture_time")`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_camera_ip" ON "opal_ivis"."anpr_events" ("camera_ip")`,
-    );
-    await queryRunner.query(
-      `CREATE INDEX IF NOT EXISTS "idx_camera_mac" ON "opal_ivis"."anpr_events" ("camera_mac")`,
-    );
+    // Legacy camera-event store removed — camera reads (FTP + HTTP push) now
+    // flow directly into transaction.anpr_captures. Drop the orphaned table.
+    await queryRunner.query(`DROP TABLE IF EXISTS "opal_ivis"."anpr_events" CASCADE`);
   }
 
   private async revertPaymentsAndAnprEvents(queryRunner: QueryRunner): Promise<void> {

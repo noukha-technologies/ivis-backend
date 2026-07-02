@@ -35,7 +35,7 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
 
   async findActiveByPhone(phone: string): Promise<Customer | null> {
     return this.findOne({
-      where: { phone, is_deleted: false },
+      where: { owner_phone_number: phone, is_deleted: false },
       relations: { vehicleRecord: { vehicleMaster: true } },
     });
   }
@@ -54,18 +54,19 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
 
     const options = buildTypeOrmPaginationOptions<Customer, Customer>(query, {
       searchFields: [
-        'customer_name',
-        'phone',
-        'id_number',
         'owner_name',
+        'owner_phone_number',
+        'id_number',
+        'driver_name',
+        'plate_number',
         'chassis_no',
         'mulkiya_id',
         'vehicleRecord.plate_number',
       ],
       allowedSortFields: [
         'customer_id',
-        'customer_name',
-        'phone',
+        'owner_name',
+        'owner_phone_number',
         'id_number',
         'chassis_no',
         'mulkiya_id',

@@ -14,7 +14,6 @@ import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs
 import { normalizeUserCode } from '../utils/normalize-user-code.util.js';
 import {
   UserCentreLinePairConstraint,
-  UserCreateCentreLineConstraint,
 } from '../validators/user-centre-line.validator.js';
 
 export class CreateUserDto {
@@ -52,9 +51,7 @@ export class CreateUserDto {
     description: 'Assigned centre snowflake ID (master.centres.id)',
     example: '2058858609483202561',
   })
-  @Validate(UserCreateCentreLineConstraint)
   @IsString({ message: 'center_id must be a string' })
-  @IsOptional()
   @IsNotEmpty({ message: 'Please select a centre' })
   center_id!: string;
 

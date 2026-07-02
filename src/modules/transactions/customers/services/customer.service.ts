@@ -14,6 +14,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { generateIdNumber } from '../../../../common/shared/id-number.util';
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { Customer } from '../../../database/entity/customer.entity';
@@ -30,7 +31,7 @@ export class CustomerService {
   ) {}
 
   async create(createDto: CreateCustomerDto, actor: UserContext): Promise<Customer> {
-    this.logger.log(`Creating customer: ${createDto.customer_name}`, CustomerService.context);
+    this.logger.log(`Creating customer: ${createDto.owner_name}`, CustomerService.context);
 
     try {
       let customerId = createDto.customer_id;
@@ -48,14 +49,15 @@ export class CustomerService {
       const customer = this.customerDao.create({
         id: generateSnowflakeId(),
         customer_id: customerId,
-        customer_name: createDto.customer_name,
-        phone: createDto.phone,
-        alternate_phone: createDto.alternate_phone,
+        // id_number is a system-generated nanoid-style code (not user entered).
+        id_number: createDto.id_number ?? generateIdNumber(),
         owner_name: createDto.owner_name,
         owner_phone_number: createDto.owner_phone_number,
-        id_number: createDto.id_number,
+        plate_number: createDto.plate_number,
         chassis_no: createDto.chassis_no,
         mulkiya_id: createDto.mulkiya_id,
+        driver_name: createDto.driver_name,
+        driver_phone_number: createDto.driver_phone_number,
         vehicle_record_id: vehicleRecordId,
         created_by: getCreatedById(actor),
       });
@@ -127,14 +129,14 @@ export class CustomerService {
       const vehicleRecordId = await this.resolveVehicleRecord(updateDto, customer, actor);
 
       const merged = this.customerDao.merge(customer, {
-        customer_name: updateDto.customer_name,
-        phone: updateDto.phone,
-        alternate_phone: updateDto.alternate_phone,
         owner_name: updateDto.owner_name,
         owner_phone_number: updateDto.owner_phone_number,
+        plate_number: updateDto.plate_number,
         id_number: updateDto.id_number,
         chassis_no: updateDto.chassis_no,
         mulkiya_id: updateDto.mulkiya_id,
+        driver_name: updateDto.driver_name,
+        driver_phone_number: updateDto.driver_phone_number,
         ...(vehicleRecordId !== undefined
           ? { vehicle_record_id: vehicleRecordId }
           : {}),

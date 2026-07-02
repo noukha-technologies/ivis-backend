@@ -10,7 +10,7 @@ import { WebhookResolveReason } from "../../../../common/enums/common.enums";
 import { CameraIntegrationMethod } from "../../../../common/enums/camera.enums";
 
 import { CameraEntity } from "../../../database/entity/camera.entity";
-import { AnprEventEntity } from "../../../database/entity/anpr.entity";
+import { AnprCapture } from "../../../database/entity/anpr-capture.entity";
 
 import { MultipartParserService } from "../../../../common/shared/anpr/multipart-parser.service";
 import { RawFileResponseBuilder } from "../../../../common/shared/anpr/raw-file-response.builder.service";
@@ -21,6 +21,10 @@ import { AnprGateway } from "./anpr-gateway.service";
 import { AnprEventGuardService } from "../anpr-event-guard.service";
 import { AnprMethodConfigService } from "../anpr-method-config.service";
 import { AnprCaptureService } from "../../../transactions/anpr-captures/services/anpr-capture.service";
+import type { UserContext } from "../../../../common/dto/auth.dto";
+
+// System actor for camera-originated captures (no authenticated operator).
+const ANPR_SYSTEM_ACTOR = { id: 'anpr-system', email: 'anpr-system@ivis.internal' } as unknown as UserContext;
 
 @Injectable()
 export class AnprWebhookService {
@@ -29,8 +33,6 @@ export class AnprWebhookService {
     constructor(
         @InjectRepository(CameraEntity)
         private readonly cameraRepo: Repository<CameraEntity>,
-        @InjectRepository(AnprEventEntity)
-        private readonly anprEventRepo: Repository<AnprEventEntity>,
 
         private readonly anprGateway: AnprGateway,
         private readonly xmlParser: XmlParserService,
@@ -567,19 +569,48 @@ export class AnprWebhookService {
                 return false;
             }
 
-            // ─── Step 3: Convert DTO to entity & save ──────────
+            // A camera is required — anpr_captures needs its camera_id + line_id.
+            if (!camera) {
+                this.logger.warn(
+                    `[ANPR Service] No camera config for '${eventDto.cameraCode}' — cannot store capture`,
+                );
+                return false;
+            }
 
-            const entity = new AnprEventEntity();
-            Object.assign(entity, eventDto);
+            // ─── Step 3: Store the ANPR capture (transaction layer) ──────────
+            // The capture create() runs the orchestration (vehicle master/record
+            // + ROP fetch → auto-validate/appointment), same as an operator capture.
 
-            let savedEvent: AnprEventEntity;
+            const ocr = (eventDto.rawPayload as { ocrParsed?: Record<string, unknown> } | null)?.ocrParsed;
+            let capture: AnprCapture;
             try {
-                savedEvent = await this.anprEventRepo.save(entity);
+                capture = await this.anprCaptureService.create(
+                    {
+                        plate_number: eventDto.plateNumber,
+                        normalized_plate: eventDto.plateNumber,
+                        plate_confidence: eventDto.confidenceScore ?? undefined,
+                        capture_time: eventDto.captureTime.toISOString(),
+                        camera_id: camera.id,
+                        line_id: camera.line_id,
+                        direction: eventDto.direction ?? undefined,
+                        country_code: eventDto.countryCode != null ? String(eventDto.countryCode) : 'OM',
+                        plate_color: eventDto.plateColour ?? undefined,
+                        vehicle_type: eventDto.vehicleType ?? undefined,
+                        vehicle_color: eventDto.vehicleColour ?? undefined,
+                        vehicle_brand: (ocr?.vehicleBrand as string) ?? undefined,
+                        plate_size: (ocr?.plateSize as string) ?? undefined,
+                        plate_type: (eventDto.plateType ?? (ocr?.plateType as string)) ?? undefined,
+                        category: (ocr?.category as string) ?? undefined,
+                        image_url: eventDto.plateImagePath ?? undefined,
+                        scene_image_url: eventDto.sceneImagePath ?? undefined,
+                    },
+                    ANPR_SYSTEM_ACTOR,
+                );
             } catch (error) {
                 if (this.isUniqueViolation(error)) {
                     this.logger.warn(
-                        `[ANPR Service] Duplicate event ignored (plate=${entity.plateNumber}, ` +
-                        `captureTime=${entity.captureTime.toISOString()}) — already persisted`,
+                        `[ANPR Service] Duplicate capture ignored (plate=${eventDto.plateNumber}, ` +
+                        `captureTime=${eventDto.captureTime.toISOString()}) — already stored`,
                     );
                     return false;
                 }
@@ -587,55 +618,19 @@ export class AnprWebhookService {
             }
 
             this.logger.log(
-                `[ANPR Service] ✓ Saved event #${savedEvent.id}: ${savedEvent.plateNumber} (method=${eventDto.sourceMethod})`,
+                `[ANPR Service] ✓ Stored capture #${capture.anpr_capture_id}: ${capture.plate_number} (method=${eventDto.sourceMethod})`,
             );
 
             // ─── Step 4: Update camera health metrics ──────────
 
-            if (camera) {
-                camera.lastSeenAt = new Date();
-                camera.lastEventAt = new Date();
-                camera.isOnline = true;
-                await this.cameraRepo.save(camera);
-            }
+            camera.lastSeenAt = new Date();
+            camera.lastEventAt = new Date();
+            camera.isOnline = true;
+            await this.cameraRepo.save(camera);
 
             // ─── Step 5: Broadcast via WebSocket ────────────────
 
-            this.broadcastEvent(savedEvent);
-
-            // ─── Step 6: Bridge to anpr_captures (transaction layer) ──────────
-
-            if (camera) {
-                try {
-                    // Overlay attributes parsed from the JPEG-bundle OCR (FTP path).
-                    const ocr = (savedEvent.rawPayload as { ocrParsed?: Record<string, unknown> } | null)?.ocrParsed;
-                    await this.anprCaptureService.create(
-                        {
-                            plate_number: savedEvent.plateNumber,
-                            normalized_plate: savedEvent.plateNumber,
-                            plate_confidence: savedEvent.confidenceScore ?? undefined,
-                            capture_time: savedEvent.captureTime.toISOString(),
-                            camera_id: camera.id,
-                            line_id: savedEvent.laneNumber != null ? String(savedEvent.laneNumber) : undefined,
-                            direction: eventDto.direction ?? undefined,
-                            country_code: 'OM',
-                            plate_color: savedEvent.plateColour ?? undefined,
-                            vehicle_type: savedEvent.vehicleType ?? undefined,
-                            vehicle_color: savedEvent.vehicleColour ?? undefined,
-                            vehicle_brand: (ocr?.vehicleBrand as string) ?? undefined,
-                            plate_size: (ocr?.plateSize as string) ?? undefined,
-                            plate_type: (ocr?.plateType as string) ?? undefined,
-                            category: (ocr?.category as string) ?? undefined,
-                            image_url: savedEvent.plateImagePath ?? undefined,
-                        },
-                        { id: 'system', email: 'system@ivis.internal' } as any,
-                    );
-                } catch (bridgeErr) {
-                    this.logger.warn(
-                        `[ANPR Service] Bridge to anpr_captures failed: ${(bridgeErr as Error).message}`,
-                    );
-                }
-            }
+            this.broadcastCapture(capture, eventDto);
 
             return true;
         } catch (error) {
@@ -653,39 +648,39 @@ export class AnprWebhookService {
         return false;
     }
 
-    /* Broadcast ANPR event to all connected WebSocket clients. */
-    private broadcastEvent(event: AnprEventEntity): void {
+    /* Broadcast the stored ANPR capture to all connected WebSocket clients. */
+    private broadcastCapture(capture: AnprCapture, eventDto: ParsedAnprEvent): void {
         try {
             const wsPayload = {
-                id: event.id,
-                plate: event.plateNumber,
-                plateNumber: event.plateNumber,
-                captureTime: event.captureTime.toISOString(),
-                confidence: event.confidenceScore,
-                confidenceScore: event.confidenceScore,
-                lane: event.laneNumber,
-                laneNumber: event.laneNumber,
-                cameraIp: event.cameraIp,
-                cameraCode: event.cameraCode,
-                centreCode: event.centreCode,
-                vehicleType: event.vehicleType,
-                vehicleColour: event.vehicleColour,
-                plateColour: event.plateColour,
-                plateImagePath: event.plateImagePath,
-                sceneImagePath: event.sceneImagePath,
-                sourceMethod: event.sourceMethod,
-                receivedAt: event.receivedAt.toISOString()
+                id: capture.id,
+                captureId: capture.anpr_capture_id,
+                plate: capture.plate_number,
+                plateNumber: capture.plate_number,
+                captureTime: capture.capture_time.toISOString(),
+                confidence: capture.plate_confidence,
+                confidenceScore: capture.plate_confidence,
+                cameraId: capture.camera_id,
+                lineId: capture.line_id,
+                cameraCode: eventDto.cameraCode,
+                centreCode: eventDto.centreCode,
+                vehicleType: capture.vehicle_type,
+                vehicleColour: capture.vehicle_color,
+                plateColour: capture.plate_color,
+                plateImagePath: capture.image_url,
+                sceneImagePath: capture.scene_image_url,
+                status: capture.status,
+                sourceMethod: eventDto.sourceMethod,
             };
 
             this.anprGateway.broadcastAnprEvent(wsPayload);
 
             this.logger.debug(
-                `[ANPR Service] WebSocket broadcast: ${event.plateNumber}`,
+                `[ANPR Service] WebSocket broadcast: ${capture.plate_number}`,
             );
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             this.logger.error(`[ANPR Service] WebSocket broadcast failed: ${message}`);
-            // Don't throw - WebSocket failure shouldn't fail the event save
+            // Don't throw - WebSocket failure shouldn't fail the capture store.
         }
     }
 }

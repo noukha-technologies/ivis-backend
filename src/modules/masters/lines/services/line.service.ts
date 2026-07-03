@@ -43,6 +43,11 @@ export class LineService implements ILineService {
         throw new DuplicateResourceException('Line', 'code', createLineDto.code);
       }
 
+      const existingName = await this.lineDao.findByName(createLineDto.name);
+      if (existingName) {
+        throw new DuplicateResourceException('Line', 'name', createLineDto.name);
+      }
+
       const centre = await this.centreDao.findActiveById(createLineDto.centre_id);
       if (!centre) {
         throw new ResourceNotFoundException('Centre', createLineDto.centre_id);
@@ -148,6 +153,13 @@ export class LineService implements ILineService {
         const existingCode = await this.lineDao.findByCode(updateLineDto.code);
         if (existingCode) {
           throw new DuplicateResourceException('Line', 'code', updateLineDto.code);
+        }
+      }
+
+      if (updateLineDto.name && updateLineDto.name.trim().toLowerCase() !== line.name.trim().toLowerCase()) {
+        const existingName = await this.lineDao.findByName(updateLineDto.name, id);
+        if (existingName) {
+          throw new DuplicateResourceException('Line', 'name', updateLineDto.name);
         }
       }
 

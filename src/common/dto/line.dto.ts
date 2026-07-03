@@ -4,7 +4,6 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
@@ -19,7 +18,7 @@ export class CreateLineDto {
   @IsOptional()
   line_id?: number;
 
-  @ApiProperty({ description: 'Line name (alphabets only)', example: 'Line One' })
+  @ApiProperty({ description: 'Line name (letters and numbers allowed)', example: 'Line 1' })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
   name!: string;

@@ -61,8 +61,11 @@ export class UsersController {
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Users list retrieved.' })
-  async findAll(@Query() query: PaginationQueryDto) {
-    const result = await this.usersService.findAll(query);
+  async findAll(
+    @CurrentUser() actor: UserContext,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const result = await this.usersService.findAll(query, actor);
     return { message: 'Users retrieved successfully', ...result };
   }
 
@@ -99,8 +102,11 @@ export class UsersController {
   @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.usersService.remove(id);
+  async remove(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    await this.usersService.remove(id, actor);
     return { message: 'User deleted successfully', data: null };
   }
 }

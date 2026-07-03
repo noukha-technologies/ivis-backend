@@ -293,6 +293,7 @@ export class AuthService implements IAuthService {
       role_id: user.role_id,
       role_access_id: user.role_id,
       access_scope: user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE,
+      is_center_admin: user.role?.is_center_admin ?? false,
       center: user.assignedCentre?.name,
       line: lines[0]?.name,
       center_id: user.center_id ?? undefined,

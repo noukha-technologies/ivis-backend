@@ -227,6 +227,44 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "access_scope" varchar(16) NOT NULL DEFAULT 'centre'`,
     );
+    // roles.is_center_admin: centre-admin rank within a centre (meaningful only for centre scope)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "is_center_admin" boolean NOT NULL DEFAULT false`,
+    );
+    // roles.center_id: owning centre (NULL → global/system role). Tenant-scoped roles.
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
+    );
+    // Role names are unique per owning centre (globals unique among themselves):
+    // drop the old global-unique index/constraint and add a composite unique on
+    // (center_id, role_name).
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_ROLE_NAME"`);
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "UQ_roles_role_name"`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_CENTER_ROLE_NAME" ON "core"."roles" ("center_id", "role_name")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ROLE_CENTER_ID" ON "core"."roles" ("center_id")`,
+    );
+    // FK roles.center_id → master.centres(id)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "FK_roles_center_id"`,
+    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'master' AND table_name = 'centres'
+        ) THEN
+          ALTER TABLE "core"."roles"
+          ADD CONSTRAINT "FK_roles_center_id"
+          FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
     // wire roles_role_id_seq if not already present (migration 1780160000000)
     await queryRunner.query(
       `CREATE SEQUENCE IF NOT EXISTS "core"."roles_role_id_seq" OWNED BY "core"."roles"."role_id"`,
@@ -241,9 +279,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" ALTER COLUMN "role_id" SET DEFAULT nextval('"core"."roles_role_id_seq"')`,
     );
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_ROLE_NAME" ON "core"."roles" ("role_name")`,
-    );
+    // (role_name uniqueness is now the composite IDX_ROLE_CENTER_ROLE_NAME above)
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_PERMISSION_ID" ON "core"."roles" ("permission_id")`,
     );

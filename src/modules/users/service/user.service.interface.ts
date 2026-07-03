@@ -6,9 +6,9 @@ import { UserResponse } from '../../../common/utils/map-user-response';
 
 export interface IUsersService {
   create(createUserDto: CreateUserDto, actor: UserContext): Promise<UserResponse>;
-  findAll(query: PaginationQueryDto): Promise<PaginatedResult<UserResponse>>;
+  findAll(query: PaginationQueryDto, actor: UserContext): Promise<PaginatedResult<UserResponse>>;
   findOne(id: string): Promise<UserResponse>;
   findByEmail(email: string): Promise<UserResponse | null>;
   update(id: string, updateUserDto: UpdateUserDto, actor: UserContext): Promise<UserResponse>;
-  remove(id: string): Promise<void>;
+  remove(id: string, actor: UserContext): Promise<void>;
 }

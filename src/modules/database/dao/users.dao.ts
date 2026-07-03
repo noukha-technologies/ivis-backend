@@ -86,8 +86,18 @@ export class UsersDao extends Repository<User> implements IUserDao {
 
 
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+    centreScope?: { centreId: string },
+  ): Promise<PaginatedResult<User>> {
     const qb = this.activeUserQueryBuilder();
+
+    if (centreScope) {
+      // Centre-scoped caller (e.g. Centre Admin): only their own centre's users,
+      // and never Super Admins (global-scope roles).
+      qb.andWhere('user.center_id = :scopeCentreId', { scopeCentreId: centreScope.centreId })
+        .andWhere("(role.access_scope IS NULL OR role.access_scope <> 'global')");
+    }
 
     const options = buildTypeOrmPaginationOptions<User, User>(query, {
       searchFields: ['user_name', 'email', 'user_code', 'centre.name', 'line.name'],

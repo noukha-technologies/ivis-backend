@@ -61,10 +61,9 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
     const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
 
-    if (centerId && lineIds.length === 0) {
-      return false;
-    }
-
+    // Structural invariant only: a line can't be assigned without a centre.
+    // The "Centre User must have a line" rule is role-based and enforced in
+    // the service (a DTO validator can't see the role's scope).
     if (!centerId && lineIds.length > 0) {
       return false;
     }
@@ -88,10 +87,6 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
 
     const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
-
-    if (centerId && lineIds.length === 0) {
-      return 'At least one line must be selected when centre is assigned';
-    }
 
     if (!centerId && lineIds.length > 0) {
       return 'center_id is required when assigning lines';

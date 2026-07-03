@@ -39,6 +39,9 @@ export class AuthUserDto {
   })
   access_scope!: AccessScope;
 
+  @ApiProperty({ description: 'Whether the role is a Centre Admin (only meaningful for centre scope)' })
+  is_center_admin!: boolean;
+
   @ApiPropertyOptional({ description: 'Centre display name' })
   center?: string;
 

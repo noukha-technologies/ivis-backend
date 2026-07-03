@@ -7,14 +7,18 @@ import {
   ManyToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Permission } from './permission.entity';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { AccessScope, DEFAULT_ACCESS_SCOPE } from '../../../common/constants/access-scope';
 
+import { Centre } from './centre.entity';
+import { Permission } from './permission.entity';
+
 @Entity({ name: 'roles', schema: 'core' })
-@Index('IDX_ROLE_ROLE_NAME', ['role_name'], { unique: true })
+@Index('IDX_ROLE_CENTER_ROLE_NAME', ['center_id', 'role_name'], { unique: true })
 @Index('IDX_ROLE_PERMISSION_ID', ['permission_id'], { unique: true })
+@Index('IDX_ROLE_CENTER_ID', ['center_id'])
 export class Role {
   @SnowflakePrimaryColumn()
   id!: string;
@@ -37,6 +41,19 @@ export class Role {
 
   @Column({ type: 'varchar', length: 16, default: DEFAULT_ACCESS_SCOPE })
   access_scope!: AccessScope;
+
+  @Column({ type: 'boolean', default: false })
+  is_center_admin!: boolean;
+
+  // Owning centre. NULL → global/system role (Super Admin); set → the role
+  // belongs to that one centre. Consistent with access_scope: global ⇒ NULL,
+  // centre ⇒ centre id.
+  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  center_id?: string | null;
+
+  @ManyToOne(() => Centre, { nullable: true })
+  @JoinColumn({ name: 'center_id' })
+  centre?: Centre;
 
 
   @Column({ type: 'varchar', nullable: true })

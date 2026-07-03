@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
@@ -59,15 +59,21 @@ export class UsersService implements IUsersService {
         throw new ResourceNotFoundException('Role', createUserDto.role_id);
       }
 
-      let lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
-      let centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
-      if (isGlobalScope(role.access_scope)) {
-        // Super Admin (global scope) is not tied to any centre or line.
-        centreFkId = null;
-        lineIds = [];
-      } else if (!centreFkId) {
-        throw new BadRequestException('Centre is required for a centre-scoped role.');
+      const lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
+      const centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
+      // Centre/line requirements by role type:
+      //  Super Admin (global)      → centre required, line optional
+      //  Centre Admin (centre+adm) → centre required, line optional
+      //  Centre User  (centre)     → centre required, line required
+      const isGlobal = isGlobalScope(role.access_scope);
+      if (!centreFkId) {
+        throw new BadRequestException('Centre is required.');
       }
+      if (!isGlobal && !role.is_center_admin && lineIds.length === 0) {
+        throw new BadRequestException('At least one line is required for a Centre User.');
+      }
+      // Centre-scoped actors can only create non-Super-Admin users in their centre.
+      this.assertActorCanManage(actor, centreFkId, role.access_scope);
       if (centreFkId) {
         await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
       }
@@ -107,7 +113,8 @@ export class UsersService implements IUsersService {
       if (
         error instanceof DuplicateResourceException ||
         error instanceof ResourceNotFoundException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
@@ -120,14 +127,22 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<UserResponse>> {
+  async findAll(
+    query: PaginationQueryDto,
+    actor: UserContext,
+  ): Promise<PaginatedResult<UserResponse>> {
     this.logger.log(
       `Fetching users — page: ${query.page}, limit: ${query.limit}`,
       UsersService.context,
     );
 
     try {
-      const result = await this.usersDao.findPaginated(query);
+      // Super Admin sees everyone; a centre-scoped actor sees only their own
+      // centre's users (Super Admins excluded).
+      const centreScope = isGlobalScope(actor.user.access_scope)
+        ? undefined
+        : { centreId: actor.user.center_id ?? '' };
+      const result = await this.usersDao.findPaginated(query, centreScope);
       return {
         ...result,
         data: result.data.map(mapUserToResponse),
@@ -189,6 +204,9 @@ export class UsersService implements IUsersService {
         throw new ResourceNotFoundException('User', id);
       }
 
+      // Actor must be allowed to manage this target user in its current state.
+      this.assertActorCanManage(actor, user.center_id, user.role?.access_scope);
+
       if (updateUserDto.email && updateUserDto.email !== user.email) {
         const existingEmail = await this.usersDao.findByEmail(updateUserDto.email);
         if (existingEmail) {
@@ -209,11 +227,11 @@ export class UsersService implements IUsersService {
 
       const { role_id: updatedRoleId, center_id, line_ids, line_id, user_code: _userCode, ...updateFields } = updateUserDto;
       const hasLinesUpdate = line_ids !== undefined || line_id !== undefined;
-      const resolvedLineIds = hasLinesUpdate
-        ? this.normalizeLineIds(resolveUserLineIds({ line_ids, line_id }))
-        : undefined;
+      const resolvedLineIds = hasLinesUpdate ? this.normalizeLineIds(resolveUserLineIds({ line_ids, line_id })) : undefined;
+
       let roleId: string | undefined;
       let effectiveScope = user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE;
+      let effectiveIsCenterAdmin = user.role?.is_center_admin ?? false;
       if (updatedRoleId !== undefined) {
         const role = await this.roleDao.findActiveById(updatedRoleId);
         if (!role) {
@@ -221,6 +239,7 @@ export class UsersService implements IUsersService {
         }
         roleId = role.id;
         effectiveScope = role.access_scope;
+        effectiveIsCenterAdmin = role.is_center_admin;
       }
 
       let centreFkId: string | null | undefined;
@@ -229,31 +248,29 @@ export class UsersService implements IUsersService {
         centreFkId = await this.resolveCentreForUser(center_id, resolvedLineIds ?? []);
       }
 
-      let effectiveCentreId = centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
+      const effectiveCentreId = centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
       const createdBy = getCreatedById(actor);
 
-      if (isGlobalScope(effectiveScope)) {
-        // Super Admin (global scope) is not tied to a centre or lines — clear both.
-        if (effectiveCentreId !== null) {
-          centreFkId = null;
-          effectiveCentreId = null;
-        }
-        await this.userLineMappingDao.syncForUser(id, [], createdBy);
-        const mergedGlobal = this.usersDao.merge(user, {
-          ...updateFields,
-          ...(roleId !== undefined ? { role_id: roleId } : {}),
-          center_id: null,
-          ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
-        });
-        mergedGlobal.lineMappings = undefined;
-        await this.usersDao.save(mergedGlobal);
-        this.logger.log(`User updated ID: ${id}`, UsersService.context);
-        return this.findOne(id);
-      }
-
-      // Centre-scoped role: a centre is mandatory.
+      // Centre/line requirements by role type:
+      //  Super Admin (global)      → centre required, line optional
+      //  Centre Admin (centre+adm) → centre required, line optional
+      //  Centre User  (centre)     → centre required, line required
+      const isGlobal = isGlobalScope(effectiveScope);
       if (!effectiveCentreId) {
-        throw new BadRequestException('Centre is required for a centre-scoped role.');
+        throw new BadRequestException('Centre is required.');
+      }
+      // Actor must also be allowed to save the RESULTING state — a Centre Admin
+      // cannot promote a user to Super Admin or move them to another centre.
+      this.assertActorCanManage(actor, effectiveCentreId, effectiveScope);
+      if (!isGlobal && !effectiveIsCenterAdmin) {
+        const centreChanged = centreFkId !== undefined && centreFkId !== user.center_id;
+        const currentLineCount = (user.lineMappings ?? []).filter((m) => !m.is_deleted).length;
+        const effectiveLineCount = hasLinesUpdate
+          ? (resolvedLineIds?.length ?? 0)
+          : (centreChanged ? 0 : currentLineCount);
+        if (effectiveLineCount === 0) {
+          throw new BadRequestException('At least one line is required for a Centre User.');
+        }
       }
 
       if (hasLinesUpdate) {
@@ -280,10 +297,20 @@ export class UsersService implements IUsersService {
         ...(centreFkId !== undefined ? { center_id: centreFkId } : {}),
         ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
       });
+
       // Detach the loaded line-mappings collection before saving: otherwise
       // TypeORM syncs the stale (pre-update) array and deletes the rows that
       // syncForUser just wrote. Line mappings are managed only via the DAO.
       mergedUser.lineMappings = undefined;
+      // Detach the stale ManyToOne relation objects too — when role_id/center_id
+      // change, the previously-loaded `role`/`assignedCentre` entities would
+      // otherwise overwrite the updated FK columns on save.
+      if (roleId !== undefined) {
+        (mergedUser as { role?: unknown }).role = undefined;
+      }
+      if (centreFkId !== undefined) {
+        (mergedUser as { assignedCentre?: unknown }).assignedCentre = undefined;
+      }
       await this.usersDao.save(mergedUser);
 
       this.logger.log(`User updated ID: ${id}`, UsersService.context);
@@ -292,7 +319,8 @@ export class UsersService implements IUsersService {
       if (
         error instanceof ResourceNotFoundException ||
         error instanceof DuplicateResourceException ||
-        error instanceof BadRequestException
+        error instanceof BadRequestException ||
+        error instanceof ForbiddenException
       ) {
         throw error;
       }
@@ -305,7 +333,7 @@ export class UsersService implements IUsersService {
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: UserContext): Promise<void> {
     this.logger.log(`Deleting user ID: ${id}`, UsersService.context);
 
     try {
@@ -313,12 +341,14 @@ export class UsersService implements IUsersService {
       if (!user) {
         throw new ResourceNotFoundException('User', id);
       }
+      // Centre-scoped actors can only delete users in their own centre, never a Super Admin.
+      this.assertActorCanManage(actor, user.center_id, user.role?.access_scope);
       user.is_deleted = true;
       await this.usersDao.save(user);
       await this.userLineMappingDao.softDeleteByUserId(id);
       this.logger.log(`User soft-deleted ID: ${id}`, UsersService.context);
     } catch (error) {
-      if (error instanceof ResourceNotFoundException) {
+      if (error instanceof ResourceNotFoundException || error instanceof ForbiddenException) {
         throw error;
       }
       this.logger.error(
@@ -327,6 +357,32 @@ export class UsersService implements IUsersService {
         UsersService.context,
       );
       throw new DatabaseException('Failed to delete user. Please try again.');
+    }
+  }
+
+  /**
+   * Actor-based authorization for managing a target user.
+   * - Super Admin (global actor) → unrestricted.
+   * - Centre-scoped actor (e.g. Centre Admin) → may only act on users in their
+   *   own centre, and never on a Super Admin (global-scope) user.
+   */
+  private assertActorCanManage(
+    actor: UserContext,
+    targetCentreId: string | null | undefined,
+    targetRoleScope?: string | null,
+  ): void {
+    if (isGlobalScope(actor.user.access_scope)) {
+      return;
+    }
+    const actorCentreId = actor.user.center_id ?? null;
+    if (!actorCentreId) {
+      throw new ForbiddenException('Your account is not assigned to a centre.');
+    }
+    if (isGlobalScope(targetRoleScope)) {
+      throw new ForbiddenException('You are not allowed to manage a Super Admin user.');
+    }
+    if ((targetCentreId ?? null) !== actorCentreId) {
+      throw new ForbiddenException('You can only manage users in your own centre.');
     }
   }
 

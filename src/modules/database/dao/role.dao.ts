@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, IsNull, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
@@ -27,13 +27,26 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
   async findActiveByIdWithPermission(id: string): Promise<Role | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { permission: true },
+      relations: { permission: true, centre: true },
     });
   }
 
   async findByRoleName(roleName: string): Promise<Role | null> {
     return this.findOne({
       where: { role_name: roleName.trim(), is_deleted: false },
+    });
+  }
+
+  async findByRoleNameInScope(
+    roleName: string,
+    centreId: string | null,
+  ): Promise<Role | null> {
+    return this.findOne({
+      where: {
+        role_name: roleName.trim(),
+        center_id: centreId ?? IsNull(),
+        is_deleted: false,
+      },
     });
   }
 
@@ -49,10 +62,19 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
     });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Role>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+    centreScope?: { centreId: string },
+  ): Promise<PaginatedResult<Role>> {
     const qb = this.createQueryBuilder('role')
       .leftJoinAndSelect('role.permission', 'permission')
+      .leftJoinAndSelect('role.centre', 'centre')
       .where('role.is_deleted = :isDeleted', { isDeleted: false });
+
+    if (centreScope) {
+      // Centre Admin: only their own centre's roles (global roles excluded).
+      qb.andWhere('role.center_id = :scopeCentreId', { scopeCentreId: centreScope.centreId });
+    }
 
     const options = buildTypeOrmPaginationOptions<Role, Role>(query, {
       searchFields: ['role.role_name', 'role.description'],

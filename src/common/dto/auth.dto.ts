@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
 import { UserSession } from '../../modules/database/entity/user-session.entity';
+import { ACCESS_SCOPES, AccessScope } from '../constants/access-scope';
 
 
 export class AuthUserDto {
@@ -31,6 +32,12 @@ export class AuthUserDto {
     deprecated: true,
   })
   role_access_id!: string;
+
+  @ApiProperty({
+    description: 'Role data-access scope: "global" (all centres) or "centre" (single centre)',
+    enum: ACCESS_SCOPES,
+  })
+  access_scope!: AccessScope;
 
   @ApiPropertyOptional({ description: 'Centre display name' })
   center?: string;

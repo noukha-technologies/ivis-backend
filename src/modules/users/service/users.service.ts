@@ -3,6 +3,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
+import { DEFAULT_ACCESS_SCOPE, isGlobalScope } from '../../../common/constants/access-scope';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { mapUserToResponse, UserResponse } from '../../../common/utils/map-user-response';
 import { resolveUserLineIds } from '../../../common/validators/user-centre-line.validator';
@@ -58,10 +59,16 @@ export class UsersService implements IUsersService {
         throw new ResourceNotFoundException('Role', createUserDto.role_id);
       }
 
-      const lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
-      const centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
+      let lineIds = this.normalizeLineIds(resolveUserLineIds(createUserDto));
+      let centreFkId = await this.resolveCentreForUser(createUserDto.center_id, lineIds);
+      if (isGlobalScope(role.access_scope)) {
+        // Super Admin (global scope) is not tied to any centre or line.
+        centreFkId = null;
+        lineIds = [];
+      } else if (!centreFkId) {
+        throw new BadRequestException('Centre is required for a centre-scoped role.');
+      }
       if (centreFkId) {
-        // Multiple users may share the same centre and lines — no uniqueness check.
         await this.masterScope.assertLinesBelongToCentre(lineIds, centreFkId);
       }
 
@@ -206,12 +213,14 @@ export class UsersService implements IUsersService {
         ? this.normalizeLineIds(resolveUserLineIds({ line_ids, line_id }))
         : undefined;
       let roleId: string | undefined;
+      let effectiveScope = user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE;
       if (updatedRoleId !== undefined) {
         const role = await this.roleDao.findActiveById(updatedRoleId);
         if (!role) {
           throw new ResourceNotFoundException('Role', updatedRoleId);
         }
         roleId = role.id;
+        effectiveScope = role.access_scope;
       }
 
       let centreFkId: string | null | undefined;
@@ -220,8 +229,32 @@ export class UsersService implements IUsersService {
         centreFkId = await this.resolveCentreForUser(center_id, resolvedLineIds ?? []);
       }
 
-      const effectiveCentreId = centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
+      let effectiveCentreId = centreFkId !== undefined ? centreFkId : (user.center_id ?? null);
       const createdBy = getCreatedById(actor);
+
+      if (isGlobalScope(effectiveScope)) {
+        // Super Admin (global scope) is not tied to a centre or lines — clear both.
+        if (effectiveCentreId !== null) {
+          centreFkId = null;
+          effectiveCentreId = null;
+        }
+        await this.userLineMappingDao.syncForUser(id, [], createdBy);
+        const mergedGlobal = this.usersDao.merge(user, {
+          ...updateFields,
+          ...(roleId !== undefined ? { role_id: roleId } : {}),
+          center_id: null,
+          ...(normalizedUserCode !== undefined ? { user_code: normalizedUserCode } : {}),
+        });
+        mergedGlobal.lineMappings = undefined;
+        await this.usersDao.save(mergedGlobal);
+        this.logger.log(`User updated ID: ${id}`, UsersService.context);
+        return this.findOne(id);
+      }
+
+      // Centre-scoped role: a centre is mandatory.
+      if (!effectiveCentreId) {
+        throw new BadRequestException('Centre is required for a centre-scoped role.');
+      }
 
       if (hasLinesUpdate) {
         const normalizedLineIds = resolvedLineIds!;
@@ -318,5 +351,4 @@ export class UsersService implements IUsersService {
     }
     return [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
   }
-
 }

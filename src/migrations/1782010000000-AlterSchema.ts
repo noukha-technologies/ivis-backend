@@ -223,6 +223,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" DROP COLUMN IF EXISTS "is_system"`,
     );
+    // roles.access_scope: 'global' (Super Admin, all centres) | 'centre' (Centre Admin, single centre)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "access_scope" varchar(16) NOT NULL DEFAULT 'centre'`,
+    );
     // wire roles_role_id_seq if not already present (migration 1780160000000)
     await queryRunner.query(
       `CREATE SEQUENCE IF NOT EXISTS "core"."roles_role_id_seq" OWNED BY "core"."roles"."role_id"`,
@@ -243,6 +247,44 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_PERMISSION_ID" ON "core"."roles" ("permission_id")`,
     );
+
+    // configuration: one settings row per centre (sync mode, redo test,
+    // auto-close, payment mandatory, working hours).
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."configuration" (
+        "id"                  bigint                NOT NULL,
+        "configuration_id"    integer               NOT NULL,
+        "centre_id"           bigint                NOT NULL,
+        "sync_mode"           character varying(16) NOT NULL DEFAULT 'Manual',
+        "redo_test_enabled"   boolean               NOT NULL DEFAULT true,
+        "auto_close"          boolean               NOT NULL DEFAULT false,
+        "auto_close_time"     character varying(5),
+        "payment_mandatory"   boolean               NOT NULL DEFAULT true,
+        "working_hours_start" character varying(5),
+        "working_hours_end"   character varying(5),
+        "status"              character varying(32) NOT NULL DEFAULT 'Active',
+        "created_by"          character varying,
+        "created_at"          TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"          TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "is_deleted"          boolean               NOT NULL DEFAULT false,
+        CONSTRAINT "PK_configuration_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CONFIGURATION_ID" ON "core"."configuration" ("configuration_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CENTRE_ID" ON "core"."configuration" ("centre_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_configuration_centre_id') THEN
+          ALTER TABLE "core"."configuration"
+            ADD CONSTRAINT "FK_configuration_centre_id"
+            FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
   }
 
   // ─── master schema alterations ────────────────────────────────────────────────
@@ -471,6 +513,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ON "master"."admin_pc_line_mappings" ("line_id")
       WHERE "is_deleted" = false
     `);
+    // Per-line IN/OUT folder paths (configured on the Configuration screen).
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" ADD COLUMN IF NOT EXISTS "in_file_path" character varying(512)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" ADD COLUMN IF NOT EXISTS "out_file_path" character varying(512)`,
+    );
 
     // payments: drop legacy name/customer_phone, add customer_id/payment_mode/type/amount
     // (migrations 1780190000000, 1781162440262, 1781166214357, 1781170000000–1781173000000)
@@ -1276,6 +1325,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "in_file_path"`);
     await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "out_file_path"`);
+    await queryRunner.query(`ALTER TABLE "master"."admin_pc_line_mappings" DROP COLUMN IF EXISTS "in_file_path"`);
+    await queryRunner.query(`ALTER TABLE "master"."admin_pc_line_mappings" DROP COLUMN IF EXISTS "out_file_path"`);
 
     // Restore plain (non-partial) unique indexes on code.
     const codeUniques: Array<{ table: string; index: string }> = [
@@ -1418,6 +1469,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(`DROP TABLE IF EXISTS "core"."configuration" CASCADE`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_PERMISSION_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_ROLE_NAME"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."roles"`);

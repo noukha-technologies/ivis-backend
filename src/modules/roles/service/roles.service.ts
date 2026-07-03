@@ -12,6 +12,7 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { DEFAULT_ACCESS_SCOPE } from '../../../common/constants/access-scope';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import { Role } from '../../database/entity/role.entity';
@@ -54,6 +55,7 @@ export class RolesService {
         role_name: dto.role_name.trim(),
         permission_id: permission.id,
         description: dto.description?.trim(),
+        access_scope: dto.access_scope ?? DEFAULT_ACCESS_SCOPE,
         created_by: getCreatedById(actor),
       });
       const saved = await this.roleDao.save(role);
@@ -130,6 +132,7 @@ export class RolesService {
       ...(dto.role_name !== undefined ? { role_name: dto.role_name.trim() } : {}),
       ...(dto.permission_id !== undefined ? { permission_id: dto.permission_id } : {}),
       ...(dto.description !== undefined ? { description: dto.description?.trim() } : {}),
+      ...(dto.access_scope !== undefined ? { access_scope: dto.access_scope } : {}),
     });
     await this.roleDao.save(merged);
     return this.findOne(id);
@@ -161,6 +164,7 @@ export class RolesService {
       role_name: row.role_name,
       permission_id: row.permission_id,
       description: row.description,
+      access_scope: row.access_scope,
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,

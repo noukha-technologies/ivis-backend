@@ -7,6 +7,7 @@ import { CentreDao } from '../../modules/database/dao/centre.dao';
 import { LineDao } from '../../modules/database/dao/line.dao';
 import { CameraDao } from '../../modules/database/dao/camera.dao';
 import { AdminPcLineMappingDao } from '../../modules/database/dao/admin-pc-line-mapping.dao';
+import { isGlobalScope } from '../constants/access-scope';
 
 @Injectable()
 export class MasterScopeService {
@@ -16,6 +17,19 @@ export class MasterScopeService {
     private readonly cameraDao: CameraDao,
     private readonly adminPcLineMappingDao: AdminPcLineMappingDao,
   ) {}
+
+  /**
+   * Centre filter for list/read queries based on the caller's role scope.
+   * - Global (Super Admin) → `null`: no centre restriction, sees all centres.
+   * - Centre-scoped → the user's assigned `center_id` (or null if unset).
+   * Callers add `WHERE center_id = <result>` only when the result is non-null.
+   */
+  resolveCentreFilter(user: {
+    access_scope?: string | null;
+    center_id?: string | null;
+  }): string | null {
+    return isGlobalScope(user.access_scope) ? null : (user.center_id ?? null);
+  }
 
   async resolveCentreId(centreId: string): Promise<string> {
     const centre = await this.centreDao.findActiveById(centreId);

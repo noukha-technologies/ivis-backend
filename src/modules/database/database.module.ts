@@ -25,6 +25,7 @@ import { VehicleRecord } from './entity/vehicle-record.entity';
 import { RopVerification } from './entity/rop-verification.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
+import { Configurations } from './entity/configuration.entity';
 
 import { JobDao } from './dao/job.dao';
 import { RoleDao } from './dao/role.dao';
@@ -48,6 +49,7 @@ import { VehicleRecordDao } from './dao/vehicle-record.dao';
 import { RopVerificationDao } from './dao/rop-verification.dao';
 import { UserLineMappingDao } from './dao/user-line-mapping.dao';
 import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
+import { ConfigurationDao } from './dao/configuration.dao';
 
 @Global()
 @Module({
@@ -87,6 +89,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
       Charge,
       ChargeCategory,
       PaymentType,
+      Configurations,
     ]),
   ],
   providers: [
@@ -112,6 +115,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
     ChargeDao,
     ChargeCategoryDao,
     PaymentTypeDao,
+    ConfigurationDao,
   ],
   exports: [
     TypeOrmModule,
@@ -137,6 +141,7 @@ import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
     ChargeDao,
     ChargeCategoryDao,
     PaymentTypeDao,
+    ConfigurationDao,
   ],
 })
 export class DatabaseModule { }

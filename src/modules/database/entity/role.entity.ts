@@ -10,6 +10,7 @@ import {
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { Permission } from './permission.entity';
+import { AccessScope, DEFAULT_ACCESS_SCOPE } from '../../../common/constants/access-scope';
 
 @Entity({ name: 'roles', schema: 'core' })
 @Index('IDX_ROLE_ROLE_NAME', ['role_name'], { unique: true })
@@ -33,6 +34,9 @@ export class Role {
 
   @Column({ type: 'varchar', length: 512, nullable: true })
   description?: string;
+
+  @Column({ type: 'varchar', length: 16, default: DEFAULT_ACCESS_SCOPE })
+  access_scope!: AccessScope;
 
 
   @Column({ type: 'varchar', nullable: true })

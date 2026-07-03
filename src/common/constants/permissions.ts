@@ -72,6 +72,7 @@ export const PermissionKeys = {
   DASHBOARD_VIEW: 'DASHBOARD_VIEW',
   REPORTS_VIEW: 'REPORTS_VIEW',
   CONFIGURATION_VIEW: 'CONFIGURATION_VIEW',
+  CONFIGURATION_UPSERT: 'CONFIGURATION_UPSERT',
   FILE_PROCESSING_VIEW: 'FILE_PROCESSING_VIEW',
 } as const;
 
@@ -138,6 +139,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.DASHBOARD_VIEW]: 'View dashboard',
   [PermissionKeys.REPORTS_VIEW]: 'View reports and analytics',
   [PermissionKeys.CONFIGURATION_VIEW]: 'View and manage configuration',
+  [PermissionKeys.CONFIGURATION_UPSERT]: 'Create or update centre configuration',
   [PermissionKeys.FILE_PROCESSING_VIEW]: 'View and manage file processing',
 };
 

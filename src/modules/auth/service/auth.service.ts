@@ -17,6 +17,7 @@ import {
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
 import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
+import { DEFAULT_ACCESS_SCOPE } from '../../../common/constants/access-scope';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
@@ -124,6 +125,7 @@ export class AuthService implements IAuthService {
         role_name: roleName,
         permission_id: permission.id,
         description: 'Bootstrap admin role',
+        access_scope: 'global',
       });
       role = await this.roleDao.save(role);
     }
@@ -290,6 +292,7 @@ export class AuthService implements IAuthService {
       role: user.role?.role_name ?? '',
       role_id: user.role_id,
       role_access_id: user.role_id,
+      access_scope: user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE,
       center: user.assignedCentre?.name,
       line: lines[0]?.name,
       center_id: user.center_id ?? undefined,

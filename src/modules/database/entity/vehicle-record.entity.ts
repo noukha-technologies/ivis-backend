@@ -14,7 +14,9 @@ import { Vehicle } from './vehicle.entity';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 
 @Entity({ name: 'vehicle_records', schema: DATABASE_SCHEMAS.TRANSACTION })
-@Index('IDX_VEHICLE_RECORD_VEHICLE_RECORD_ID', ['vehicle_record_id'], { unique: true })
+@Index('IDX_VEHICLE_RECORD_VEHICLE_RECORD_ID', ['vehicle_record_id'], {
+  unique: true,
+})
 @Index('IDX_VEHICLE_RECORD_PLATE_NUMBER', ['plate_number'], { unique: true })
 @Index('IDX_VEHICLE_RECORD_CHASSIS_NO', ['chassis_no'])
 @Index('IDX_VEHICLE_RECORD_VEHICLE_MASTER_ID', ['vehicle_master_id'])
@@ -46,7 +48,11 @@ export class VehicleRecord {
   @Column({ type: 'varchar', length: 64, nullable: true })
   vehicle_color?: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   vehicle_master_id?: string | null;
 
   @ManyToOne(() => Vehicle, { nullable: true })

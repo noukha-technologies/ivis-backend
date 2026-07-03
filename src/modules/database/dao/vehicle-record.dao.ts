@@ -4,7 +4,10 @@ import { IVehicleRecordDao } from './vehicle-record.dao.interface';
 import { VehicleRecord } from '../entity/vehicle-record.entity';
 
 @Injectable()
-export class VehicleRecordDao extends Repository<VehicleRecord> implements IVehicleRecordDao {
+export class VehicleRecordDao
+  extends Repository<VehicleRecord>
+  implements IVehicleRecordDao
+{
   constructor(private readonly dataSource: DataSource) {
     super(VehicleRecord, dataSource.createEntityManager());
   }

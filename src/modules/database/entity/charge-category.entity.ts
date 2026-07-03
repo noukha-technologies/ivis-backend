@@ -24,7 +24,13 @@ export class ChargeCategory implements IChargeCategoryMasterFields {
   @Column({ type: 'varchar', length: 128, nullable: true })
   engine_capacity?: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 3, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: false,
+    default: 0,
+  })
   fees!: number;
 
   @Column({ type: 'varchar', default: 'Active', nullable: false })

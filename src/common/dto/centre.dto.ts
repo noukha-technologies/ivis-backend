@@ -8,7 +8,12 @@ import {
   Matches,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreateCentreDto {
   @ApiPropertyOptional({
@@ -20,7 +25,10 @@ export class CreateCentreDto {
   @IsOptional()
   centre_id?: number;
 
-  @ApiProperty({ description: 'Centre name (alphabets only)', example: 'Muscat' })
+  @ApiProperty({
+    description: 'Centre name (alphabets only)',
+    example: 'Muscat',
+  })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
   @Matches(/^[A-Za-z\s'-]+$/, {
@@ -29,21 +37,31 @@ export class CreateCentreDto {
   name!: string;
 
   @ApiPropertyOptional({
-    description: 'Centre code — auto-generated as CM + sequence (e.g. CM001). Ignored if supplied.',
+    description:
+      'Centre code — auto-generated as CM + sequence (e.g. CM001). Ignored if supplied.',
     example: 'CM001',
   })
   @IsString({ message: 'code must be a string' })
   @IsOptional()
   code?: string;
 
-  @ApiPropertyOptional({ description: 'Centre details description', example: 'Main hub' })
+  @ApiPropertyOptional({
+    description: 'Centre details description',
+    example: 'Main hub',
+  })
   @IsOptional()
   @IsString({ message: 'description must be a string' })
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Centre status', example: 'Active', enum: ['Active', 'Inactive'] })
+  @ApiPropertyOptional({
+    description: 'Centre status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   @IsOptional()
   status?: string;
 
@@ -54,9 +72,8 @@ export class CreateCentreDto {
   @IsOptional()
   @IsBoolean({ message: 'auto_submit must be a boolean' })
   auto_submit?: boolean;
-
 }
 
 export class UpdateCentreDto extends PartialType(
   OmitType(CreateCentreDto, ['centre_id'] as const),
-) { }
+) {}

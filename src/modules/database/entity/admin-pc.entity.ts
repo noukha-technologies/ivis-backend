@@ -4,12 +4,16 @@ import {
   CreateDateColumn,
   Entity,
   Index,
+  ManyToOne,
+  JoinColumn,
   OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
 import { IAdminPcMasterFields } from '../../../common/interfaces/master.interface';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+import { Centre } from './centre.entity';
 
 @Entity({ name: 'admin_pcs', schema: 'master' })
 export class AdminPc implements IAdminPcMasterFields {
@@ -38,6 +42,18 @@ export class AdminPc implements IAdminPcMasterFields {
   @Column({ type: 'varchar', length: 512, nullable: true })
   out_file_path?: string;
 
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
+  @Index('IDX_ADMIN_PC_CENTER_ID')
+  center_id?: string | null;
+
+  @ManyToOne(() => Centre, { nullable: true })
+  @JoinColumn({ name: 'center_id' })
+  centre?: Centre | null;
+
   @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.adminPc)
   lineMappings?: AdminPcLineMapping[];
 
@@ -53,7 +69,9 @@ export class AdminPc implements IAdminPcMasterFields {
 
   @AfterLoad()
   populateLineFields(): void {
-    const activeMappings = (this.lineMappings ?? []).filter((mapping) => !mapping.is_deleted);
+    const activeMappings = (this.lineMappings ?? []).filter(
+      (mapping) => !mapping.is_deleted,
+    );
     this.line_ids = activeMappings.map((mapping) => mapping.line_id);
     this.lines = activeMappings
       .map((mapping) => mapping.line)
@@ -64,7 +82,11 @@ export class AdminPc implements IAdminPcMasterFields {
         name: line.name,
         code: line.code,
         centre: line.centre
-          ? { id: line.centre.id, name: line.centre.name, code: line.centre.code }
+          ? {
+              id: line.centre.id,
+              name: line.centre.name,
+              code: line.centre.code,
+            }
           : undefined,
       }));
     this.lineMappings = undefined;

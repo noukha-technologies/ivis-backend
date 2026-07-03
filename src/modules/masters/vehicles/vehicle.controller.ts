@@ -20,7 +20,10 @@ import {
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateVehicleDto, UpdateVehicleDto } from '../../../common/dto/vehicle.dto';
+import {
+  CreateVehicleDto,
+  UpdateVehicleDto,
+} from '../../../common/dto/vehicle.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { VehicleService } from './services/vehicle.service';
 
@@ -32,7 +35,10 @@ export class VehicleController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new vehicle type master record' })
-  @ApiResponse({ status: 201, description: 'Vehicle master created successfully.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Vehicle master created successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or vehicle_id.' })
   async create(
@@ -44,7 +50,10 @@ export class VehicleController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all vehicle type masters (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary:
+      'Retrieve all vehicle type masters (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({
@@ -65,8 +74,15 @@ export class VehicleController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a vehicle type master by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'Vehicle master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Vehicle master retrieved successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Vehicle master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vehicle master retrieved successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Vehicle master not found.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const vehicle = await this.vehicleService.findOne(id);
@@ -75,8 +91,15 @@ export class VehicleController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update vehicle type master details' })
-  @ApiParam({ name: 'id', type: String, description: 'Vehicle master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Vehicle master updated successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Vehicle master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vehicle master updated successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Vehicle master not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
   async update(
@@ -89,8 +112,15 @@ export class VehicleController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a vehicle type master' })
-  @ApiParam({ name: 'id', type: String, description: 'Vehicle master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Vehicle master deleted successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Vehicle master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Vehicle master deleted successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Vehicle master not found.' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.vehicleService.remove(id);

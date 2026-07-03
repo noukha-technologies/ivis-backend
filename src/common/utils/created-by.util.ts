@@ -8,7 +8,10 @@ import { ErrorException } from '../errors/custom-error.exception';
 export function getCreatedById(actor: UserContext): string {
   const id = actor.user.id?.trim();
   if (!id) {
-    throw new ErrorException('FORBIDDEN_REQUEST', 'Authenticated user is required');
+    throw new ErrorException(
+      'FORBIDDEN_REQUEST',
+      'Authenticated user is required',
+    );
   }
   return id;
 }

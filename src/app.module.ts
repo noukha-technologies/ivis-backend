@@ -15,7 +15,6 @@ import { MasterScopeModule } from './common/services/master-scope.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 
-
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AnprModule } from './modules/anpr/anpr.module';
@@ -29,8 +28,6 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
-
-
 
 @Module({
   imports: [

@@ -44,7 +44,9 @@ export class JobDao extends Repository<Job> implements IJobDao {
     });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Job>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Job>> {
     const qb = this.createQueryBuilder('job')
       .leftJoinAndSelect('job.appointment', 'appointment')
       .leftJoinAndSelect('job.customer', 'customer')
@@ -81,7 +83,11 @@ export class JobDao extends Repository<Job> implements IJobDao {
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'job', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'job',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

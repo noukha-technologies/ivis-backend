@@ -5,7 +5,15 @@ import { PaymentApiClientService } from './payment/payment-api-client.service';
 
 @Global()
 @Module({
-  providers: [RopApiClientService, OnlineAppointmentApiClientService, PaymentApiClientService],
-  exports: [RopApiClientService, OnlineAppointmentApiClientService, PaymentApiClientService],
+  providers: [
+    RopApiClientService,
+    OnlineAppointmentApiClientService,
+    PaymentApiClientService,
+  ],
+  exports: [
+    RopApiClientService,
+    OnlineAppointmentApiClientService,
+    PaymentApiClientService,
+  ],
 })
 export class IntegrationsModule {}

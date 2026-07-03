@@ -1,5 +1,5 @@
-import { PaymentStatusEnum } from "../enums/payment.enums";
-import { AnprCaptureStatus } from "../enums/camera.enums";
+import { PaymentStatusEnum } from '../enums/payment.enums';
+import { AnprCaptureStatus } from '../enums/camera.enums';
 
 export interface IPaymentsFields {
   id: string;
@@ -21,7 +21,6 @@ export interface IPaymentsFields {
   updated_at: Date;
   is_deleted: boolean;
 }
-
 
 export interface IAnprCaptureFields {
   id: string;

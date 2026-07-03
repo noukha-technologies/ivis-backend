@@ -100,9 +100,13 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `pf_${filter.field}`;
     if (filter.operator === 'EQUALS') {
-      qb.andWhere(`${this.col(alias, filter.field)} = :${param}`, { [param]: filter.value });
+      qb.andWhere(`${this.col(alias, filter.field)} = :${param}`, {
+        [param]: filter.value,
+      });
     } else {
-      qb.andWhere(`${this.col(alias, filter.field)} != :${param}`, { [param]: filter.value });
+      qb.andWhere(`${this.col(alias, filter.field)} != :${param}`, {
+        [param]: filter.value,
+      });
     }
   }
 
@@ -130,9 +134,13 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `rx_${filter.field}`;
     if (filter.caseSensitive) {
-      qb.andWhere(`${this.col(alias, filter.field)} ~ :${param}`, { [param]: filter.pattern });
+      qb.andWhere(`${this.col(alias, filter.field)} ~ :${param}`, {
+        [param]: filter.pattern,
+      });
     } else {
-      qb.andWhere(`${this.col(alias, filter.field)} ~* :${param}`, { [param]: filter.pattern });
+      qb.andWhere(`${this.col(alias, filter.field)} ~* :${param}`, {
+        [param]: filter.pattern,
+      });
     }
   }
 
@@ -143,9 +151,13 @@ export class TypeOrmFilterApplier {
   ): void {
     const param = `arr_${filter.field}`;
     if (filter.operator === 'ANY') {
-      qb.andWhere(`${this.col(alias, filter.field)} IN (:...${param})`, { [param]: filter.values });
+      qb.andWhere(`${this.col(alias, filter.field)} IN (:...${param})`, {
+        [param]: filter.values,
+      });
     } else {
-      qb.andWhere(`${this.col(alias, filter.field)} NOT IN (:...${param})`, { [param]: filter.values });
+      qb.andWhere(`${this.col(alias, filter.field)} NOT IN (:...${param})`, {
+        [param]: filter.values,
+      });
     }
   }
 
@@ -157,7 +169,11 @@ export class TypeOrmFilterApplier {
     if (!filter.conditions?.length) return;
 
     const method =
-      filter.operator === '$or' ? 'orWhere' : filter.operator === '$nor' ? 'andWhere' : 'andWhere';
+      filter.operator === '$or'
+        ? 'orWhere'
+        : filter.operator === '$nor'
+          ? 'andWhere'
+          : 'andWhere';
 
     qb.andWhere(
       new Brackets((outer) => {
@@ -166,7 +182,11 @@ export class TypeOrmFilterApplier {
             new Brackets((inner) => {
               for (const [field, value] of Object.entries(condition)) {
                 const param = `lf_${field}_${Math.random().toString(36).slice(2, 8)}`;
-                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                if (
+                  value &&
+                  typeof value === 'object' &&
+                  !Array.isArray(value)
+                ) {
                   const ops = value as Record<string, unknown>;
                   if ('$gte' in ops) {
                     inner.andWhere(`${alias}.${field} >= :${param}_gte`, {
@@ -184,7 +204,9 @@ export class TypeOrmFilterApplier {
                     });
                   }
                 } else {
-                  inner.andWhere(`${alias}.${field} = :${param}`, { [param]: value });
+                  inner.andWhere(`${alias}.${field} = :${param}`, {
+                    [param]: value,
+                  });
                 }
               }
             }),

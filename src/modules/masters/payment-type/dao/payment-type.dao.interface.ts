@@ -5,6 +5,8 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 export interface IPaymentTypeDao {
   findActiveById(id: string): Promise<PaymentType | null>;
   findByCode(code: string): Promise<PaymentType | null>;
-  findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<PaymentType>>;
+  findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<PaymentType>>;
   getNextPaymentTypeId(): Promise<number>;
 }

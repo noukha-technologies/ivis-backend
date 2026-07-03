@@ -73,7 +73,9 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
 
     if (centreScope) {
       // Centre Admin: only their own centre's roles (global roles excluded).
-      qb.andWhere('role.center_id = :scopeCentreId', { scopeCentreId: centreScope.centreId });
+      qb.andWhere('role.center_id = :scopeCentreId', {
+        scopeCentreId: centreScope.centreId,
+      });
     }
 
     const options = buildTypeOrmPaginationOptions<Role, Role>(query, {
@@ -82,7 +84,11 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
       defaultSort: { created_at: 'DESC' },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'role', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'role',
+      options,
+    );
     return toPaginatedResult(response);
   }
 }

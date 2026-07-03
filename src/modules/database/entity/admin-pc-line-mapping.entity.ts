@@ -18,14 +18,24 @@ export class AdminPcLineMapping {
   @SnowflakePrimaryColumn()
   id!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   admin_pc_id!: string;
 
-  @ManyToOne(() => AdminPc, (adminPc) => adminPc.lineMappings, { onDelete: 'CASCADE' })
+  @ManyToOne(() => AdminPc, (adminPc) => adminPc.lineMappings, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'admin_pc_id' })
   adminPc!: AdminPc;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   line_id!: string;
 
   @ManyToOne(() => Line, (line) => line.adminPcMappings, { nullable: false })

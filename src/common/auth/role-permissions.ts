@@ -1,4 +1,8 @@
-import { ALL_PERMISSION_KEYS, PermissionKey, PermissionKeys } from '../constants/permissions';
+import {
+  ALL_PERMISSION_KEYS,
+  PermissionKey,
+  PermissionKeys,
+} from '../constants/permissions';
 import { USER_ROLES } from '../enums/common.enums';
 import {
   APPOINTMENTS_SUBMODULES,
@@ -89,10 +93,21 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
     // Parent create/edit are resolved at this level; view is derived from submodules
     view: [],
     create: [PermissionKeys.APPOINTMENTS_CREATE],
-    edit: [PermissionKeys.APPOINTMENTS_UPSERT, PermissionKeys.APPOINTMENTS_DELETE],
+    edit: [
+      PermissionKeys.APPOINTMENTS_UPSERT,
+      PermissionKeys.APPOINTMENTS_DELETE,
+    ],
     submodules: {
-      list_view: { view: [PermissionKeys.APPOINTMENTS_VIEW], create: [], edit: [] },
-      calendar_view: { view: [PermissionKeys.APPOINTMENTS_VIEW], create: [], edit: [] },
+      list_view: {
+        view: [PermissionKeys.APPOINTMENTS_VIEW],
+        create: [],
+        edit: [],
+      },
+      calendar_view: {
+        view: [PermissionKeys.APPOINTMENTS_VIEW],
+        create: [],
+        edit: [],
+      },
     },
   },
   master_management: {
@@ -100,12 +115,36 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
     create: [],
     edit: [],
     submodules: {
-      vehicle: { view: [PermissionKeys.MASTERS_VIEW], create: [PermissionKeys.MASTERS_CREATE], edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE] },
-      center: { view: [PermissionKeys.MASTERS_VIEW], create: [PermissionKeys.MASTERS_CREATE], edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE] },
-      line: { view: [PermissionKeys.MASTERS_VIEW], create: [PermissionKeys.MASTERS_CREATE], edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE] },
-      admin_pc: { view: [PermissionKeys.MASTERS_VIEW], create: [PermissionKeys.MASTERS_CREATE], edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE] },
-      camera_anpr: { view: [PermissionKeys.ANPR_VIEW], create: [PermissionKeys.ANPR_CREATE], edit: [PermissionKeys.ANPR_UPSERT, PermissionKeys.ANPR_DELETE] },
-      charges: { view: [PermissionKeys.MASTERS_VIEW], create: [PermissionKeys.MASTERS_CREATE], edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE] },
+      vehicle: {
+        view: [PermissionKeys.MASTERS_VIEW],
+        create: [PermissionKeys.MASTERS_CREATE],
+        edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE],
+      },
+      center: {
+        view: [PermissionKeys.MASTERS_VIEW],
+        create: [PermissionKeys.MASTERS_CREATE],
+        edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE],
+      },
+      line: {
+        view: [PermissionKeys.MASTERS_VIEW],
+        create: [PermissionKeys.MASTERS_CREATE],
+        edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE],
+      },
+      admin_pc: {
+        view: [PermissionKeys.MASTERS_VIEW],
+        create: [PermissionKeys.MASTERS_CREATE],
+        edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE],
+      },
+      camera_anpr: {
+        view: [PermissionKeys.ANPR_VIEW],
+        create: [PermissionKeys.ANPR_CREATE],
+        edit: [PermissionKeys.ANPR_UPSERT, PermissionKeys.ANPR_DELETE],
+      },
+      charges: {
+        view: [PermissionKeys.MASTERS_VIEW],
+        create: [PermissionKeys.MASTERS_CREATE],
+        edit: [PermissionKeys.MASTERS_UPSERT, PermissionKeys.MASTERS_DELETE],
+      },
     },
   },
   transactions: {
@@ -113,11 +152,37 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
     create: [],
     edit: [],
     submodules: {
-      payments: { view: [PermissionKeys.PAYMENTS_VIEW], create: [PermissionKeys.PAYMENTS_CREATE], edit: [PermissionKeys.PAYMENTS_UPSERT, PermissionKeys.PAYMENTS_DELETE] },
-      vehicle_records: { view: [PermissionKeys.VEHICLE_RECORDS_VIEW], create: [PermissionKeys.VEHICLE_RECORDS_CREATE], edit: [PermissionKeys.VEHICLE_RECORDS_UPSERT, PermissionKeys.VEHICLE_RECORDS_DELETE] },
-      customers: { view: [PermissionKeys.CUSTOMERS_VIEW], create: [PermissionKeys.CUSTOMERS_CREATE], edit: [PermissionKeys.CUSTOMERS_UPSERT, PermissionKeys.CUSTOMERS_DELETE] },
-      file_processing: { view: [PermissionKeys.FILE_PROCESSING_VIEW], create: [], edit: [] },
-      rop_management: { view: [PermissionKeys.ROP_VIEW], create: [PermissionKeys.ROP_CREATE], edit: [PermissionKeys.ROP_UPSERT, PermissionKeys.ROP_DELETE] },
+      payments: {
+        view: [PermissionKeys.PAYMENTS_VIEW],
+        create: [PermissionKeys.PAYMENTS_CREATE],
+        edit: [PermissionKeys.PAYMENTS_UPSERT, PermissionKeys.PAYMENTS_DELETE],
+      },
+      vehicle_records: {
+        view: [PermissionKeys.VEHICLE_RECORDS_VIEW],
+        create: [PermissionKeys.VEHICLE_RECORDS_CREATE],
+        edit: [
+          PermissionKeys.VEHICLE_RECORDS_UPSERT,
+          PermissionKeys.VEHICLE_RECORDS_DELETE,
+        ],
+      },
+      customers: {
+        view: [PermissionKeys.CUSTOMERS_VIEW],
+        create: [PermissionKeys.CUSTOMERS_CREATE],
+        edit: [
+          PermissionKeys.CUSTOMERS_UPSERT,
+          PermissionKeys.CUSTOMERS_DELETE,
+        ],
+      },
+      file_processing: {
+        view: [PermissionKeys.FILE_PROCESSING_VIEW],
+        create: [],
+        edit: [],
+      },
+      rop_management: {
+        view: [PermissionKeys.ROP_VIEW],
+        create: [PermissionKeys.ROP_CREATE],
+        edit: [PermissionKeys.ROP_UPSERT, PermissionKeys.ROP_DELETE],
+      },
     },
   },
   user_management: {
@@ -125,9 +190,24 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
     create: [],
     edit: [],
     submodules: {
-      users: { view: [PermissionKeys.USER_VIEW], create: [PermissionKeys.USER_CREATE], edit: [PermissionKeys.USER_EDIT, PermissionKeys.USER_DELETE] },
-      roles: { view: [PermissionKeys.ROLES_VIEW], create: [PermissionKeys.ROLES_CREATE], edit: [PermissionKeys.ROLES_UPSERT, PermissionKeys.ROLES_DELETE] },
-      permissions: { view: [PermissionKeys.PERMISSIONS_VIEW], create: [PermissionKeys.PERMISSIONS_CREATE], edit: [PermissionKeys.PERMISSIONS_UPSERT, PermissionKeys.PERMISSIONS_DELETE] },
+      users: {
+        view: [PermissionKeys.USER_VIEW],
+        create: [PermissionKeys.USER_CREATE],
+        edit: [PermissionKeys.USER_EDIT, PermissionKeys.USER_DELETE],
+      },
+      roles: {
+        view: [PermissionKeys.ROLES_VIEW],
+        create: [PermissionKeys.ROLES_CREATE],
+        edit: [PermissionKeys.ROLES_UPSERT, PermissionKeys.ROLES_DELETE],
+      },
+      permissions: {
+        view: [PermissionKeys.PERMISSIONS_VIEW],
+        create: [PermissionKeys.PERMISSIONS_CREATE],
+        edit: [
+          PermissionKeys.PERMISSIONS_UPSERT,
+          PermissionKeys.PERMISSIONS_DELETE,
+        ],
+      },
     },
   },
 };
@@ -144,7 +224,10 @@ function hasAnyKey(flatKeys: Set<string>, keys: PermissionKey[]): boolean {
 export function resolvePermissionsForRole(role: string): string[] {
   const normalized = normalizeRole(role);
 
-  if (FULL_ACCESS_ROLES.has(normalized.replace(/ /g, '_')) || FULL_ACCESS_ROLES.has(normalized)) {
+  if (
+    FULL_ACCESS_ROLES.has(normalized.replace(/ /g, '_')) ||
+    FULL_ACCESS_ROLES.has(normalized)
+  ) {
     return ALL_PERMISSION_KEYS;
   }
 
@@ -160,13 +243,15 @@ export function resolvePermissionsForRole(role: string): string[] {
 }
 
 /** DB permission.access JSON → flat keys for guards. */
-export function resolveFlatPermissionsFromMatrix(matrix: RoleAccessMatrix): string[] {
+export function resolveFlatPermissionsFromMatrix(
+  matrix: RoleAccessMatrix,
+): string[] {
   const resolved = new Set<string>();
 
   // Flat modules
   for (const mod of FLAT_MODULES) {
     const flags = matrix[mod];
-    const map = MODULE_PERMISSION_MAP[mod] as FlatModulePermissionMap;
+    const map = MODULE_PERMISSION_MAP[mod];
 
     if (flags.view) map.view.forEach((k) => resolved.add(k));
     if (flags.create) map.create.forEach((k) => resolved.add(k));
@@ -199,13 +284,15 @@ export function resolveFlatPermissionsFromMatrix(matrix: RoleAccessMatrix): stri
 }
 
 /** Flat keys → RoleAccessMatrix (used for admin bootstrap and matrixFromFlatPermissions). */
-export function matrixFromFlatPermissions(flatKeys: string[]): RoleAccessMatrix {
+export function matrixFromFlatPermissions(
+  flatKeys: string[],
+): RoleAccessMatrix {
   const keySet = new Set(flatKeys);
   const matrix = createEmptyRoleAccessMatrix();
 
   // Flat modules
   for (const mod of FLAT_MODULES) {
-    const map = MODULE_PERMISSION_MAP[mod] as FlatModulePermissionMap;
+    const map = MODULE_PERMISSION_MAP[mod];
     matrix[mod] = {
       view: hasAnyKey(keySet, map.view),
       create: hasAnyKey(keySet, map.create),
@@ -247,7 +334,9 @@ export function matrixFromFlatPermissions(flatKeys: string[]): RoleAccessMatrix 
   return matrix;
 }
 
-export function normalizeRoleAccessMatrix(partial: Partial<RoleAccessMatrix>): RoleAccessMatrix {
+export function normalizeRoleAccessMatrix(
+  partial: Partial<RoleAccessMatrix>,
+): RoleAccessMatrix {
   const base = createEmptyRoleAccessMatrix();
 
   for (const mod of FLAT_MODULES) {
@@ -262,7 +351,9 @@ export function normalizeRoleAccessMatrix(partial: Partial<RoleAccessMatrix>): R
   }
 
   for (const mod of SUBMODULE_MODULES) {
-    const incoming = partial[mod] as ModuleWithSubmodules<string> | undefined;
+    const incoming = partial[mod] as
+      | Partial<ModuleWithSubmodules<string>>
+      | undefined;
     const baseEntry = base[mod] as ModuleWithSubmodules<string>;
 
     if (!incoming) continue;

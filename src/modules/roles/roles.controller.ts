@@ -20,7 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { PermissionKeys } from '../../common/constants/permissions';
 import { Permissions } from '../../common/decorators/permissions.decorator';
-import { CreateRoleDto, RoleDto, UpdateRoleDto } from '../../common/dto/role.dto';
+import {
+  CreateRoleDto,
+  RoleDto,
+  UpdateRoleDto,
+} from '../../common/dto/role.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -30,7 +34,7 @@ import { RolesService } from './service/roles.service';
 @ApiTags('Roles')
 @Controller('roles')
 export class RolesController {
-  constructor(private readonly rolesService: RolesService) { }
+  constructor(private readonly rolesService: RolesService) {}
 
   @Post()
   @Permissions(PermissionKeys.ROLES_UPSERT)
@@ -50,7 +54,10 @@ export class RolesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'List roles (paginated)' })
   @ApiBearerAuth('jwt')
-  findAll(@CurrentUser() actor: UserContext, @Query() query: PaginationQueryDto) {
+  findAll(
+    @CurrentUser() actor: UserContext,
+    @Query() query: PaginationQueryDto,
+  ) {
     return this.rolesService.findAll(query, actor).then((result) => ({
       message: 'Roles retrieved successfully',
       ...result,

@@ -26,4 +26,4 @@ import { TypeOrmPaginationService } from './typeorm-pagination.service';
   ],
   exports: [TypeOrmPaginationService, PaginationService, TypeOrmFilterApplier],
 })
-export class PaginationModule { }
+export class PaginationModule {}

@@ -47,22 +47,33 @@ export class HttpExceptionFilter implements ExceptionFilter {
         }
       }
     } else if (exception instanceof QueryFailedError) {
-      const driverError = (exception as QueryFailedError & { driverError?: { code?: string; detail?: string } })
-        .driverError;
+      const driverError = (
+        exception as QueryFailedError & {
+          driverError?: { code?: string; detail?: string };
+        }
+      ).driverError;
 
       if (driverError?.code === '23505') {
         status = HttpStatus.CONFLICT;
         const detail = driverError.detail || '';
-        message = detail ? `Duplicate entry: ${detail}` : 'A record with this value already exists';
+        message = detail
+          ? `Duplicate entry: ${detail}`
+          : 'A record with this value already exists';
         error = 'Conflict';
       } else {
         message = 'A database error occurred';
         error = 'Database Error';
-        this.logger.error(`QueryFailedError: ${exception.message}`, (exception as Error).stack);
+        this.logger.error(
+          `QueryFailedError: ${exception.message}`,
+          (exception as Error).stack,
+        );
       }
     } else if (exception instanceof Error) {
       message = exception.message;
-      this.logger.error(`Unhandled Error: ${exception.message}`, exception.stack);
+      this.logger.error(
+        `Unhandled Error: ${exception.message}`,
+        exception.stack,
+      );
     }
 
     const errorResponse = {
@@ -75,7 +86,9 @@ export class HttpExceptionFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
     };
 
-    this.logger.error(`${request.method} ${request.url} — ${status} — ${message}`);
+    this.logger.error(
+      `${request.method} ${request.url} — ${status} — ${message}`,
+    );
 
     response.status(status).json(errorResponse);
   }

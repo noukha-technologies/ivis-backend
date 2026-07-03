@@ -10,7 +10,8 @@ export interface IAnprCaptureDao {
   findActiveById(id: string): Promise<AnprCapture | null>;
   findByCaptureId(captureId: number): Promise<AnprCapture | null>;
   findLatestByPlate(plateNumber: string): Promise<AnprCapture | null>;
-  findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>>;
+  findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<AnprCapture>>;
   getNextCaptureId(): Promise<number>;
 }
-

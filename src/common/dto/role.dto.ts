@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsIn,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { PermissionProfileDto } from './permission-profile.dto';
 import { ACCESS_SCOPES, AccessScope } from '../constants/access-scope';
 
@@ -23,7 +29,8 @@ export class CreateRoleDto {
   description?: string;
 
   @ApiPropertyOptional({
-    description: 'Data-access scope: "global" (Super Admin, all centres) or "centre" (Centre Admin, single centre)',
+    description:
+      'Data-access scope: "global" (Super Admin, all centres) or "centre" (Centre Admin, single centre)',
     enum: ACCESS_SCOPES,
     default: 'centre',
   })
@@ -32,7 +39,8 @@ export class CreateRoleDto {
   access_scope?: AccessScope;
 
   @ApiPropertyOptional({
-    description: 'Centre-admin rank — only meaningful when access_scope = "centre". true → Centre Admin, false → Centre User.',
+    description:
+      'Centre-admin rank — only meaningful when access_scope = "centre". true → Centre Admin, false → Centre User.',
     default: false,
   })
   @IsOptional()
@@ -40,14 +48,15 @@ export class CreateRoleDto {
   is_center_admin?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Owning centre snowflake id. NULL/omitted → global role. Ignored for centre-scoped actors (forced to their own centre).',
+    description:
+      'Owning centre snowflake id. NULL/omitted → global role. Ignored for centre-scoped actors (forced to their own centre).',
   })
   @IsOptional()
   @IsString()
   center_id?: string | null;
 }
 
-export class UpdateRoleDto extends PartialType(CreateRoleDto) { }
+export class UpdateRoleDto extends PartialType(CreateRoleDto) {}
 
 export class RoleDto {
   @ApiProperty()
@@ -65,16 +74,25 @@ export class RoleDto {
   @ApiPropertyOptional()
   description?: string;
 
-  @ApiProperty({ enum: ACCESS_SCOPES, description: 'Data-access scope of the role' })
+  @ApiProperty({
+    enum: ACCESS_SCOPES,
+    description: 'Data-access scope of the role',
+  })
   access_scope!: AccessScope;
 
-  @ApiProperty({ description: 'Centre-admin rank (only meaningful for centre scope)' })
+  @ApiProperty({
+    description: 'Centre-admin rank (only meaningful for centre scope)',
+  })
   is_center_admin!: boolean;
 
-  @ApiPropertyOptional({ description: 'Owning centre snowflake id (null → global role)' })
+  @ApiPropertyOptional({
+    description: 'Owning centre snowflake id (null → global role)',
+  })
   center_id?: string | null;
 
-  @ApiPropertyOptional({ description: 'Owning centre name (null → global role)' })
+  @ApiPropertyOptional({
+    description: 'Owning centre name (null → global role)',
+  })
   center_name?: string | null;
 
   @ApiPropertyOptional()

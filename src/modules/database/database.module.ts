@@ -144,4 +144,4 @@ import { ConfigurationDao } from './dao/configuration.dao';
     ConfigurationDao,
   ],
 })
-export class DatabaseModule { }
+export class DatabaseModule {}

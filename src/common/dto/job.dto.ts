@@ -11,7 +11,12 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   JOB_OVERALL_RESULTS,
@@ -19,36 +24,56 @@ import {
   JOB_SOURCES,
   JOB_STATUSES,
 } from '../enums/job.enums';
-import { CreateJobRequestConstraint, isLegacyJobCreate } from '../validators/job-create-request.validator.js';
+import {
+  CreateJobRequestConstraint,
+  isLegacyJobCreate,
+} from '../validators/job-create-request.validator.js';
 
 export class JobPaymentDto {
-  @ApiPropertyOptional({ description: 'Payment amount in OMR (required when type is Paid)', example: 3432 })
+  @ApiPropertyOptional({
+    description: 'Payment amount in OMR (required when type is Paid)',
+    example: 3432,
+  })
   @ValidateIf((dto: JobPaymentDto) => dto.type === 'Paid')
   @IsNumber()
   @Min(1)
   amount?: number;
 
-  @ApiProperty({ description: 'Payment type', enum: JOB_PAYMENT_TYPES, example: 'Paid' })
+  @ApiProperty({
+    description: 'Payment type',
+    enum: JOB_PAYMENT_TYPES,
+    example: 'Paid',
+  })
   @IsString()
   @IsIn([...JOB_PAYMENT_TYPES])
   type!: (typeof JOB_PAYMENT_TYPES)[number];
 
-  @ApiProperty({ description: 'Payment mode (payment_types master value)', example: 'Card' })
+  @ApiProperty({
+    description: 'Payment mode (payment_types master value)',
+    example: 'Card',
+  })
   @IsString()
   @IsNotEmpty()
   mode!: string;
 
-  @ApiPropertyOptional({ description: 'Capture image as base64 data URL or external URL' })
+  @ApiPropertyOptional({
+    description: 'Capture image as base64 data URL or external URL',
+  })
   @IsOptional()
   @IsString()
   capture_image?: string;
 
-  @ApiPropertyOptional({ description: 'Attachment as base64 data URL or external URL' })
+  @ApiPropertyOptional({
+    description: 'Attachment as base64 data URL or external URL',
+  })
   @IsOptional()
   @IsString()
   attachment?: string;
 
-  @ApiPropertyOptional({ description: 'Original attachment filename', example: 'receipt.pdf' })
+  @ApiPropertyOptional({
+    description: 'Original attachment filename',
+    example: 'receipt.pdf',
+  })
   @IsOptional()
   @IsString()
   attachment_filename?: string;
@@ -60,22 +85,34 @@ export class CreateJobIntakeDto {
   @IsNotEmpty()
   customer_name!: string;
 
-  @ApiProperty({ description: 'Customer contact number', example: '+968 91234567' })
+  @ApiProperty({
+    description: 'Customer contact number',
+    example: '+968 91234567',
+  })
   @IsString()
   @IsNotEmpty()
   phone!: string;
 
-  @ApiPropertyOptional({ description: 'Mulkiya (vehicle registration) ID', example: '34343432' })
+  @ApiPropertyOptional({
+    description: 'Mulkiya (vehicle registration) ID',
+    example: '34343432',
+  })
   @IsOptional()
   @IsString()
   mulkiya_id?: string;
 
-  @ApiProperty({ description: 'Vehicle plate number', example: '4141413411114' })
+  @ApiProperty({
+    description: 'Vehicle plate number',
+    example: '4141413411114',
+  })
   @IsString()
   @IsNotEmpty()
   vehicle_no!: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle VIN / chassis number', example: '4134331413' })
+  @ApiPropertyOptional({
+    description: 'Vehicle VIN / chassis number',
+    example: '4134331413',
+  })
   @IsOptional()
   @IsString()
   vin_no?: string;
@@ -100,7 +137,12 @@ export class CreateJobIntakeDto {
   @IsString()
   camera_id?: string;
 
-  @ApiPropertyOptional({ description: 'Job source', example: 'Walk-In', enum: JOB_SOURCES, default: 'Walk-In' })
+  @ApiPropertyOptional({
+    description: 'Job source',
+    example: 'Walk-In',
+    enum: JOB_SOURCES,
+    default: 'Walk-In',
+  })
   @IsOptional()
   @IsString()
   @IsIn([...JOB_SOURCES])
@@ -118,7 +160,8 @@ export class CreateJobRequestDto {
   _createJobRequest?: boolean;
 
   @ApiPropertyOptional({
-    description: 'Legacy: unique numeric job identifier (auto-generated if omitted)',
+    description:
+      'Legacy: unique numeric job identifier (auto-generated if omitted)',
     example: 1,
   })
   @ValidateIf((dto: CreateJobRequestDto) => isLegacyJobCreate(dto))
@@ -127,20 +170,27 @@ export class CreateJobRequestDto {
   @IsOptional()
   job_id?: number;
 
-  @ApiPropertyOptional({ description: 'Legacy: job status', enum: JOB_STATUSES })
+  @ApiPropertyOptional({
+    description: 'Legacy: job status',
+    enum: JOB_STATUSES,
+  })
   @ValidateIf((dto: CreateJobRequestDto) => isLegacyJobCreate(dto))
   @IsString()
   @IsIn([...JOB_STATUSES])
   @IsOptional()
   status?: (typeof JOB_STATUSES)[number];
 
-  @ApiPropertyOptional({ description: 'Legacy: existing customer snowflake ID' })
+  @ApiPropertyOptional({
+    description: 'Legacy: existing customer snowflake ID',
+  })
   @ValidateIf((dto: CreateJobRequestDto) => isLegacyJobCreate(dto))
   @IsString()
   @IsNotEmpty()
   customer_id?: string;
 
-  @ApiPropertyOptional({ description: 'Legacy: existing vehicle record snowflake ID' })
+  @ApiPropertyOptional({
+    description: 'Legacy: existing vehicle record snowflake ID',
+  })
   @ValidateIf((dto: CreateJobRequestDto) => isLegacyJobCreate(dto))
   @IsString()
   @IsNotEmpty()
@@ -151,30 +201,45 @@ export class CreateJobRequestDto {
   @IsString()
   anpr_capture_id?: string;
 
-  @ApiPropertyOptional({ description: 'Customer full name', example: 'Ahmed Al-Said' })
+  @ApiPropertyOptional({
+    description: 'Customer full name',
+    example: 'Ahmed Al-Said',
+  })
   @ValidateIf((dto: CreateJobRequestDto) => !isLegacyJobCreate(dto))
   @IsString()
   @IsNotEmpty()
   customer_name?: string;
 
-  @ApiPropertyOptional({ description: 'Customer contact number', example: '+968 91234567' })
+  @ApiPropertyOptional({
+    description: 'Customer contact number',
+    example: '+968 91234567',
+  })
   @ValidateIf((dto: CreateJobRequestDto) => !isLegacyJobCreate(dto))
   @IsString()
   @IsNotEmpty()
   phone?: string;
 
-  @ApiPropertyOptional({ description: 'Mulkiya (vehicle registration) ID', example: '34343432' })
+  @ApiPropertyOptional({
+    description: 'Mulkiya (vehicle registration) ID',
+    example: '34343432',
+  })
   @IsOptional()
   @IsString()
   mulkiya_id?: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle plate number', example: '4141413411114' })
+  @ApiPropertyOptional({
+    description: 'Vehicle plate number',
+    example: '4141413411114',
+  })
   @ValidateIf((dto: CreateJobRequestDto) => !isLegacyJobCreate(dto))
   @IsString()
   @IsNotEmpty()
   vehicle_no?: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle VIN / chassis number', example: '4134331413' })
+  @ApiPropertyOptional({
+    description: 'Vehicle VIN / chassis number',
+    example: '4134331413',
+  })
   @IsOptional()
   @IsString()
   vin_no?: string;
@@ -199,7 +264,12 @@ export class CreateJobRequestDto {
   @IsString()
   camera_id?: string;
 
-  @ApiPropertyOptional({ description: 'Job source', example: 'Walk-In', enum: JOB_SOURCES, default: 'Walk-In' })
+  @ApiPropertyOptional({
+    description: 'Job source',
+    example: 'Walk-In',
+    enum: JOB_SOURCES,
+    default: 'Walk-In',
+  })
   @IsOptional()
   @IsString()
   @IsIn([...JOB_SOURCES])
@@ -222,7 +292,9 @@ export class CreateJobDto {
   @IsOptional()
   job_id?: number;
 
-  @ApiPropertyOptional({ description: 'Appointment snowflake ID this job was converted from' })
+  @ApiPropertyOptional({
+    description: 'Appointment snowflake ID this job was converted from',
+  })
   @IsOptional()
   @IsString()
   appointment_id?: string;
@@ -277,7 +349,10 @@ export class CreateJobDto {
 export class UpdateJobDto extends PartialType(
   OmitType(CreateJobDto, ['job_id'] as const),
 ) {
-  @ApiPropertyOptional({ description: 'Overall test result', enum: JOB_OVERALL_RESULTS })
+  @ApiPropertyOptional({
+    description: 'Overall test result',
+    enum: JOB_OVERALL_RESULTS,
+  })
   @IsOptional()
   @IsString()
   @IsIn([...JOB_OVERALL_RESULTS])

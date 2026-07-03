@@ -8,4 +8,4 @@ import { AppointmentService } from './services/appointment.service';
   providers: [AppointmentService],
   exports: [AppointmentService],
 })
-export class AppointmentsModule { }
+export class AppointmentsModule {}

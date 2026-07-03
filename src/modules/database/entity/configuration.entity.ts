@@ -26,7 +26,11 @@ export class Configurations implements IConfigurationFields {
   configuration_id!: number;
 
   /* One configuration row per centre. */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   @Index('IDX_CONFIGURATION_CENTRE_ID', { unique: true })
   centre_id!: string;
 

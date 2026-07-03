@@ -29,7 +29,8 @@ export class AppLogger implements LoggerService {
     const timestamp = chalk.gray(new Date().toISOString());
     const levelLabel = levelStyles[level](`[${level}]`);
     const ctx = this.formatContext(context);
-    const text = typeof message === 'string' ? message : JSON.stringify(message);
+    const text =
+      typeof message === 'string' ? message : JSON.stringify(message);
 
     const output = `${chalk.gray('[')}${timestamp}${chalk.gray(']')} ${levelLabel}${ctx} ${text}`;
 
@@ -73,12 +74,21 @@ export class AppLogger implements LoggerService {
   }
 
   /** Colored API response log with status-based color. */
-  apiResponse(method: string, url: string, statusCode: number, ms: number): void {
+  apiResponse(
+    method: string,
+    url: string,
+    statusCode: number,
+    ms: number,
+  ): void {
     const timestamp = chalk.gray(new Date().toISOString());
     const methodLabel = chalk.bold.cyan(method.padEnd(7));
     const statusLabel = this.colorStatus(statusCode)(String(statusCode));
     const timeLabel =
-      ms < 200 ? chalk.green(`${ms}ms`) : ms < 1000 ? chalk.yellow(`${ms}ms`) : chalk.red(`${ms}ms`);
+      ms < 200
+        ? chalk.green(`${ms}ms`)
+        : ms < 1000
+          ? chalk.yellow(`${ms}ms`)
+          : chalk.red(`${ms}ms`);
 
     console.log(
       `${chalk.gray('[')}${timestamp}${chalk.gray(']')} ${chalk.magenta.bold('[API]')} ${chalk.green('<--')} ${methodLabel} ${chalk.white(url)} ${statusLabel} ${timeLabel}`,

@@ -10,7 +10,10 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../../common/dto/payments.dto';
+import {
+  CreatePaymentsDto,
+  UpdatePaymentsDto,
+} from '../../../../common/dto/payments.dto';
 
 import { JobService } from '../../../jobs/services/job.service';
 import { Payments } from '../../../database/entity/payments.entity';
@@ -35,9 +38,12 @@ export class PaymentsService {
     private readonly appointmentDao: AppointmentDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly paymentsDao: PaymentsDao,
-  ) { }
+  ) {}
 
-  async create(createDto: CreatePaymentsDto, actor: UserContext): Promise<Payments> {
+  async create(
+    createDto: CreatePaymentsDto,
+    actor: UserContext,
+  ): Promise<Payments> {
     this.logger.log('Creating payment transaction', PaymentsService.context);
     try {
       const resolved = await this.resolveReferences(createDto);
@@ -48,13 +54,22 @@ export class PaymentsService {
       } else {
         const existing = await this.paymentsDao.findByPaymentsId(paymentsId);
         if (existing) {
-          throw new DuplicateResourceException('Payment', 'payments_id', paymentsId);
+          throw new DuplicateResourceException(
+            'Payment',
+            'payments_id',
+            paymentsId,
+          );
         }
       }
 
       const isPaid = Number(createDto.grand_total) > 0;
-      const payDate = isPaid ? createDto.pay_date ? new Date(createDto.pay_date)
-        : new Date() : createDto.pay_date ? new Date(createDto.pay_date) : undefined;
+      const payDate = isPaid
+        ? createDto.pay_date
+          ? new Date(createDto.pay_date)
+          : new Date()
+        : createDto.pay_date
+          ? new Date(createDto.pay_date)
+          : undefined;
 
       const payment = this.paymentsDao.create({
         id: generateSnowflakeId(),
@@ -93,8 +108,11 @@ export class PaymentsService {
 
         saved.job_id = job.id;
         saved = await this.paymentsDao.save(saved);
-        this.logger.log(`Job auto-created ID: ${job.id} from payment $
-          {saved.id}`, PaymentsService.context);
+        this.logger.log(
+          `Job auto-created ID: ${job.id} from payment $
+          {saved.id}`,
+          PaymentsService.context,
+        );
       }
 
       return (await this.paymentsDao.findActiveById(saved.id)) ?? saved;
@@ -110,7 +128,9 @@ export class PaymentsService {
         (error as Error).stack,
         PaymentsService.context,
       );
-      throw new DatabaseException('Failed to create payment. Please try again.');
+      throw new DatabaseException(
+        'Failed to create payment. Please try again.',
+      );
     }
   }
 
@@ -118,7 +138,9 @@ export class PaymentsService {
     try {
       return await this.paymentsDao.findPaginated(query);
     } catch {
-      throw new DatabaseException('Failed to fetch payments. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch payments. Please try again.',
+      );
     }
   }
 
@@ -130,13 +152,19 @@ export class PaymentsService {
     return payment;
   }
 
-  async update(id: string, updateDto: UpdatePaymentsDto, actor: UserContext): Promise<Payments> {
+  async update(
+    id: string,
+    updateDto: UpdatePaymentsDto,
+    actor: UserContext,
+  ): Promise<Payments> {
     const payment = await this.findOne(id);
     const resolved = await this.resolveReferences({
       ...updateDto,
       customer_id: updateDto.customer_id ?? payment.customer_id,
-      vehicle_record_id: updateDto.vehicle_record_id ?? payment.vehicle_record_id,
-      appointment_id: updateDto.appointment_id ?? payment.appointment_id ?? undefined,
+      vehicle_record_id:
+        updateDto.vehicle_record_id ?? payment.vehicle_record_id,
+      appointment_id:
+        updateDto.appointment_id ?? payment.appointment_id ?? undefined,
     });
 
     const nextGrandTotal = updateDto.grand_total ?? Number(payment.grand_total);
@@ -149,9 +177,13 @@ export class PaymentsService {
       centre_id: resolved.centre_id,
       line_id: resolved.line_id,
       camera_id: resolved.camera_id,
-      ...(updateDto.grand_total !== undefined ? { grand_total: updateDto.grand_total } : {}),
+      ...(updateDto.grand_total !== undefined
+        ? { grand_total: updateDto.grand_total }
+        : {}),
       ...(updateDto.pay_date ? { pay_date: new Date(updateDto.pay_date) } : {}),
-      ...(Number(nextGrandTotal) > 0 && !payment.pay_date ? { pay_date: new Date() } : {}),
+      ...(Number(nextGrandTotal) > 0 && !payment.pay_date
+        ? { pay_date: new Date() }
+        : {}),
     });
 
     let saved = await this.paymentsDao.save(merged);
@@ -223,7 +255,7 @@ export class PaymentsService {
     let lineId = dto.line_id;
     let adminPcId = dto.admin_pc_id;
     let cameraId = dto.camera_id;
-    let appointmentId = dto.appointment_id;
+    const appointmentId = dto.appointment_id;
 
     if (dto.job_id) {
       const job = await this.jobService.findOne(dto.job_id);
@@ -236,18 +268,24 @@ export class PaymentsService {
       cameraId = cameraId ?? job.camera_id ?? undefined;
     }
 
-    if (!customerId) throw new ResourceNotFoundException('Customer', 'undefined');
-    if (!vehicleRecordId) throw new ResourceNotFoundException('VehicleRecord', 'undefined');
+    if (!customerId)
+      throw new ResourceNotFoundException('Customer', 'undefined');
+    if (!vehicleRecordId)
+      throw new ResourceNotFoundException('VehicleRecord', 'undefined');
 
     const customer = await this.customerDao.findActiveById(customerId);
     if (!customer) throw new ResourceNotFoundException('Customer', customerId);
 
-    const vehicleRecord = await this.vehicleRecordDao.findActiveById(vehicleRecordId);
-    if (!vehicleRecord) throw new ResourceNotFoundException('VehicleRecord', vehicleRecordId);
+    const vehicleRecord =
+      await this.vehicleRecordDao.findActiveById(vehicleRecordId);
+    if (!vehicleRecord)
+      throw new ResourceNotFoundException('VehicleRecord', vehicleRecordId);
 
     if (appointmentId) {
-      const appointment = await this.appointmentDao.findActiveById(appointmentId);
-      if (!appointment) throw new ResourceNotFoundException('Appointment', appointmentId);
+      const appointment =
+        await this.appointmentDao.findActiveById(appointmentId);
+      if (!appointment)
+        throw new ResourceNotFoundException('Appointment', appointmentId);
       anprCaptureId = anprCaptureId ?? appointment.anpr_capture_id ?? undefined;
       centreId = centreId ?? appointment.centre_id ?? undefined;
       lineId = lineId ?? appointment.line_id ?? undefined;

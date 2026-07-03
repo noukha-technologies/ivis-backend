@@ -11,7 +11,10 @@ import { IPaymentTypeDao } from '../../masters/payment-type/dao/payment-type.dao
 import { PaymentType } from '../entity/payment-type.entity';
 
 @Injectable()
-export class PaymentTypeDao extends Repository<PaymentType> implements IPaymentTypeDao {
+export class PaymentTypeDao
+  extends Repository<PaymentType>
+  implements IPaymentTypeDao
+{
   constructor(
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
@@ -27,17 +30,34 @@ export class PaymentTypeDao extends Repository<PaymentType> implements IPaymentT
     return this.findOne({ where: { code, is_deleted: false } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<PaymentType>> {
-    const qb = this.createQueryBuilder('pt')
-      .where('pt.is_deleted = :is_deleted', { is_deleted: false });
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<PaymentType>> {
+    const qb = this.createQueryBuilder('pt').where(
+      'pt.is_deleted = :is_deleted',
+      { is_deleted: false },
+    );
 
-    const options = buildTypeOrmPaginationOptions<PaymentType, PaymentType>(query, {
-      searchFields: ['pt.name', 'pt.code', 'pt.status'],
-      allowedSortFields: ['payment_type_id', 'name', 'code', 'status', 'created_at'],
-      defaultSort: { created_at: 'DESC' },
-    });
+    const options = buildTypeOrmPaginationOptions<PaymentType, PaymentType>(
+      query,
+      {
+        searchFields: ['pt.name', 'pt.code', 'pt.status'],
+        allowedSortFields: [
+          'payment_type_id',
+          'name',
+          'code',
+          'status',
+          'created_at',
+        ],
+        defaultSort: { created_at: 'DESC' },
+      },
+    );
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'pt', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'pt',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

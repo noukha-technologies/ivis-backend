@@ -20,7 +20,10 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
   }
 
   async findActiveById(id: string): Promise<Vehicle | null> {
-    return this.findOne({ where: { id, is_deleted: false }, relations: { chargeCategory: true } });
+    return this.findOne({
+      where: { id, is_deleted: false },
+      relations: { chargeCategory: true },
+    });
   }
 
   async findByCode(code: string): Promise<Vehicle | null> {
@@ -32,10 +35,14 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
   }
 
   async findByVehicleId(vehicleId: number): Promise<Vehicle | null> {
-    return this.findOne({ where: { vehicle_id: vehicleId, is_deleted: false } });
+    return this.findOne({
+      where: { vehicle_id: vehicleId, is_deleted: false },
+    });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Vehicle>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Vehicle>> {
     const options = buildTypeOrmPaginationOptions<Vehicle, Vehicle>(query, {
       searchFields: ['name', 'code', 'vin_no', 'status', 'description'],
       allowedSortFields: [
@@ -52,7 +59,11 @@ export class VehicleDao extends Repository<Vehicle> implements IVehicleDao {
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginate(this, 'vehicle', options);
+    const response = await this.paginationService.paginate(
+      this,
+      'vehicle',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

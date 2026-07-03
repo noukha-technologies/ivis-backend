@@ -2,7 +2,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../../common/dto/anpr-capture.dto';
+import {
+  CreateAnprCaptureDto,
+  UpdateAnprCaptureDto,
+} from '../../../../common/dto/anpr-capture.dto';
 
 import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
@@ -10,7 +13,11 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
-import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
+import {
+  DatabaseException,
+  DuplicateResourceException,
+  ResourceNotFoundException,
+} from '../../../../common/exceptions/custom.exception';
 
 import { LineDao } from '../../../database/dao/line.dao';
 import { CameraDao } from '../../../database/dao/camera.dao';
@@ -36,7 +43,7 @@ export class AnprCaptureService {
     private readonly imageProcessor: ImageProcessorService,
     private readonly orchestrationService: AnprOrchestrationService,
     private readonly captureValidation: CaptureValidationService,
-  ) { }
+  ) {}
 
   async attachImages(
     id: string,
@@ -53,14 +60,22 @@ export class AnprCaptureService {
       if (images.plate) files['licensePlatePicture'] = images.plate;
       if (images.scene) files['detectionPicture'] = images.scene;
 
-      const saved = await this.imageProcessor.saveCompressedImages(files, capture.plate_number);
+      const saved = await this.imageProcessor.saveCompressedImages(
+        files,
+        capture.plate_number,
+      );
 
       const merged = this.anprCaptureDao.merge(capture, {
         ...(saved.plateImagePath ? { image_url: saved.plateImagePath } : {}),
-        ...(saved.sceneImagePath ? { scene_image_url: saved.sceneImagePath } : {}),
+        ...(saved.sceneImagePath
+          ? { scene_image_url: saved.sceneImagePath }
+          : {}),
       });
       const result = await this.anprCaptureDao.save(merged);
-      this.logger.log(`ANPR capture images attached ID: ${result.id}`, AnprCaptureService.context);
+      this.logger.log(
+        `ANPR capture images attached ID: ${result.id}`,
+        AnprCaptureService.context,
+      );
       return (await this.anprCaptureDao.findActiveById(result.id)) ?? result;
     } catch (error) {
       this.logger.error(
@@ -68,11 +83,16 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to upload ANPR capture images. Please try again.');
+      throw new DatabaseException(
+        'Failed to upload ANPR capture images. Please try again.',
+      );
     }
   }
 
-  private async validateLineForCamera(lineId: string | undefined, camera: Camera): Promise<void> {
+  private async validateLineForCamera(
+    lineId: string | undefined,
+    camera: Camera,
+  ): Promise<void> {
     if (!lineId) {
       return;
     }
@@ -81,12 +101,20 @@ export class AnprCaptureService {
       throw new ResourceNotFoundException('Line', lineId);
     }
     if (line.centre_id !== camera.line?.centre_id) {
-      throw new BadRequestException('Selected line does not belong to the camera\'s centre');
+      throw new BadRequestException(
+        "Selected line does not belong to the camera's centre",
+      );
     }
   }
 
-  async create(createDto: CreateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
-    this.logger.log(`Creating ANPR capture for plate: ${createDto.plate_number}`, AnprCaptureService.context);
+  async create(
+    createDto: CreateAnprCaptureDto,
+    actor: UserContext,
+  ): Promise<AnprCapture> {
+    this.logger.log(
+      `Creating ANPR capture for plate: ${createDto.plate_number}`,
+      AnprCaptureService.context,
+    );
 
     try {
       const camera = await this.cameraDao.findActiveById(createDto.camera_id);
@@ -107,7 +135,10 @@ export class AnprCaptureService {
       const saved = await this.anprCaptureDao.save(capture);
       this.orchestrationService.runPostCapture(saved);
 
-      this.logger.log(`ANPR capture created with ID: ${saved.id}`, AnprCaptureService.context);
+      this.logger.log(
+        `ANPR capture created with ID: ${saved.id}`,
+        AnprCaptureService.context,
+      );
       return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
@@ -122,11 +153,15 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to create ANPR capture. Please try again.');
+      throw new DatabaseException(
+        'Failed to create ANPR capture. Please try again.',
+      );
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<AnprCapture>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<AnprCapture>> {
     this.logger.log(
       `Fetching ANPR captures — page: ${query.page}, limit: ${query.limit}`,
       AnprCaptureService.context,
@@ -140,12 +175,17 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to fetch ANPR captures. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch ANPR captures. Please try again.',
+      );
     }
   }
 
   async findOne(id: string): Promise<AnprCapture> {
-    this.logger.log(`Fetching ANPR capture ID: ${id}`, AnprCaptureService.context);
+    this.logger.log(
+      `Fetching ANPR capture ID: ${id}`,
+      AnprCaptureService.context,
+    );
     try {
       const capture = await this.anprCaptureDao.findActiveById(id);
       if (!capture) {
@@ -161,12 +201,20 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to fetch ANPR capture. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch ANPR capture. Please try again.',
+      );
     }
   }
 
-  async update(id: string, updateDto: UpdateAnprCaptureDto): Promise<AnprCapture> {
-    this.logger.log(`Updating ANPR capture ID: ${id}`, AnprCaptureService.context);
+  async update(
+    id: string,
+    updateDto: UpdateAnprCaptureDto,
+  ): Promise<AnprCapture> {
+    this.logger.log(
+      `Updating ANPR capture ID: ${id}`,
+      AnprCaptureService.context,
+    );
     try {
       const capture = await this.findOne(id);
       if (!capture) {
@@ -180,10 +228,15 @@ export class AnprCaptureService {
 
       const merged = this.anprCaptureDao.merge(capture, {
         ...updateDto,
-        ...(updateDto.capture_time ? { capture_time: new Date(updateDto.capture_time) } : {}),
+        ...(updateDto.capture_time
+          ? { capture_time: new Date(updateDto.capture_time) }
+          : {}),
       });
       const saved = await this.anprCaptureDao.save(merged);
-      this.logger.log(`ANPR capture updated ID: ${saved.id}`, AnprCaptureService.context);
+      this.logger.log(
+        `ANPR capture updated ID: ${saved.id}`,
+        AnprCaptureService.context,
+      );
       return saved;
     } catch (error) {
       if (
@@ -197,27 +250,45 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to update ANPR capture. Please try again.');
+      throw new DatabaseException(
+        'Failed to update ANPR capture. Please try again.',
+      );
     }
   }
 
-  async validate(id: string, updateDto: UpdateAnprCaptureDto, actor: UserContext): Promise<AnprCapture> {
-    this.logger.log(`Validating ANPR capture ID: ${id}`, AnprCaptureService.context);
+  async validate(
+    id: string,
+    updateDto: UpdateAnprCaptureDto,
+    actor: UserContext,
+  ): Promise<AnprCapture> {
+    this.logger.log(
+      `Validating ANPR capture ID: ${id}`,
+      AnprCaptureService.context,
+    );
     try {
       const capture = await this.findOne(id);
 
       if (!capture) {
-        throw new ResourceNotFoundException('Anpr', `No data found for given ${id}`)
+        throw new ResourceNotFoundException(
+          'Anpr',
+          `No data found for given ${id}`,
+        );
       }
 
       // If the line is being (re)assigned, it must belong to the camera's centre.
-      if (updateDto.line_id && updateDto.line_id !== capture.line_id && capture.camera) {
+      if (
+        updateDto.line_id &&
+        updateDto.line_id !== capture.line_id &&
+        capture.camera
+      ) {
         await this.validateLineForCamera(updateDto.line_id, capture.camera);
       }
 
       const merged = this.anprCaptureDao.merge(capture, {
         ...updateDto,
-        ...(updateDto.capture_time ? { capture_time: new Date(updateDto.capture_time) } : {}),
+        ...(updateDto.capture_time
+          ? { capture_time: new Date(updateDto.capture_time) }
+          : {}),
         status: updateDto.status ?? AnprCaptureStatus.VALIDATED,
       });
 
@@ -225,10 +296,16 @@ export class AnprCaptureService {
 
       // Queue an appointment only when the capture is actually validated.
       if (saved.status === AnprCaptureStatus.VALIDATED) {
-        await this.captureValidation.ensureQueuedAppointment(saved, getCreatedById(actor));
+        await this.captureValidation.ensureQueuedAppointment(
+          saved,
+          getCreatedById(actor),
+        );
       }
 
-      this.logger.log(`ANPR capture ${saved.status} ID: ${saved.id}`, AnprCaptureService.context);
+      this.logger.log(
+        `ANPR capture ${saved.status} ID: ${saved.id}`,
+        AnprCaptureService.context,
+      );
       return (await this.anprCaptureDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
@@ -242,17 +319,25 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to validate ANPR capture. Please try again.');
+      throw new DatabaseException(
+        'Failed to validate ANPR capture. Please try again.',
+      );
     }
   }
 
   async remove(id: string): Promise<void> {
-    this.logger.log(`Deleting ANPR capture ID: ${id}`, AnprCaptureService.context);
+    this.logger.log(
+      `Deleting ANPR capture ID: ${id}`,
+      AnprCaptureService.context,
+    );
     try {
       const capture = await this.findOne(id);
       capture.is_deleted = true;
       await this.anprCaptureDao.save(capture);
-      this.logger.log(`ANPR capture soft-deleted ID: ${id}`, AnprCaptureService.context);
+      this.logger.log(
+        `ANPR capture soft-deleted ID: ${id}`,
+        AnprCaptureService.context,
+      );
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -262,8 +347,9 @@ export class AnprCaptureService {
         (error as Error).stack,
         AnprCaptureService.context,
       );
-      throw new DatabaseException('Failed to delete ANPR capture. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete ANPR capture. Please try again.',
+      );
     }
   }
 }
-

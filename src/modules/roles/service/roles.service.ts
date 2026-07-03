@@ -1,5 +1,13 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
-import { CreateRoleDto, RoleDto, UpdateRoleDto } from '../../../common/dto/role.dto';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
+import {
+  CreateRoleDto,
+  RoleDto,
+  UpdateRoleDto,
+} from '../../../common/dto/role.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import {
   DatabaseException,
@@ -12,7 +20,11 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { AccessScope, DEFAULT_ACCESS_SCOPE, isGlobalScope } from '../../../common/constants/access-scope';
+import {
+  AccessScope,
+  DEFAULT_ACCESS_SCOPE,
+  isGlobalScope,
+} from '../../../common/constants/access-scope';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
@@ -27,7 +39,7 @@ export class RolesService {
     private readonly permissionDao: PermissionDao,
     private readonly centreDao: CentreDao,
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
   /**
    * Resolve the owning centre + scope for a role being created/updated by the
@@ -45,10 +57,14 @@ export class RolesService {
     if (!isGlobalScope(actor.user.access_scope)) {
       const actorCentre = actor.user.center_id ?? null;
       if (!actorCentre) {
-        throw new ForbiddenException('Your account is not assigned to a centre.');
+        throw new ForbiddenException(
+          'Your account is not assigned to a centre.',
+        );
       }
       if (isGlobalScope(scope)) {
-        throw new ForbiddenException('You are not allowed to create a global (Super Admin) role.');
+        throw new ForbiddenException(
+          'You are not allowed to create a global (Super Admin) role.',
+        );
       }
       return { scope: 'centre', centreId: actorCentre };
     }
@@ -58,7 +74,9 @@ export class RolesService {
     }
     const trimmed = payloadCentreId?.trim();
     if (!trimmed) {
-      throw new BadRequestException('center_id is required for a centre-scoped role.');
+      throw new BadRequestException(
+        'center_id is required for a centre-scoped role.',
+      );
     }
     const centre = await this.centreDao.findActiveById(trimmed);
     if (!centre) {
@@ -79,8 +97,13 @@ export class RolesService {
     if (!actorCentre) {
       throw new ForbiddenException('Your account is not assigned to a centre.');
     }
-    if (isGlobalScope(role.access_scope) || (role.center_id ?? null) !== actorCentre) {
-      throw new ForbiddenException('You can only manage roles in your own centre.');
+    if (
+      isGlobalScope(role.access_scope) ||
+      (role.center_id ?? null) !== actorCentre
+    ) {
+      throw new ForbiddenException(
+        'You can only manage roles in your own centre.',
+      );
     }
   }
 
@@ -95,17 +118,28 @@ export class RolesService {
       );
 
       // Role names are unique within their owning centre (or among global roles).
-      const existing = await this.roleDao.findByRoleNameInScope(dto.role_name, centreId);
+      const existing = await this.roleDao.findByRoleNameInScope(
+        dto.role_name,
+        centreId,
+      );
       if (existing) {
-        throw new DuplicateResourceException('Role', 'role_name', dto.role_name);
+        throw new DuplicateResourceException(
+          'Role',
+          'role_name',
+          dto.role_name,
+        );
       }
 
-      const permission = await this.permissionDao.findActiveById(dto.permission_id);
+      const permission = await this.permissionDao.findActiveById(
+        dto.permission_id,
+      );
       if (!permission) {
         throw new ResourceNotFoundException('Permission', dto.permission_id);
       }
 
-      const permissionInUse = await this.roleDao.findByPermissionId(dto.permission_id);
+      const permissionInUse = await this.roleDao.findByPermissionId(
+        dto.permission_id,
+      );
       if (permissionInUse) {
         throw new DuplicateResourceException(
           'Role',
@@ -122,7 +156,8 @@ export class RolesService {
         access_scope: scope,
         center_id: centreId,
         // Admin rank only applies to centre scope; global roles are never a "centre admin".
-        is_center_admin: scope === 'centre' ? (dto.is_center_admin ?? false) : false,
+        is_center_admin:
+          scope === 'centre' ? (dto.is_center_admin ?? false) : false,
         created_by: getCreatedById(actor),
       });
       const saved = await this.roleDao.save(role);
@@ -145,7 +180,10 @@ export class RolesService {
     }
   }
 
-  async findAll(query: PaginationQueryDto, actor: UserContext): Promise<PaginatedResult<RoleDto>> {
+  async findAll(
+    query: PaginationQueryDto,
+    actor: UserContext,
+  ): Promise<PaginatedResult<RoleDto>> {
     // Super Admin sees all roles; a Centre Admin sees only their own centre's roles.
     const centreScope = isGlobalScope(actor.user.access_scope)
       ? undefined
@@ -173,7 +211,11 @@ export class RolesService {
     return this.findOne(row.id);
   }
 
-  async update(id: string, dto: UpdateRoleDto, actor: UserContext): Promise<RoleDto> {
+  async update(
+    id: string,
+    dto: UpdateRoleDto,
+    actor: UserContext,
+  ): Promise<RoleDto> {
     const row = await this.roleDao.findActiveById(id);
     if (!row) {
       throw new ResourceNotFoundException('Role', id);
@@ -181,8 +223,13 @@ export class RolesService {
 
     // Centre Admins can only edit their own centre's roles (never global roles).
     this.assertActorCanManageRole(actor, row);
-    if (!isGlobalScope(actor.user.access_scope) && isGlobalScope(dto.access_scope)) {
-      throw new ForbiddenException('You are not allowed to set a role to global (Super Admin).');
+    if (
+      !isGlobalScope(actor.user.access_scope) &&
+      isGlobalScope(dto.access_scope)
+    ) {
+      throw new ForbiddenException(
+        'You are not allowed to set a role to global (Super Admin).',
+      );
     }
 
     // Resolve the owning centre of the resulting role. Only a global actor
@@ -205,24 +252,37 @@ export class RolesService {
         }
       }
       if (!isGlobalScope(effectiveScope) && !nextCentreId) {
-        throw new BadRequestException('center_id is required for a centre-scoped role.');
+        throw new BadRequestException(
+          'center_id is required for a centre-scoped role.',
+        );
       }
     }
 
     if (dto.role_name && dto.role_name.trim() !== row.role_name) {
       // Uniqueness is per owning centre (the resulting centre).
-      const duplicate = await this.roleDao.findByRoleNameInScope(dto.role_name, nextCentreId);
+      const duplicate = await this.roleDao.findByRoleNameInScope(
+        dto.role_name,
+        nextCentreId,
+      );
       if (duplicate && duplicate.id !== id) {
-        throw new DuplicateResourceException('Role', 'role_name', dto.role_name);
+        throw new DuplicateResourceException(
+          'Role',
+          'role_name',
+          dto.role_name,
+        );
       }
     }
 
     if (dto.permission_id && dto.permission_id !== row.permission_id) {
-      const permission = await this.permissionDao.findActiveById(dto.permission_id);
+      const permission = await this.permissionDao.findActiveById(
+        dto.permission_id,
+      );
       if (!permission) {
         throw new ResourceNotFoundException('Permission', dto.permission_id);
       }
-      const permissionInUse = await this.roleDao.findByPermissionId(dto.permission_id);
+      const permissionInUse = await this.roleDao.findByPermissionId(
+        dto.permission_id,
+      );
       if (permissionInUse && permissionInUse.id !== id) {
         throw new DuplicateResourceException(
           'Role',
@@ -239,10 +299,18 @@ export class RolesService {
         : false;
 
     const merged = this.roleDao.merge(row, {
-      ...(dto.role_name !== undefined ? { role_name: dto.role_name.trim() } : {}),
-      ...(dto.permission_id !== undefined ? { permission_id: dto.permission_id } : {}),
-      ...(dto.description !== undefined ? { description: dto.description?.trim() } : {}),
-      ...(dto.access_scope !== undefined ? { access_scope: dto.access_scope } : {}),
+      ...(dto.role_name !== undefined
+        ? { role_name: dto.role_name.trim() }
+        : {}),
+      ...(dto.permission_id !== undefined
+        ? { permission_id: dto.permission_id }
+        : {}),
+      ...(dto.description !== undefined
+        ? { description: dto.description?.trim() }
+        : {}),
+      ...(dto.access_scope !== undefined
+        ? { access_scope: dto.access_scope }
+        : {}),
       is_center_admin: nextIsCenterAdmin,
       center_id: nextCentreId,
     });
@@ -287,14 +355,14 @@ export class RolesService {
       updated_at: row.updated_at,
       permission: row.permission
         ? {
-          id: row.permission.id,
-          name: row.permission.name,
-          access: row.permission.access,
-          is_active: row.permission.is_active,
-          created_by: row.permission.created_by,
-          created_at: row.permission.created_at,
-          updated_at: row.permission.updated_at,
-        }
+            id: row.permission.id,
+            name: row.permission.name,
+            access: row.permission.access,
+            is_active: row.permission.is_active,
+            created_by: row.permission.created_by,
+            created_at: row.permission.created_at,
+            updated_at: row.permission.updated_at,
+          }
         : undefined,
     };
   }

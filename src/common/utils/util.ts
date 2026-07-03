@@ -1,9 +1,9 @@
-import { customAlphabet } from "nanoid";
-import * as crypto from "crypto";
-import Bowser from "bowser";
-import { Request } from "express";
-import { ErrorException } from "../errors/custom-error.exception";
-import { JWTPayload, jwtVerify, SignJWT } from "jose";
+import { customAlphabet } from 'nanoid';
+import * as crypto from 'crypto';
+import Bowser from 'bowser';
+import { Request } from 'express';
+import { ErrorException } from '../errors/custom-error.exception';
+import { JWTPayload, jwtVerify, SignJWT } from 'jose';
 
 export interface RequestMetata {
   browser: string;
@@ -17,8 +17,8 @@ export interface RequestMetata {
  * @returns A function that generates a 10-character unique ID
  */
 export const generateNanoid = customAlphabet(
-  "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz",
-  16
+  '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz',
+  16,
 );
 
 /**
@@ -32,18 +32,18 @@ export const generateUniqueId = (): string => {
 export const generateOtp = (length = 6): string => {
   return Math.floor(Math.random() * Math.pow(10, length))
     .toString()
-    .padStart(length, "0");
+    .padStart(length, '0');
 };
 
 export const generateSecretHash = (
   username: string,
   clientId: string,
-  clientSecret: string
+  clientSecret: string,
 ): string => {
   return crypto
-    .createHmac("sha256", clientSecret)
+    .createHmac('sha256', clientSecret)
     .update(username + clientId)
-    .digest("base64");
+    .digest('base64');
 };
 
 /**
@@ -52,14 +52,14 @@ export const generateSecretHash = (
  * @returns A secure random password
  */
 export const generateRandomPassword = (length: number = 12): string => {
-  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-  const lowercase = "abcdefghijklmnopqrstuvwxyz";
-  const numbers = "0123456789";
-  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+  const numbers = '0123456789';
+  const symbols = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
   const allChars = uppercase + lowercase + numbers + symbols;
 
-  let password = "";
+  let password = '';
 
   // Ensure at least one character from each category
   password += uppercase[Math.floor(Math.random() * uppercase.length)];
@@ -74,9 +74,9 @@ export const generateRandomPassword = (length: number = 12): string => {
 
   // Shuffle the password to avoid predictable patterns
   return password
-    .split("")
+    .split('')
     .sort(() => Math.random() - 0.5)
-    .join("");
+    .join('');
 };
 
 /**
@@ -84,7 +84,7 @@ export const generateRandomPassword = (length: number = 12): string => {
  * @returns A secure reset token
  */
 export const generateResetToken = (): string => {
-  return crypto.randomBytes(32).toString("hex");
+  return crypto.randomBytes(32).toString('hex');
 };
 
 export function normalizeUserName(value: string): string {
@@ -95,9 +95,9 @@ export function normalizeUserName(value: string): string {
 export const generateUniqueUserNameFromEmail = async (
   email: string,
   dbService: any,
-  prefix: string = "NA"
+  prefix: string = 'NA',
 ): Promise<string> => {
-  const baseName = email.split("@")[0]; // get name from email
+  const baseName = email.split('@')[0]; // get name from email
   let userName: string;
   let isUnique = false;
 
@@ -117,19 +117,19 @@ export const generateUniqueUserNameFromEmail = async (
 
 export function getRequestMetadata(req: Request): RequestMetata {
   let ipAddress: string;
-  const cf = req.headers["cloudfront-viewer-address"];
-  const xff = req.headers["x-forwarded-for"];
+  const cf = req.headers['cloudfront-viewer-address'];
+  const xff = req.headers['x-forwarded-for'];
   const remoteAddress = req.socket.remoteAddress;
   const ua =
-    typeof req.headers["user-agent"] === "string"
-      ? req.headers["user-agent"]
-      : "";
+    typeof req.headers['user-agent'] === 'string'
+      ? req.headers['user-agent']
+      : '';
   const parser = Bowser.getParser(ua);
-  const browser = parser.getBrowserName() || "unknown";
-  const browserVersion = parser.getBrowserVersion() ?? "";
-  const os = parser.getOSName() || "unknown";
-  const osVersion = parser.getOSVersion() || "";
-  const deviceType = parser.getPlatformType() || "desktop";
+  const browser = parser.getBrowserName() || 'unknown';
+  const browserVersion = parser.getBrowserVersion() ?? '';
+  const os = parser.getOSName() || 'unknown';
+  const osVersion = parser.getOSVersion() || '';
+  const deviceType = parser.getPlatformType() || 'desktop';
   console.log({
     browser,
     browserVersion,
@@ -142,11 +142,11 @@ export function getRequestMetadata(req: Request): RequestMetata {
     cloudfront: cf,
   });
   if (cf) {
-    ipAddress = cf.toString().split(":")[0];
+    ipAddress = cf.toString().split(':')[0];
   } else if (xff) {
     const ips = xff
       .toString()
-      .split(",")
+      .split(',')
       .map((ip) => ip.trim());
     ipAddress = ips[ips.length - 1]; // LAST IP = added by ALB
   } else if (remoteAddress) {
@@ -166,43 +166,43 @@ export function getRequestMetadata(req: Request): RequestMetata {
 export function encrypt(data: string, key: Buffer): string {
   try {
     const iv = crypto.randomBytes(12); // 12 bytes recommended for GCM
-    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
 
     const encrypted = Buffer.concat([
-      cipher.update(data, "utf8"),
+      cipher.update(data, 'utf8'),
       cipher.final(),
     ]);
     const authTag = cipher.getAuthTag();
 
     // Store: IV + AuthTag + Ciphertext
-    const stored = Buffer.concat([iv, authTag, encrypted]).toString("base64");
+    const stored = Buffer.concat([iv, authTag, encrypted]).toString('base64');
     return stored;
   } catch (error) {
     console.error(`Failed to encrypt due to: `, error);
-    throw new ErrorException("SOMETHING_WENT_WRONG", "Encryption failed");
+    throw new ErrorException('SOMETHING_WENT_WRONG', 'Encryption failed');
   }
 }
 
 // --- Decrypt ---
 export function decrypt(storedData: string, key: Buffer): string {
   try {
-    const data = Buffer.from(storedData, "base64");
+    const data = Buffer.from(storedData, 'base64');
 
     const iv = data.slice(0, 12); // first 12 bytes = IV
     const authTag = data.slice(12, 28); // next 16 bytes = auth tag
     const encrypted = data.slice(28); // rest = ciphertext
 
-    const decipher = crypto.createDecipheriv("aes-256-gcm", key, iv);
+    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
     decipher.setAuthTag(authTag);
 
     const decrypted = Buffer.concat([
       decipher.update(encrypted),
       decipher.final(),
-    ]).toString("utf8");
+    ]).toString('utf8');
     return decrypted;
   } catch (error) {
     console.error(`Failed to decrypt due to: `, error);
-    throw new ErrorException("SOMETHING_WENT_WRONG", "Decryption failed");
+    throw new ErrorException('SOMETHING_WENT_WRONG', 'Decryption failed');
   }
 }
 
@@ -210,10 +210,10 @@ export async function createJwt(
   subject: string,
   expirationTime: string,
   secret: string,
-  payload?: JWTPayload
+  payload?: JWTPayload,
 ): Promise<string> {
   return await new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
+    .setProtectedHeader({ alg: 'HS256' })
     .setSubject(subject)
     .setIssuedAt()
     .setExpirationTime(expirationTime)
@@ -223,7 +223,7 @@ export async function createJwt(
 export async function verifyJwt(
   jwt: string,
   secret: string,
-  subject: string
+  subject: string,
 ): Promise<JWTPayload> {
   const { payload } = await jwtVerify(jwt, new TextEncoder().encode(secret), {
     subject,
@@ -243,8 +243,8 @@ export function getDateFolder(): string {
   const now = new Date();
 
   const yyyy = now.getFullYear().toString();
-  const mm = String(now.getMonth() + 1).padStart(2, "0");
-  const dd = String(now.getDate()).padStart(2, "0");
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
 
   return `${yyyy}${mm}${dd}`; // yyyymmdd
 }

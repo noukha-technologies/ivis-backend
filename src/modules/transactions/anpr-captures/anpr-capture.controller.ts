@@ -13,13 +13,23 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
-import { ApiConsumes, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiConsumes,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 
 type UploadedImage = { buffer: Buffer; originalname: string };
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { CreateAnprCaptureDto, UpdateAnprCaptureDto } from '../../../common/dto/anpr-capture.dto';
+import {
+  CreateAnprCaptureDto,
+  UpdateAnprCaptureDto,
+} from '../../../common/dto/anpr-capture.dto';
 
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
@@ -29,20 +39,27 @@ import { AnprCaptureService } from './services/anpr-capture.service';
 @ApiTags('Transactions / ANPR Captures')
 @Controller('transactions/anpr-captures')
 export class AnprCaptureController {
-  constructor(private readonly anprCaptureService: AnprCaptureService) { }
+  constructor(private readonly anprCaptureService: AnprCaptureService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create an ANPR capture record' })
-  @ApiResponse({ status: 201, description: 'ANPR capture created successfully.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAnprCaptureDto) {
+  @ApiResponse({
+    status: 201,
+    description: 'ANPR capture created successfully.',
+  })
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreateAnprCaptureDto,
+  ) {
     const data = await this.anprCaptureService.create(createDto, actor);
     return { message: 'ANPR capture created successfully', data };
-
   }
 
   @Post(':id/images')
-  @ApiOperation({ summary: 'Upload plate and/or scene images for an ANPR capture' })
+  @ApiOperation({
+    summary: 'Upload plate and/or scene images for an ANPR capture',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Images uploaded successfully.' })
@@ -55,7 +72,8 @@ export class AnprCaptureController {
   )
   async uploadImages(
     @Param('id', ParseSnowflakeIdPipe) id: string,
-    @UploadedFiles() files: { plate?: UploadedImage[]; scene?: UploadedImage[] },
+    @UploadedFiles()
+    files: { plate?: UploadedImage[]; scene?: UploadedImage[] },
   ) {
     const data = await this.anprCaptureService.attachImages(id, {
       plate: files?.plate?.[0]?.buffer,
@@ -65,7 +83,9 @@ export class AnprCaptureController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve ANPR captures (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve ANPR captures (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -73,7 +93,10 @@ export class AnprCaptureController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'ANPR captures retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'ANPR captures retrieved successfully.',
+  })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.anprCaptureService.findAll(query);
     return { message: 'ANPR captures retrieved successfully', ...result };
@@ -81,8 +104,15 @@ export class AnprCaptureController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve ANPR capture by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'ANPR capture snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ANPR capture retrieved successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ANPR capture snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ANPR capture retrieved successfully.',
+  })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.anprCaptureService.findOne(id);
     return { message: 'ANPR capture retrieved successfully', data };
@@ -90,8 +120,15 @@ export class AnprCaptureController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update ANPR capture by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'ANPR capture snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ANPR capture updated successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ANPR capture snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ANPR capture updated successfully.',
+  })
   async update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdateAnprCaptureDto,
@@ -101,10 +138,22 @@ export class AnprCaptureController {
   }
 
   @Patch(':id/validate')
-  @ApiOperation({ summary: 'Validate an ANPR capture and queue an appointment' })
-  @ApiParam({ name: 'id', type: String, description: 'ANPR capture snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ANPR capture validated and appointment queued.' })
-  @ApiResponse({ status: 400, description: 'Selected line does not belong to the camera\'s centre.' })
+  @ApiOperation({
+    summary: 'Validate an ANPR capture and queue an appointment',
+  })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ANPR capture snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ANPR capture validated and appointment queued.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Selected line does not belong to the camera's centre.",
+  })
   @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
   async validate(
     @CurrentUser() actor: UserContext,
@@ -117,11 +166,17 @@ export class AnprCaptureController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete ANPR capture' })
-  @ApiParam({ name: 'id', type: String, description: 'ANPR capture snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ANPR capture deleted successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ANPR capture snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ANPR capture deleted successfully.',
+  })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.anprCaptureService.remove(id);
     return { message: 'ANPR capture deleted successfully', data: null };
   }
 }
-

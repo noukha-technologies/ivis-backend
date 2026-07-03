@@ -8,7 +8,11 @@ import { CameraHealthCheckSchedulerService } from './services/camera-health-chec
 @Module({
   imports: [ScheduleModule],
   controllers: [CameraController],
-  providers: [CameraService, CameraHealthCheckService, CameraHealthCheckSchedulerService],
+  providers: [
+    CameraService,
+    CameraHealthCheckService,
+    CameraHealthCheckSchedulerService,
+  ],
   exports: [CameraService, CameraHealthCheckService],
 })
 export class CameraModule {}

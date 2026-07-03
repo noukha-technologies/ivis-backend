@@ -7,7 +7,9 @@ export const MongoLogicalOperators = ['$or', '$and', '$nor'] as const;
 
 @Injectable()
 export class LogicalOperatorFilterStrategy implements FilterStrategy<LogicalFilter> {
-  private readonly allowedLogicalOperators = new Set<string>(MongoLogicalOperators);
+  private readonly allowedLogicalOperators = new Set<string>(
+    MongoLogicalOperators,
+  );
 
   private readonly allowedFieldOperators = new Set([
     '$eq',

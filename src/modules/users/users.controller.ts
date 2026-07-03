@@ -33,7 +33,7 @@ import { UsersService } from './service/users.service';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Post()
   @Permissions(PermissionKeys.USER_CREATE)
@@ -52,10 +52,17 @@ export class UsersController {
 
   @Get()
   @Permissions(PermissionKeys.USER_VIEW)
-  @ApiOperation({ summary: 'Retrieve all users (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all users (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'user_name, email' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'user_name, email',
+  })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })

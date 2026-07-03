@@ -34,21 +34,37 @@ export class LineService implements ILineService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createLineDto: CreateLineDto, actor: UserContext): Promise<Line> {
-    this.logger.log(`Creating line with code: ${createLineDto.code}`, LineService.context);
+  async create(
+    createLineDto: CreateLineDto,
+    actor: UserContext,
+  ): Promise<Line> {
+    this.logger.log(
+      `Creating line with code: ${createLineDto.code}`,
+      LineService.context,
+    );
 
     try {
       const existingCode = await this.lineDao.findByCode(createLineDto.code);
       if (existingCode) {
-        throw new DuplicateResourceException('Line', 'code', createLineDto.code);
+        throw new DuplicateResourceException(
+          'Line',
+          'code',
+          createLineDto.code,
+        );
       }
 
       const existingName = await this.lineDao.findByName(createLineDto.name);
       if (existingName) {
-        throw new DuplicateResourceException('Line', 'name', createLineDto.name);
+        throw new DuplicateResourceException(
+          'Line',
+          'name',
+          createLineDto.name,
+        );
       }
 
-      const centre = await this.centreDao.findActiveById(createLineDto.centre_id);
+      const centre = await this.centreDao.findActiveById(
+        createLineDto.centre_id,
+      );
       if (!centre) {
         throw new ResourceNotFoundException('Centre', createLineDto.centre_id);
       }
@@ -72,10 +88,16 @@ export class LineService implements ILineService {
       });
       const savedLine = await this.lineDao.save(line);
 
-      this.logger.log(`Line created with ID: ${savedLine.id}`, LineService.context);
+      this.logger.log(
+        `Line created with ID: ${savedLine.id}`,
+        LineService.context,
+      );
       return savedLine;
     } catch (error) {
-      if (error instanceof DuplicateResourceException || error instanceof ResourceNotFoundException) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ResourceNotFoundException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -88,12 +110,17 @@ export class LineService implements ILineService {
   }
 
   async findAll(query: LineListQueryDto): Promise<PaginatedResult<Line>> {
-    this.logger.log(`Fetching lines — page: ${query.page}, limit: ${query.limit}`, LineService.context);
+    this.logger.log(
+      `Fetching lines — page: ${query.page}, limit: ${query.limit}`,
+      LineService.context,
+    );
 
     try {
       let centreFilterId: string | undefined;
       if (query.centre_id) {
-        centreFilterId = await this.masterScope.resolveCentreId(query.centre_id);
+        centreFilterId = await this.masterScope.resolveCentreId(
+          query.centre_id,
+        );
       }
       return await this.lineDao.findPaginated(query, centreFilterId);
     } catch (error) {
@@ -152,21 +179,41 @@ export class LineService implements ILineService {
       if (updateLineDto.code && updateLineDto.code !== line.code) {
         const existingCode = await this.lineDao.findByCode(updateLineDto.code);
         if (existingCode) {
-          throw new DuplicateResourceException('Line', 'code', updateLineDto.code);
+          throw new DuplicateResourceException(
+            'Line',
+            'code',
+            updateLineDto.code,
+          );
         }
       }
 
-      if (updateLineDto.name && updateLineDto.name.trim().toLowerCase() !== line.name.trim().toLowerCase()) {
-        const existingName = await this.lineDao.findByName(updateLineDto.name, id);
+      if (
+        updateLineDto.name &&
+        updateLineDto.name.trim().toLowerCase() !==
+          line.name.trim().toLowerCase()
+      ) {
+        const existingName = await this.lineDao.findByName(
+          updateLineDto.name,
+          id,
+        );
         if (existingName) {
-          throw new DuplicateResourceException('Line', 'name', updateLineDto.name);
+          throw new DuplicateResourceException(
+            'Line',
+            'name',
+            updateLineDto.name,
+          );
         }
       }
 
       if (updateLineDto.centre_id) {
-        const centre = await this.centreDao.findActiveById(updateLineDto.centre_id);
+        const centre = await this.centreDao.findActiveById(
+          updateLineDto.centre_id,
+        );
         if (!centre) {
-          throw new ResourceNotFoundException('Centre', updateLineDto.centre_id);
+          throw new ResourceNotFoundException(
+            'Centre',
+            updateLineDto.centre_id,
+          );
         }
       }
 
@@ -176,7 +223,10 @@ export class LineService implements ILineService {
       this.logger.log(`Line updated ID: ${savedLine.id}`, LineService.context);
       return savedLine;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -198,7 +248,10 @@ export class LineService implements ILineService {
       await this.lineDao.save(line);
       this.logger.log(`Line soft-deleted ID: ${id}`, LineService.context);
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof BadRequestException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -213,15 +266,23 @@ export class LineService implements ILineService {
   private async assertLineHasNoDependents(lineId: string): Promise<void> {
     const camera = await this.cameraDao.findActiveByLineId(lineId);
     if (camera) {
-      throw new BadRequestException('Cannot delete line: an active camera is assigned to this line.');
+      throw new BadRequestException(
+        'Cannot delete line: an active camera is assigned to this line.',
+      );
     }
     const adminPc = await this.adminPcDao.findActiveByLineId(lineId);
     if (adminPc) {
-      throw new BadRequestException('Cannot delete line: an active admin PC is assigned to this line.');
+      throw new BadRequestException(
+        'Cannot delete line: an active admin PC is assigned to this line.',
+      );
     }
-    const mappings = await this.userLineMappingDao.findActiveByLineIds([lineId]);
+    const mappings = await this.userLineMappingDao.findActiveByLineIds([
+      lineId,
+    ]);
     if (mappings.length > 0) {
-      throw new BadRequestException('Cannot delete line: one or more users are assigned to this line.');
+      throw new BadRequestException(
+        'Cannot delete line: one or more users are assigned to this line.',
+      );
     }
   }
 }

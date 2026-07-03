@@ -3,7 +3,9 @@
  * lines, CRLF or LF). Returns a nested map: { section: { key: value } }.
  * Lines before the first section go under the '_' section.
  */
-export function parseIni(content: string): Record<string, Record<string, string>> {
+export function parseIni(
+  content: string,
+): Record<string, Record<string, string>> {
   const result: Record<string, Record<string, string>> = {};
   let current = '_';
   result[current] = {};

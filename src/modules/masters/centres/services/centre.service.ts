@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreateCentreDto, UpdateCentreDto } from '../../../../common/dto/centre.dto';
+import {
+  CreateCentreDto,
+  UpdateCentreDto,
+} from '../../../../common/dto/centre.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -25,14 +28,26 @@ export class CentreService implements ICentreService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createCentreDto: CreateCentreDto, actor: UserContext): Promise<Centre> {
-    this.logger.log(`Creating centre: ${createCentreDto.name}`, CentreService.context);
+  async create(
+    createCentreDto: CreateCentreDto,
+    actor: UserContext,
+  ): Promise<Centre> {
+    this.logger.log(
+      `Creating centre: ${createCentreDto.name}`,
+      CentreService.context,
+    );
 
     try {
       // Duplicate centre names are not allowed (case-insensitive).
-      const existingName = await this.centreDao.findByName(createCentreDto.name);
+      const existingName = await this.centreDao.findByName(
+        createCentreDto.name,
+      );
       if (existingName) {
-        throw new DuplicateResourceException('Centre', 'name', createCentreDto.name);
+        throw new DuplicateResourceException(
+          'Centre',
+          'name',
+          createCentreDto.name,
+        );
       }
 
       let centre_id = createCentreDto.centre_id;
@@ -41,7 +56,11 @@ export class CentreService implements ICentreService {
       } else {
         const existingCentreId = await this.centreDao.findByCentreId(centre_id);
         if (existingCentreId) {
-          throw new DuplicateResourceException('Centre', 'centre_id', centre_id);
+          throw new DuplicateResourceException(
+            'Centre',
+            'centre_id',
+            centre_id,
+          );
         }
       }
 
@@ -62,7 +81,10 @@ export class CentreService implements ICentreService {
       });
       const savedCentre = await this.centreDao.save(centre);
 
-      this.logger.log(`Centre created with ID: ${savedCentre.id}`, CentreService.context);
+      this.logger.log(
+        `Centre created with ID: ${savedCentre.id}`,
+        CentreService.context,
+      );
       return savedCentre;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
@@ -78,7 +100,10 @@ export class CentreService implements ICentreService {
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Centre>> {
-    this.logger.log(`Fetching centres — page: ${query.page}, limit: ${query.limit}`, CentreService.context);
+    this.logger.log(
+      `Fetching centres — page: ${query.page}, limit: ${query.limit}`,
+      CentreService.context,
+    );
 
     try {
       return await this.centreDao.findPaginated(query);
@@ -136,10 +161,19 @@ export class CentreService implements ICentreService {
       const centre = await this.findOne(id);
 
       // Prevent renaming to an existing centre name (case-insensitive).
-      if (updateCentreDto.name && updateCentreDto.name.trim().toLowerCase() !== centre.name.toLowerCase()) {
-        const existingName = await this.centreDao.findByName(updateCentreDto.name);
+      if (
+        updateCentreDto.name &&
+        updateCentreDto.name.trim().toLowerCase() !== centre.name.toLowerCase()
+      ) {
+        const existingName = await this.centreDao.findByName(
+          updateCentreDto.name,
+        );
         if (existingName && existingName.id !== id) {
-          throw new DuplicateResourceException('Centre', 'name', updateCentreDto.name);
+          throw new DuplicateResourceException(
+            'Centre',
+            'name',
+            updateCentreDto.name,
+          );
         }
       }
 
@@ -148,10 +182,16 @@ export class CentreService implements ICentreService {
       const mergedCentre = this.centreDao.merge(centre, updateFields);
       const savedCentre = await this.centreDao.save(mergedCentre);
 
-      this.logger.log(`Centre updated ID: ${savedCentre.id}`, CentreService.context);
+      this.logger.log(
+        `Centre updated ID: ${savedCentre.id}`,
+        CentreService.context,
+      );
       return savedCentre;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException
+      ) {
         throw error;
       }
       this.logger.error(

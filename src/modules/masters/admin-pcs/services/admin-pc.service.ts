@@ -1,5 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { CreateAdminPcDto, UpdateAdminPcDto } from '../../../../common/dto/admin-pc.dto';
+import {
+  CreateAdminPcDto,
+  UpdateAdminPcDto,
+} from '../../../../common/dto/admin-pc.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -27,20 +30,38 @@ export class AdminPcService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createAdminPcDto: CreateAdminPcDto, actor: UserContext): Promise<AdminPc> {
-    this.logger.log(`Creating Admin PC with code: ${createAdminPcDto.code}`, AdminPcService.context);
+  async create(
+    createAdminPcDto: CreateAdminPcDto,
+    actor: UserContext,
+  ): Promise<AdminPc> {
+    this.logger.log(`Creating Admin PC`, AdminPcService.context);
 
     try {
-      const existingCode = await this.adminPcDao.findByCode(createAdminPcDto.code);
-      if (existingCode) {
-        throw new DuplicateResourceException('AdminPc', 'code', createAdminPcDto.code);
+      const existingName = await this.adminPcDao.findByName(
+        createAdminPcDto.name,
+      );
+      if (existingName) {
+        throw new DuplicateResourceException(
+          'AdminPc',
+          'name',
+          createAdminPcDto.name,
+        );
       }
+
+      const centerId =
+        this.masterScope.resolveCentreFilter(actor.user) ||
+        createAdminPcDto.center_id;
+      if (!centerId) {
+        throw new BadRequestException('center_id is required.');
+      }
+      await this.masterScope.resolveCentreId(centerId);
 
       const lineIds = this.normalizeLineIds(
         createAdminPcDto.line_ids?.length
           ? createAdminPcDto.line_ids
           : [createAdminPcDto.line_id],
       );
+      await this.masterScope.assertLinesBelongToCentre(lineIds, centerId);
       await this.validateLineAssignments(lineIds);
 
       let admin_pc_id = createAdminPcDto.admin_pc_id;
@@ -49,20 +70,31 @@ export class AdminPcService {
       } else {
         const existingId = await this.adminPcDao.findByAdminPcId(admin_pc_id);
         if (existingId) {
-          throw new DuplicateResourceException('AdminPc', 'admin_pc_id', admin_pc_id);
+          throw new DuplicateResourceException(
+            'AdminPc',
+            'admin_pc_id',
+            admin_pc_id,
+          );
         }
       }
 
-      const {
-        line_ids: _lineIds,
-        line_id: _lineId,
-        ...adminPcFields
-      } = createAdminPcDto;
+      const code =
+        createAdminPcDto.code || `APC${String(admin_pc_id).padStart(3, '0')}`;
+      const existingCode = await this.adminPcDao.findByCode(code);
+      if (existingCode) {
+        throw new DuplicateResourceException('AdminPc', 'code', code);
+      }
+
+      const adminPcFields = { ...createAdminPcDto };
+      delete (adminPcFields as Partial<CreateAdminPcDto>).line_ids;
+      delete (adminPcFields as Partial<CreateAdminPcDto>).line_id;
 
       const adminPc = this.adminPcDao.create({
         id: generateSnowflakeId(),
         ...adminPcFields,
         admin_pc_id,
+        code,
+        center_id: centerId,
         status: createAdminPcDto.status || 'Active',
         created_by: getCreatedById(actor),
       });
@@ -73,8 +105,13 @@ export class AdminPcService {
         getCreatedById(actor),
       );
 
-      this.logger.log(`Admin PC created with ID: ${savedAdminPc.id}`, AdminPcService.context);
-      return (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc;
+      this.logger.log(
+        `Admin PC created with ID: ${savedAdminPc.id}`,
+        AdminPcService.context,
+      );
+      return (
+        (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc
+      );
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -88,26 +125,38 @@ export class AdminPcService {
         (error as Error).stack,
         AdminPcService.context,
       );
-      throw new DatabaseException('Failed to create Admin PC record. Please try again.');
+      throw new DatabaseException(
+        'Failed to create Admin PC record. Please try again.',
+      );
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<AdminPc>> {
-    this.logger.log(`Fetching Admin PCs — page: ${query.page}, limit: ${query.limit}`, AdminPcService.context);
+  async findAll(
+    query: PaginationQueryDto & { center_id?: string },
+    actor: UserContext,
+  ): Promise<PaginatedResult<AdminPc>> {
+    this.logger.log(
+      `Fetching Admin PCs — page: ${query.page}, limit: ${query.limit}`,
+      AdminPcService.context,
+    );
 
     try {
-      return await this.adminPcDao.findPaginated(query);
+      const centerFilterId =
+        this.masterScope.resolveCentreFilter(actor.user) || query.center_id;
+      return await this.adminPcDao.findPaginated(query, centerFilterId);
     } catch (error) {
       this.logger.error(
         `Failed to fetch Admin PCs: ${(error as Error).message}`,
         (error as Error).stack,
         AdminPcService.context,
       );
-      throw new DatabaseException('Failed to fetch Admin PC records. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch Admin PC records. Please try again.',
+      );
     }
   }
 
-  async findOne(id: string): Promise<AdminPc> {
+  async findOne(id: string, actor?: UserContext): Promise<AdminPc> {
     this.logger.log(`Fetching Admin PC ID: ${id}`, AdminPcService.context);
 
     try {
@@ -115,6 +164,14 @@ export class AdminPcService {
       if (!adminPc) {
         throw new ResourceNotFoundException('AdminPc', id);
       }
+
+      if (actor) {
+        const userCenterId = this.masterScope.resolveCentreFilter(actor.user);
+        if (userCenterId && adminPc.center_id !== userCenterId) {
+          throw new ResourceNotFoundException('AdminPc', id);
+        }
+      }
+
       return adminPc;
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
@@ -125,20 +182,56 @@ export class AdminPcService {
         (error as Error).stack,
         AdminPcService.context,
       );
-      throw new DatabaseException('Failed to fetch Admin PC record. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch Admin PC record. Please try again.',
+      );
     }
   }
 
-  async update(id: string, updateAdminPcDto: UpdateAdminPcDto): Promise<AdminPc> {
+  async update(
+    id: string,
+    updateAdminPcDto: UpdateAdminPcDto,
+    actor: UserContext,
+  ): Promise<AdminPc> {
     this.logger.log(`Updating Admin PC ID: ${id}`, AdminPcService.context);
 
     try {
-      const adminPc = await this.findOne(id);
+      const adminPc = await this.findOne(id, actor);
+
+      const userCenterId = this.masterScope.resolveCentreFilter(actor.user);
+      const centerId =
+        userCenterId || updateAdminPcDto.center_id || adminPc.center_id;
+
+      if (centerId) {
+        await this.masterScope.resolveCentreId(centerId);
+      }
+
+      if (
+        updateAdminPcDto.name &&
+        updateAdminPcDto.name.toLowerCase() !== adminPc.name.toLowerCase()
+      ) {
+        const existingName = await this.adminPcDao.findByName(
+          updateAdminPcDto.name,
+        );
+        if (existingName) {
+          throw new DuplicateResourceException(
+            'AdminPc',
+            'name',
+            updateAdminPcDto.name,
+          );
+        }
+      }
 
       if (updateAdminPcDto.code && updateAdminPcDto.code !== adminPc.code) {
-        const existingCode = await this.adminPcDao.findByCode(updateAdminPcDto.code);
+        const existingCode = await this.adminPcDao.findByCode(
+          updateAdminPcDto.code,
+        );
         if (existingCode) {
-          throw new DuplicateResourceException('AdminPc', 'code', updateAdminPcDto.code);
+          throw new DuplicateResourceException(
+            'AdminPc',
+            'code',
+            updateAdminPcDto.code,
+          );
         }
       }
 
@@ -147,6 +240,9 @@ export class AdminPcService {
           updateAdminPcDto.line_ids ??
             (updateAdminPcDto.line_id ? [updateAdminPcDto.line_id] : []),
         );
+        if (centerId) {
+          await this.masterScope.assertLinesBelongToCentre(lineIds, centerId);
+        }
         await this.validateLineAssignments(lineIds, id);
         await this.adminPcLineMappingDao.replaceForAdminPc(
           id,
@@ -155,17 +251,23 @@ export class AdminPcService {
         );
       }
 
-      const {
-        line_ids: _lineIds,
-        line_id: _lineId,
-        ...updateFields
-      } = updateAdminPcDto;
+      const updateFields = { ...updateAdminPcDto };
+      delete (updateFields as Partial<UpdateAdminPcDto>).line_ids;
+      delete (updateFields as Partial<UpdateAdminPcDto>).line_id;
 
-      const mergedAdminPc = this.adminPcDao.merge(adminPc, updateFields);
+      const mergedAdminPc = this.adminPcDao.merge(adminPc, {
+        ...updateFields,
+        center_id: centerId,
+      });
       const savedAdminPc = await this.adminPcDao.save(mergedAdminPc);
 
-      this.logger.log(`Admin PC updated ID: ${savedAdminPc.id}`, AdminPcService.context);
-      return (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc;
+      this.logger.log(
+        `Admin PC updated ID: ${savedAdminPc.id}`,
+        AdminPcService.context,
+      );
+      return (
+        (await this.adminPcDao.findActiveById(savedAdminPc.id)) ?? savedAdminPc
+      );
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||
@@ -179,19 +281,24 @@ export class AdminPcService {
         (error as Error).stack,
         AdminPcService.context,
       );
-      throw new DatabaseException('Failed to update Admin PC record. Please try again.');
+      throw new DatabaseException(
+        'Failed to update Admin PC record. Please try again.',
+      );
     }
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, actor: UserContext): Promise<void> {
     this.logger.log(`Deleting Admin PC ID: ${id}`, AdminPcService.context);
 
     try {
-      const adminPc = await this.findOne(id);
+      const adminPc = await this.findOne(id, actor);
       adminPc.is_deleted = true;
       await this.adminPcDao.save(adminPc);
       await this.adminPcLineMappingDao.softDeleteByAdminPcId(id);
-      this.logger.log(`Admin PC soft-deleted ID: ${id}`, AdminPcService.context);
+      this.logger.log(
+        `Admin PC soft-deleted ID: ${id}`,
+        AdminPcService.context,
+      );
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -201,7 +308,9 @@ export class AdminPcService {
         (error as Error).stack,
         AdminPcService.context,
       );
-      throw new DatabaseException('Failed to delete Admin PC record. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete Admin PC record. Please try again.',
+      );
     }
   }
 
@@ -209,7 +318,10 @@ export class AdminPcService {
     return [...new Set(lineIds.map((lineId) => lineId.trim()).filter(Boolean))];
   }
 
-  private async validateLineAssignments(lineIds: string[], excludeAdminPcId?: string): Promise<void> {
+  private async validateLineAssignments(
+    lineIds: string[],
+    excludeAdminPcId?: string,
+  ): Promise<void> {
     if (!lineIds.length) {
       throw new BadRequestException('At least one line is required.');
     }

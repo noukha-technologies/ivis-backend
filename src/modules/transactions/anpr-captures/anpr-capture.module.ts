@@ -17,4 +17,3 @@ import { ImageProcessorService } from '../../../common/shared/anpr/image-process
   exports: [AnprCaptureService, CaptureValidationService],
 })
 export class AnprCaptureModule {}
-

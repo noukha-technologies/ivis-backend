@@ -18,14 +18,22 @@ export class UserLineMapping {
   @SnowflakePrimaryColumn()
   id!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   user_id!: string;
 
   @ManyToOne(() => User, (user) => user.lineMappings, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'user_id' })
   user!: User;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   line_id!: string;
 
   @ManyToOne(() => Line, { nullable: false })

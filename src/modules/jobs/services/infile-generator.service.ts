@@ -48,13 +48,17 @@ export class InfileGeneratorService {
       ['Mobile', customer?.owner_phone_number ?? ''],
       ['NumberOfAxles', '2'],
     ];
-    for (let i = 1; i <= 8; i += 1) lines.push([`ParkingBrakePos_${i}`, i === 2 ? 'true' : 'false']);
+    for (let i = 1; i <= 8; i += 1)
+      lines.push([`ParkingBrakePos_${i}`, i === 2 ? 'true' : 'false']);
     lines.push(['4WD', 'false']);
     lines.push(['Remark1', ''], ['Remark2', ''], ['Remark3', '']);
-    for (const test of REQUESTED_TESTS) lines.push([`${test}_Status`, 'ToCheck']);
+    for (const test of REQUESTED_TESTS)
+      lines.push([`${test}_Status`, 'ToCheck']);
 
     const content =
-      '[GenCarInfo]\r\n' + lines.map(([k, v]) => `${k}=${v}`).join('\r\n') + '\r\n';
+      '[GenCarInfo]\r\n' +
+      lines.map(([k, v]) => `${k}=${v}`).join('\r\n') +
+      '\r\n';
 
     const dir =
       job.adminPc?.in_file_path?.trim() ||
@@ -66,7 +70,10 @@ export class InfileGeneratorService {
     try {
       await fs.mkdir(dir, { recursive: true });
       await fs.writeFile(fullPath, content, 'utf8');
-      this.logger.log(`IN file written: ${fullPath}`, InfileGeneratorService.context);
+      this.logger.log(
+        `IN file written: ${fullPath}`,
+        InfileGeneratorService.context,
+      );
     } catch (err) {
       // Network share may be unavailable in dev — log and continue with the
       // recorded path so the flow isn't blocked.

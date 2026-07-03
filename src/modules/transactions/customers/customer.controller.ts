@@ -36,13 +36,18 @@ export class CustomerController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a customer record' })
   @ApiResponse({ status: 201, description: 'Customer created successfully.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateCustomerDto) {
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreateCustomerDto,
+  ) {
     const data = await this.customerService.create(createDto, actor);
     return { message: 'Customer created successfully', data };
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve customers (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve customers (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -50,7 +55,10 @@ export class CustomerController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'Customers retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Customers retrieved successfully.',
+  })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.customerService.findAll(query);
     return { message: 'Customers retrieved successfully', ...result };

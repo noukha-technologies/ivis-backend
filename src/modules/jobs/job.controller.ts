@@ -43,7 +43,10 @@ export class JobController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a job (form intake or legacy IDs)' })
   @ApiResponse({ status: 201, description: 'Job created successfully.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateJobRequestDto) {
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreateJobRequestDto,
+  ) {
     if (isLegacyJobCreate(createDto)) {
       const legacyDto: CreateJobDto = {
         job_id: createDto.job_id,
@@ -58,7 +61,10 @@ export class JobController {
       };
       const data = await this.jobService.create(legacyDto, actor);
       const pricing = await this.jobService.resolvePricingForJob(data);
-      return { message: 'Job created successfully', data: { ...data, pricing } };
+      return {
+        message: 'Job created successfully',
+        data: { ...data, pricing },
+      };
     }
 
     const data = await this.jobIntakeService.createFromIntake(
@@ -66,7 +72,9 @@ export class JobController {
       actor,
     );
     // Attach the calculated payment (from the configured charges) when a job exists.
-    const pricing = data.job ? await this.jobService.resolvePricingForJob(data.job) : null;
+    const pricing = data.job
+      ? await this.jobService.resolvePricingForJob(data.job)
+      : null;
     const message = data.job
       ? 'Job created successfully'
       : 'Payment recorded (FOC). Job will be created when payment is marked Paid.';
@@ -77,13 +85,20 @@ export class JobController {
   @Post('from-appointment/:appointmentId')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Convert a queued appointment into a job' })
-  @ApiParam({ name: 'appointmentId', type: String, description: 'Appointment snowflake ID' })
+  @ApiParam({
+    name: 'appointmentId',
+    type: String,
+    description: 'Appointment snowflake ID',
+  })
   @ApiResponse({ status: 201, description: 'Job created from appointment.' })
   async createFromAppointment(
     @CurrentUser() actor: UserContext,
     @Param('appointmentId', ParseSnowflakeIdPipe) appointmentId: string,
   ) {
-    const data = await this.jobService.createFromAppointment(appointmentId, actor);
+    const data = await this.jobService.createFromAppointment(
+      appointmentId,
+      actor,
+    );
     const pricing = await this.jobService.resolvePricingForJob(data);
     return { message: 'Job created successfully', data: { ...data, pricing } };
   }
@@ -104,17 +119,24 @@ export class JobController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Retrieve job by ID (with customer, vehicle, and site details)' })
+  @ApiOperation({
+    summary: 'Retrieve job by ID (with customer, vehicle, and site details)',
+  })
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
   @ApiResponse({ status: 200, description: 'Job retrieved successfully.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.findOne(id);
     const pricing = await this.jobService.resolvePricingForJob(data);
-    return { message: 'Job retrieved successfully', data: { ...data, pricing } };
+    return {
+      message: 'Job retrieved successfully',
+      data: { ...data, pricing },
+    };
   }
 
   @Get(':id/pricing')
-  @ApiOperation({ summary: 'Resolve invoice pricing for a job (charges master lookup)' })
+  @ApiOperation({
+    summary: 'Resolve invoice pricing for a job (charges master lookup)',
+  })
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
   async pricing(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.resolvePricing(id);
@@ -122,7 +144,9 @@ export class JobController {
   }
 
   @Post(':id/start')
-  @ApiOperation({ summary: 'Start the inspection (generate IN file, set In Progress)' })
+  @ApiOperation({
+    summary: 'Start the inspection (generate IN file, set In Progress)',
+  })
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
   async start(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.startJob(id);
@@ -130,7 +154,9 @@ export class JobController {
   }
 
   @Post(':id/submit')
-  @ApiOperation({ summary: 'Submit the inspection to ROP (same-day) and complete the job' })
+  @ApiOperation({
+    summary: 'Submit the inspection to ROP (same-day) and complete the job',
+  })
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
   async submit(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.submitJob(id);

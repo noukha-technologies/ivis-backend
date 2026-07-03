@@ -10,7 +10,10 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 
 import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
-import { buildTypeOrmPaginationOptions, toPaginatedResult } from '../../../common/shared/pagination/pagination-query.util';
+import {
+  buildTypeOrmPaginationOptions,
+  toPaginatedResult,
+} from '../../../common/shared/pagination/pagination-query.util';
 
 @Injectable()
 export class UsersDao extends Repository<User> implements IUserDao {
@@ -42,8 +45,6 @@ export class UsersDao extends Repository<User> implements IUserDao {
       .getOne();
   }
 
-
-  
   async findByEmail(email: string): Promise<User | null> {
     return this.activeUserQueryBuilder()
       .andWhere('user.email = :email', { email: email.trim().toLowerCase() })
@@ -84,8 +85,6 @@ export class UsersDao extends Repository<User> implements IUserDao {
     });
   }
 
-
-
   async findPaginated(
     query: PaginationQueryDto,
     centreScope?: { centreId: string },
@@ -95,12 +94,21 @@ export class UsersDao extends Repository<User> implements IUserDao {
     if (centreScope) {
       // Centre-scoped caller (e.g. Centre Admin): only their own centre's users,
       // and never Super Admins (global-scope roles).
-      qb.andWhere('user.center_id = :scopeCentreId', { scopeCentreId: centreScope.centreId })
-        .andWhere("(role.access_scope IS NULL OR role.access_scope <> 'global')");
+      qb.andWhere('user.center_id = :scopeCentreId', {
+        scopeCentreId: centreScope.centreId,
+      }).andWhere(
+        "(role.access_scope IS NULL OR role.access_scope <> 'global')",
+      );
     }
 
     const options = buildTypeOrmPaginationOptions<User, User>(query, {
-      searchFields: ['user_name', 'email', 'user_code', 'centre.name', 'line.name'],
+      searchFields: [
+        'user_name',
+        'email',
+        'user_code',
+        'centre.name',
+        'line.name',
+      ],
       allowedSortFields: [
         'user_id',
         'user_code',
@@ -115,7 +123,11 @@ export class UsersDao extends Repository<User> implements IUserDao {
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'user', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'user',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

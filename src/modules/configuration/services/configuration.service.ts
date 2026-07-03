@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../common/dto/auth.dto';
-import { CreateConfigurationDto, UpdateConfigurationDto } from '../../../common/dto/configuration.dto';
+import {
+  CreateConfigurationDto,
+  UpdateConfigurationDto,
+} from '../../../common/dto/configuration.dto';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { MasterScopeService } from '../../../common/services/master-scope.service';
-import { DatabaseException, ResourceNotFoundException } from '../../../common/exceptions/custom.exception';
+import {
+  DatabaseException,
+  ResourceNotFoundException,
+} from '../../../common/exceptions/custom.exception';
 
 import { ConfigurationDao } from '../../database/dao/configuration.dao';
 import { Configurations } from '../../database/entity/configuration.entity';
@@ -35,20 +41,32 @@ export class ConfigurationService {
    * Upsert the (single) configuration row for a centre. Creates it on first
    * save; merges thereafter — enforced by the unique centre_id.
    */
-  async upsert(dto: CreateConfigurationDto, actor: UserContext): Promise<Configurations> {
-    this.logger.log(`Upserting configuration for centre: ${dto.centre_id}`, ConfigurationService.context);
+  async upsert(
+    dto: CreateConfigurationDto,
+    actor: UserContext,
+  ): Promise<Configurations> {
+    this.logger.log(
+      `Upserting configuration for centre: ${dto.centre_id}`,
+      ConfigurationService.context,
+    );
 
     try {
       const centreFkId = await this.masterScope.resolveCentreId(dto.centre_id);
       const existing = await this.configurationDao.findByCentreId(centreFkId);
       const createdBy = getCreatedById(actor);
 
-      const { centre_id: _centreId, configuration_id: _configId, ...settings } = dto;
+      const {
+        centre_id: _centreId,
+        configuration_id: _configId,
+        ...settings
+      } = dto;
 
       if (existing) {
         const merged = this.configurationDao.merge(existing, settings);
         const saved = await this.configurationDao.save(merged);
-        return (await this.configurationDao.findByCentreId(centreFkId)) ?? saved;
+        return (
+          (await this.configurationDao.findByCentreId(centreFkId)) ?? saved
+        );
       }
 
       const created = this.configurationDao.create({
@@ -69,7 +87,9 @@ export class ConfigurationService {
         (error as Error).stack,
         ConfigurationService.context,
       );
-      throw new DatabaseException('Failed to save configuration. Please try again.');
+      throw new DatabaseException(
+        'Failed to save configuration. Please try again.',
+      );
     }
   }
 

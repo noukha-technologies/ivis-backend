@@ -5,7 +5,10 @@ import { IConfigurationDao } from '../../configuration/dao/configuration.dao.int
 import { Configurations } from '../entity/configuration.entity';
 
 @Injectable()
-export class ConfigurationDao extends Repository<Configurations> implements IConfigurationDao {
+export class ConfigurationDao
+  extends Repository<Configurations>
+  implements IConfigurationDao
+{
   constructor(private readonly dataSource: DataSource) {
     super(Configurations, dataSource.createEntityManager());
   }

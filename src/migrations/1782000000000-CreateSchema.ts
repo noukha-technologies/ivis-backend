@@ -42,7 +42,9 @@ export class CreateSchema1782000000000 implements MigrationInterface {
   }
 
   public async down(_queryRunner: QueryRunner): Promise<void> {
-    console.warn('[CreateSchema] down() is a no-op — schema was created fresh, nothing to revert.');
+    console.warn(
+      '[CreateSchema] down() is a no-op — schema was created fresh, nothing to revert.',
+    );
   }
 
   // ─── Drop ────────────────────────────────────────────────────────────────────
@@ -443,7 +445,9 @@ export class CreateSchema1782000000000 implements MigrationInterface {
 
   // ─── Transaction tables ───────────────────────────────────────────────────────
 
-  private async createTransactionTables(queryRunner: QueryRunner): Promise<void> {
+  private async createTransactionTables(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
     // vehicle_records (FK → master.vehicles)
     await queryRunner.query(`
       CREATE TABLE "transaction"."vehicle_records" (

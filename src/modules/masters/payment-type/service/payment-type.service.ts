@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreatePaymentTypeDto, UpdatePaymentTypeDto } from '../../../../common/dto/payment-type.dto';
+import {
+  CreatePaymentTypeDto,
+  UpdatePaymentTypeDto,
+} from '../../../../common/dto/payment-type.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -22,15 +25,22 @@ export class PaymentTypeService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(dto: CreatePaymentTypeDto, actor: UserContext): Promise<PaymentType> {
-    this.logger.log(`Creating payment type — code: ${dto.code}`, PaymentTypeService.context);
+  async create(
+    dto: CreatePaymentTypeDto,
+    actor: UserContext,
+  ): Promise<PaymentType> {
+    this.logger.log(
+      `Creating payment type — code: ${dto.code}`,
+      PaymentTypeService.context,
+    );
 
     const existing = await this.paymentTypeDao.findByCode(dto.code);
     if (existing) {
       throw new DuplicateResourceException('PaymentType', 'code', dto.code);
     }
 
-    const paymentTypeId = dto.payment_type_id ?? await this.paymentTypeDao.getNextPaymentTypeId();
+    const paymentTypeId =
+      dto.payment_type_id ?? (await this.paymentTypeDao.getNextPaymentTypeId());
 
     const paymentType = this.paymentTypeDao.create({
       id: generateSnowflakeId(),
@@ -44,7 +54,9 @@ export class PaymentTypeService {
     return this.paymentTypeDao.save(paymentType);
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<PaymentType>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<PaymentType>> {
     return this.paymentTypeDao.findPaginated(query);
   }
 

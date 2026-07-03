@@ -29,66 +29,66 @@ import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-
 import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Camera]),
-        AnprCaptureModule,
-        DatabaseModule
-    ],
-    controllers: [AnprController],
-    providers: [
-        // ─── Core Services ───────────────────────────────────────
-        AnprService,
-        AnprGateway,
+  imports: [
+    TypeOrmModule.forFeature([Camera]),
+    AnprCaptureModule,
+    DatabaseModule,
+  ],
+  controllers: [AnprController],
+  providers: [
+    // ─── Core Services ───────────────────────────────────────
+    AnprService,
+    AnprGateway,
 
-        // ─── Shared Utilities ────────────────────────────────────
-        MultipartParserService,
-        OmanPlateClassifierService,
-        XmlParserService,
-        ImageProcessorService,
-        RawFileResponseBuilder,
+    // ─── Shared Utilities ────────────────────────────────────
+    MultipartParserService,
+    OmanPlateClassifierService,
+    XmlParserService,
+    ImageProcessorService,
+    RawFileResponseBuilder,
 
-        // ─── Camera Config ───────────────────────────────────────
-        AnprMethodConfigService,
+    // ─── Camera Config ───────────────────────────────────────
+    AnprMethodConfigService,
 
-        // ─── FTP folder watch + fallback sweep ───────────
-        FtpConnectionPoolService,
-        FtpMethodService,
-        FtpFileProcessorService,
-        FtpFolderWatcherService,
-        FtpDirectoryScannerService,
-        HikvisionOverlayOcrService,
-        AnprEventGuardService,
+    // ─── FTP folder watch + fallback sweep ───────────
+    FtpConnectionPoolService,
+    FtpMethodService,
+    FtpFileProcessorService,
+    FtpFolderWatcherService,
+    FtpDirectoryScannerService,
+    HikvisionOverlayOcrService,
+    AnprEventGuardService,
 
-        // ─── Helpers ──────────────────────────────────────────────
-        AnprWebhookService,
-    ],
-    exports: [AnprService, AnprGateway, FtpFolderWatcherService],
+    // ─── Helpers ──────────────────────────────────────────────
+    AnprWebhookService,
+  ],
+  exports: [AnprService, AnprGateway, FtpFolderWatcherService],
 })
 export class AnprModule implements OnApplicationBootstrap {
-    private readonly logger = new Logger(AnprModule.name);
+  private readonly logger = new Logger(AnprModule.name);
 
-    constructor(
-        private readonly methodConfig: AnprMethodConfigService,
-        private readonly ftpFolderWatcher: FtpFolderWatcherService,
-    ) { }
+  constructor(
+    private readonly methodConfig: AnprMethodConfigService,
+    private readonly ftpFolderWatcher: FtpFolderWatcherService,
+  ) {}
 
-    async onApplicationBootstrap(): Promise<void> {
-        this.logger.log('━━━ ANPR Module Bootstrap ━━━');
+  async onApplicationBootstrap(): Promise<void> {
+    this.logger.log('━━━ ANPR Module Bootstrap ━━━');
 
-        try {
-            this.logger.log('→ Validating camera configurations...');
-            await this.methodConfig.validateAllCameras();
-            this.logger.log('✓ Camera configurations validated');
+    try {
+      this.logger.log('→ Validating camera configurations...');
+      await this.methodConfig.validateAllCameras();
+      this.logger.log('✓ Camera configurations validated');
 
-            this.logger.log('→ Starting FTP folder watchers...');
-            await this.ftpFolderWatcher.bootstrapOnStartup();
-            this.logger.log('✓ FTP watchers are listening');
+      this.logger.log('→ Starting FTP folder watchers...');
+      await this.ftpFolderWatcher.bootstrapOnStartup();
+      this.logger.log('✓ FTP watchers are listening');
 
-            this.logger.log('━━━ ANPR Module Ready ━━━');
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            this.logger.error(`✗ ANPR Module bootstrap failed: ${message}`);
-            throw error;
-        }
+      this.logger.log('━━━ ANPR Module Ready ━━━');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`✗ ANPR Module bootstrap failed: ${message}`);
+      throw error;
     }
+  }
 }

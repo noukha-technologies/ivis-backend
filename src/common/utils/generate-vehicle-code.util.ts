@@ -7,7 +7,10 @@
  * The code is the identity of a vehicle master row, so same type + weight
  * yields the same code (blocked by the unique `code` index → no duplicates).
  */
-export function generateVehicleCode(vehicleType: string, vehicleWeight?: string | null): string {
+export function generateVehicleCode(
+  vehicleType: string,
+  vehicleWeight?: string | null,
+): string {
   const type3 = (vehicleType ?? '')
     .replace(/[^a-zA-Z0-9]/g, '')
     .slice(0, 3)

@@ -45,14 +45,22 @@ export class User implements IUserFields {
   @Column({ name: 'password', type: 'varchar', nullable: true, select: false })
   password!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   role_id!: string;
 
   @ManyToOne(() => Role, { nullable: false })
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   center_id?: string | null;
 
   @ManyToOne(() => Centre, (centre) => centre.assignedUsers, { nullable: true })
@@ -77,7 +85,10 @@ export class User implements IUserFields {
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword(): Promise<void> {
-    if (this.password && !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(this.password)) {
+    if (
+      this.password &&
+      !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(this.password)
+    ) {
       this.password = await bcrypt.hash(this.password, 10);
     }
   }

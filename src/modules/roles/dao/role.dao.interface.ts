@@ -6,7 +6,10 @@ export interface IRoleDao {
   findActiveById(id: string): Promise<Role | null>;
   findActiveByIdWithPermission(id: string): Promise<Role | null>;
   findByRoleName(roleName: string): Promise<Role | null>;
-  findByRoleNameInScope(roleName: string, centreId: string | null): Promise<Role | null>;
+  findByRoleNameInScope(
+    roleName: string,
+    centreId: string | null,
+  ): Promise<Role | null>;
   findByPermissionId(permissionId: string): Promise<Role | null>;
   countActiveUsersByRoleId(roleId: string): Promise<number>;
   findPaginated(

@@ -39,7 +39,10 @@ export class MasterScopeService {
     return centre.id;
   }
 
-  async assertLinesBelongToCentre(lineIds: string[], centreId: string): Promise<void> {
+  async assertLinesBelongToCentre(
+    lineIds: string[],
+    centreId: string,
+  ): Promise<void> {
     if (!lineIds.length) {
       return;
     }
@@ -57,28 +60,42 @@ export class MasterScopeService {
     }
   }
 
-  async assertLineHasNoCamera(lineId: string, excludeCameraId?: string): Promise<void> {
+  async assertLineHasNoCamera(
+    lineId: string,
+    excludeCameraId?: string,
+  ): Promise<void> {
     const existing = await this.cameraDao.findActiveByLineId(lineId);
     if (existing && existing.id !== excludeCameraId) {
       throw new DuplicateResourceException('Camera', 'line_id', lineId);
     }
   }
 
-  async assertLineHasNoAdminPc(lineId: string, excludeAdminPcId?: string): Promise<void> {
+  async assertLineHasNoAdminPc(
+    lineId: string,
+    excludeAdminPcId?: string,
+  ): Promise<void> {
     await this.assertLinesHaveNoAdminPc([lineId], excludeAdminPcId);
   }
 
-  async assertLinesHaveNoAdminPc(lineIds: string[], excludeAdminPcId?: string): Promise<void> {
+  async assertLinesHaveNoAdminPc(
+    lineIds: string[],
+    excludeAdminPcId?: string,
+  ): Promise<void> {
     if (!lineIds.length) {
       return;
     }
 
-    const conflicts = await this.adminPcLineMappingDao.findActiveByLineIds(lineIds);
+    const conflicts =
+      await this.adminPcLineMappingDao.findActiveByLineIds(lineIds);
     for (const mapping of conflicts) {
       if (excludeAdminPcId && mapping.admin_pc_id === excludeAdminPcId) {
         continue;
       }
-      throw new DuplicateResourceException('AdminPc', 'line_id', mapping.line_id);
+      throw new DuplicateResourceException(
+        'AdminPc',
+        'line_id',
+        mapping.line_id,
+      );
     }
   }
 

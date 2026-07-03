@@ -1,6 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { PaginationQueryDto, SortOrder } from '../../dto/pagination.dto';
-import { PaginatedResult, PaginationResponse } from '../../interfaces/pagination.interface';
+import {
+  PaginatedResult,
+  PaginationResponse,
+} from '../../interfaces/pagination.interface';
 import { QueryFilter } from '../filter/filter.dto';
 import { TypeOrmPaginationOptions } from './typeorm-pagination.service';
 import { RelationJoin } from './relation-join.util';
@@ -14,7 +17,10 @@ export type EntityPaginationConfig = {
   joinRelations?: RelationJoin[];
 };
 
-export function parseQueryFilters(query: PaginationQueryDto, searchFields: string[] = []): QueryFilter[] {
+export function parseQueryFilters(
+  query: PaginationQueryDto,
+  searchFields: string[] = [],
+): QueryFilter[] {
   const filters: QueryFilter[] = [];
 
   if (query.search?.trim() && searchFields.length > 0) {
@@ -29,7 +35,9 @@ export function parseQueryFilters(query: PaginationQueryDto, searchFields: strin
     try {
       const parsed: unknown = JSON.parse(query.filters);
       if (!Array.isArray(parsed)) {
-        throw new BadRequestException('filters must be a JSON array of QueryFilter objects');
+        throw new BadRequestException(
+          'filters must be a JSON array of QueryFilter objects',
+        );
       }
       filters.push(...(parsed as QueryFilter[]));
     } catch (error) {
@@ -66,7 +74,10 @@ export function parseSort(
   return { [sortBy]: direction };
 }
 
-export function buildTypeOrmPaginationOptions<Entity, K>(query: PaginationQueryDto, config: EntityPaginationConfig): TypeOrmPaginationOptions<Entity, K> {
+export function buildTypeOrmPaginationOptions<Entity, K>(
+  query: PaginationQueryDto,
+  config: EntityPaginationConfig,
+): TypeOrmPaginationOptions<Entity, K> {
   const page = query.page ?? 1;
   const limit = query.limit ?? 10;
   const skip = (page - 1) * limit;
@@ -82,8 +93,11 @@ export function buildTypeOrmPaginationOptions<Entity, K>(query: PaginationQueryD
   };
 }
 
-export function toPaginatedResult<T>(response: PaginationResponse<T>): PaginatedResult<T> {
-  const page = response.limit > 0 ? Math.floor(response.skip / response.limit) + 1 : 1;
+export function toPaginatedResult<T>(
+  response: PaginationResponse<T>,
+): PaginatedResult<T> {
+  const page =
+    response.limit > 0 ? Math.floor(response.skip / response.limit) + 1 : 1;
 
   return {
     data: response.items,

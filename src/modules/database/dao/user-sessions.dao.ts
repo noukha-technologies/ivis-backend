@@ -8,7 +8,10 @@ import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneratio
 import { UserSession } from '../entity/user-session.entity';
 
 @Injectable()
-export class UserSessionsDao extends Repository<UserSession> implements IUserSessionDao {
+export class UserSessionsDao
+  extends Repository<UserSession>
+  implements IUserSessionDao
+{
   constructor(private readonly dataSource: DataSource) {
     super(UserSession, dataSource.createEntityManager());
   }
@@ -70,14 +73,20 @@ export class UserSessionsDao extends Repository<UserSession> implements IUserSes
     });
   }
 
-  async deactivateSession(userId: string, accessTokenJti: string): Promise<void> {
+  async deactivateSession(
+    userId: string,
+    accessTokenJti: string,
+  ): Promise<void> {
     await this.update(
       { user_id: userId, access_token_jti: accessTokenJti },
       { is_active: false },
     );
   }
 
-  async deleteUserSession(userId: string, accessTokenJti: string): Promise<void> {
+  async deleteUserSession(
+    userId: string,
+    accessTokenJti: string,
+  ): Promise<void> {
     await this.deactivateSession(userId, accessTokenJti);
   }
 

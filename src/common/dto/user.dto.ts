@@ -10,23 +10,31 @@ import {
   Validate,
   ValidateIf,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
-import { normalizeUserCode } from '../utils/normalize-user-code.util.js';
 import {
-  UserCentreLinePairConstraint,
-} from '../validators/user-centre-line.validator.js';
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
+import { normalizeUserCode } from '../utils/normalize-user-code.util.js';
+import { UserCentreLinePairConstraint } from '../validators/user-centre-line.validator.js';
 
 export class CreateUserDto {
   @ApiProperty({
     description: 'Unique user code (spaces are stripped on save)',
     example: 'IV-01',
   })
-  @Transform(({ value }) => (typeof value === 'string' ? normalizeUserCode(value) : value))
+  @Transform(({ value }) =>
+    typeof value === 'string' ? normalizeUserCode(value) : value,
+  )
   @IsString({ message: 'user_code must be a string' })
   @IsNotEmpty({ message: 'user_code is required' })
   user_code!: string;
 
-  @ApiProperty({ description: 'Full name (alphabets only)', example: 'Ahmed Al Said' })
+  @ApiProperty({
+    description: 'Full name (alphabets only)',
+    example: 'Ahmed Al Said',
+  })
   @IsString({ message: 'user_name must be a string' })
   @IsNotEmpty({ message: 'user_name is required' })
   @Matches(/^[A-Za-z\s'-]+$/, {
@@ -34,7 +42,10 @@ export class CreateUserDto {
   })
   user_name!: string;
 
-  @ApiProperty({ description: 'Email address (must be unique)', example: 'john.doe@example.com' })
+  @ApiProperty({
+    description: 'Email address (must be unique)',
+    example: 'john.doe@example.com',
+  })
   @IsEmail({}, { message: 'email must be a valid email address' })
   @IsNotEmpty({ message: 'email is required' })
   email!: string;
@@ -83,7 +94,12 @@ export class CreateUserDto {
 }
 
 export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['password', 'center_id', 'line_id', 'line_ids'] as const),
+  OmitType(CreateUserDto, [
+    'password',
+    'center_id',
+    'line_id',
+    'line_ids',
+  ] as const),
 ) {
   @ValidateIf(
     (dto: UpdateUserDto) =>

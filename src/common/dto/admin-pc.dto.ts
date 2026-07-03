@@ -39,13 +39,13 @@ export class CreateAdminPcDto {
   })
   name!: string;
 
-  @ApiProperty({
-    description: 'Unique code (alphanumeric)',
-    example: 'MCTRECP01',
+  @ApiPropertyOptional({
+    description: 'Unique code (alphanumeric, auto-generated if omitted)',
+    example: 'APC001',
   })
   @IsString({ message: 'code must be a string' })
-  @IsNotEmpty({ message: 'code is required' })
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @ApiProperty({
     description: 'IPv4 address in xxx.xxx.xxx.xxx format',
@@ -81,6 +81,14 @@ export class CreateAdminPcDto {
   @IsArray({ message: 'line_ids must be an array' })
   @IsString({ each: true, message: 'each line_id must be a string' })
   line_ids?: string[];
+
+  @ApiPropertyOptional({
+    description: 'Associated Center snowflake ID (master.centres.id)',
+    example: '2058858609483202560',
+  })
+  @IsString({ message: 'center_id must be a string' })
+  @IsOptional()
+  center_id?: string;
 
   @ApiPropertyOptional({
     description: 'IN-file folder path (generated IN files)',

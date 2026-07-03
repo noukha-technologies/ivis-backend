@@ -5,7 +5,10 @@ import { UserLineMapping } from '../entity/user-line-mapping.entity';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 
 @Injectable()
-export class UserLineMappingDao extends Repository<UserLineMapping> implements IUserLineMappingDao {
+export class UserLineMappingDao
+  extends Repository<UserLineMapping>
+  implements IUserLineMappingDao
+{
   constructor(private readonly dataSource: DataSource) {
     super(UserLineMapping, dataSource.createEntityManager());
   }
@@ -18,8 +21,14 @@ export class UserLineMappingDao extends Repository<UserLineMapping> implements I
     });
   }
 
-  async replaceForUser(userId: string, lineIds: string[], createdBy?: string): Promise<void> {
-    const uniqueLineIds = [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+  async replaceForUser(
+    userId: string,
+    lineIds: string[],
+    createdBy?: string,
+  ): Promise<void> {
+    const uniqueLineIds = [
+      ...new Set(lineIds.map((id) => id.trim()).filter(Boolean)),
+    ];
 
     await this.dataSource.transaction(async (manager) => {
       await manager.update(
@@ -51,10 +60,18 @@ export class UserLineMappingDao extends Repository<UserLineMapping> implements I
    * desired set — inserts the added ones, soft-deletes the removed ones, and
    * leaves unchanged mappings intact (preserving their created_at / created_by).
    */
-  async syncForUser(userId: string, lineIds: string[], createdBy?: string): Promise<void> {
-    const desired = [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+  async syncForUser(
+    userId: string,
+    lineIds: string[],
+    createdBy?: string,
+  ): Promise<void> {
+    const desired = [
+      ...new Set(lineIds.map((id) => id.trim()).filter(Boolean)),
+    ];
 
-    const existing = await this.find({ where: { user_id: userId, is_deleted: false } });
+    const existing = await this.find({
+      where: { user_id: userId, is_deleted: false },
+    });
     const existingByLine = new Set(existing.map((m) => m.line_id));
     const desiredSet = new Set(desired);
 
@@ -89,7 +106,10 @@ export class UserLineMappingDao extends Repository<UserLineMapping> implements I
   }
 
   async softDeleteByUserId(userId: string): Promise<void> {
-    await this.update({ user_id: userId, is_deleted: false }, { is_deleted: true });
+    await this.update(
+      { user_id: userId, is_deleted: false },
+      { is_deleted: true },
+    );
   }
 
   async findActiveByLineIds(lineIds: string[]): Promise<UserLineMapping[]> {

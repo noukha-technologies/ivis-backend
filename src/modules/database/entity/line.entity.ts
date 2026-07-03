@@ -33,7 +33,11 @@ export class Line implements ILineMasterFields {
   @Index('IDX_LINE_CODE', { unique: true, where: '"is_deleted" = false' })
   code!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   @Index('IDX_LINE_CENTRE_ID')
   centre_id!: string;
 

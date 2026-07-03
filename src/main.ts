@@ -21,13 +21,18 @@ const isDevelopment: boolean = NODE_ENV === 'development';
 const isProduction: boolean = NODE_ENV === 'production';
 const port: number = Number(process.env.PORT);
 const apiPrefix: string = process.env.API_PREFIX ?? '';
-const corsOrigins: string[] = process.env.CORS_ORIGINS?.split(',').map((origin) => origin.trim()).filter(Boolean) || [];
+const corsOrigins: string[] =
+  process.env.CORS_ORIGINS?.split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean) || [];
 
 async function bootstrap() {
   const bootstrapLogger = new AppLogger();
 
   try {
-    const app = await NestFactory.create<NestExpressApplication>(AppModule, { bufferLogs: true });
+    const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+      bufferLogs: true,
+    });
     useContainer(app.select(AppModule), { fallbackOnErrors: true });
     const logger = app.get(AppLogger);
     app.useLogger(logger);
@@ -54,7 +59,10 @@ async function bootstrap() {
     );
 
     app.enableCors({
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      origin: (
+        origin: string | undefined,
+        callback: (err: Error | null, allow?: boolean) => void,
+      ) => {
         if (!origin) {
           callback(null, true);
           return;
@@ -76,11 +84,15 @@ async function bootstrap() {
     const configService = app.get(ConfigService);
 
     if (isDevelopment || configService.get<boolean>('swagger.enabled')) {
-      const swaggerTitle = configService.get<string>('swagger.title') || 'API Documentation';
+      const swaggerTitle =
+        configService.get<string>('swagger.title') || 'API Documentation';
       const swaggerDesc =
-        configService.get<string>('swagger.description') || 'API Endpoints Documentation';
-      const swaggerVersion = configService.get<string>('swagger.version') || '1.0.0';
-      const swaggerPath = configService.get<string>('swagger.path') || 'api/docs';
+        configService.get<string>('swagger.description') ||
+        'API Endpoints Documentation';
+      const swaggerVersion =
+        configService.get<string>('swagger.version') || '1.0.0';
+      const swaggerPath =
+        configService.get<string>('swagger.path') || 'api/docs';
 
       const document = SwaggerModule.createDocument(
         app,
@@ -119,7 +131,10 @@ async function bootstrap() {
         customCss: '.swagger-ui .topbar { display: none }',
       });
 
-      logger.log(`Swagger: http://localhost:${port}/${swaggerPath}`, 'Bootstrap');
+      logger.log(
+        `Swagger: http://localhost:${port}/${swaggerPath}`,
+        'Bootstrap',
+      );
     } else if (isProduction) {
       logger.log('Swagger disabled in production', 'Bootstrap');
     }
@@ -151,7 +166,11 @@ async function bootstrap() {
       process.exit(1);
     });
   } catch (error) {
-    bootstrapLogger.error('Failed to bootstrap application', String(error), 'Bootstrap');
+    bootstrapLogger.error(
+      'Failed to bootstrap application',
+      String(error),
+      'Bootstrap',
+    );
     process.exit(1);
   }
 }

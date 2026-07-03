@@ -6,7 +6,7 @@ import { ErrorException } from '../common/errors/custom-error.exception';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) { }
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
@@ -17,10 +17,10 @@ export class PermissionsGuard implements CanActivate {
       return true;
     }
 
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>('permissions', [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(
+      'permissions',
+      [context.getHandler(), context.getClass()],
+    );
 
     if (!requiredPermissions?.length) {
       return true;
@@ -35,7 +35,10 @@ export class PermissionsGuard implements CanActivate {
     );
 
     if (!hasPermission) {
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Insufficient permissions');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'Insufficient permissions',
+      );
     }
 
     return true;

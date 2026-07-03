@@ -20,7 +20,10 @@ import {
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateCentreDto, UpdateCentreDto } from '../../../common/dto/centre.dto';
+import {
+  CreateCentreDto,
+  UpdateCentreDto,
+} from '../../../common/dto/centre.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { CentreService } from './services/centre.service';
 
@@ -44,7 +47,9 @@ export class CentreController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all centres (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all centres (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({

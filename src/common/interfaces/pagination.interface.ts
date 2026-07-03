@@ -42,7 +42,9 @@ export type PageableCollection<T = unknown> = {
     options: Record<string, unknown>,
   ) => Promise<T[]>;
   countDocuments: (query: FilterQueryDocument) => Promise<number>;
-  aggregate: (pipeline: Record<string, unknown>[]) => Promise<AggregateFacetResult[]>;
+  aggregate: (
+    pipeline: Record<string, unknown>[],
+  ) => Promise<AggregateFacetResult[]>;
 };
 
 type AggregateFacetResult = {

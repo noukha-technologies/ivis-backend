@@ -28,8 +28,13 @@ export class AppointmentController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create appointment (syncs customer from ANPR/ROP when linked)' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateAppointmentDto) {
+  @ApiOperation({
+    summary: 'Create appointment (syncs customer from ANPR/ROP when linked)',
+  })
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreateAppointmentDto,
+  ) {
     const data = await this.appointmentService.create(createDto, actor);
     return { message: 'Appointment created successfully', data };
   }
@@ -45,7 +50,10 @@ export class AppointmentController {
   }
 
   @Get('plate-lookup')
-  @ApiOperation({ summary: 'Resolve known vehicle/customer details by plate (walk-in auto-fill)' })
+  @ApiOperation({
+    summary:
+      'Resolve known vehicle/customer details by plate (walk-in auto-fill)',
+  })
   @ApiQuery({ name: 'plate', required: true, type: String })
   async lookupByPlate(@Query('plate') plate: string) {
     const data = await this.appointmentService.resolveByPlate(plate);

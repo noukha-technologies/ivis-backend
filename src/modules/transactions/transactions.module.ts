@@ -5,19 +5,18 @@ import { CustomerModule } from './customers/customer.module';
 import { AnprCaptureModule } from './anpr-captures/anpr-capture.module';
 import { RopVerificationModule } from './rop-verifications/rop-verification.module';
 @Module({
-    imports: [
-        DatabaseModule,
-        AnprCaptureModule,
-        RopVerificationModule,
-        CustomerModule,
-        PaymentsModule,
-    ],
-    exports: [
-        AnprCaptureModule,
-        RopVerificationModule,
-        CustomerModule,
-        PaymentsModule,
-    ],
+  imports: [
+    DatabaseModule,
+    AnprCaptureModule,
+    RopVerificationModule,
+    CustomerModule,
+    PaymentsModule,
+  ],
+  exports: [
+    AnprCaptureModule,
+    RopVerificationModule,
+    CustomerModule,
+    PaymentsModule,
+  ],
 })
-
-export class TransactionsModule { }
+export class TransactionsModule {}

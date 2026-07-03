@@ -39,15 +39,28 @@ export class CentreDao extends Repository<Centre> implements ICentreDao {
     return this.findOne({ where: { centre_id: centreId, is_deleted: false } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Centre>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Centre>> {
     const options = buildTypeOrmPaginationOptions<Centre, Centre>(query, {
       searchFields: ['name', 'code', 'status'],
-      allowedSortFields: ['centre_id', 'name', 'code', 'status', 'created_at', 'updated_at'],
+      allowedSortFields: [
+        'centre_id',
+        'name',
+        'code',
+        'status',
+        'created_at',
+        'updated_at',
+      ],
       defaultSort: { created_at: 'DESC' },
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginate(this, 'centre', options);
+    const response = await this.paginationService.paginate(
+      this,
+      'centre',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

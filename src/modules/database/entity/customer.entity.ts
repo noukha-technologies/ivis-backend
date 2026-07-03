@@ -31,7 +31,6 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   id_number?: string;
 
-
   @Column({ type: 'varchar', length: 128, nullable: false })
   owner_name!: string;
 
@@ -44,7 +43,6 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'varchar', length: 32, nullable: true })
   driver_phone_number?: string;
 
-
   @Column({ type: 'varchar', length: 32, nullable: true })
   plate_number?: string;
 
@@ -54,14 +52,16 @@ export class Customer implements ICustomerFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   mulkiya_id?: string;
 
-
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   vehicle_record_id?: string | null;
 
   @ManyToOne(() => VehicleRecord, { nullable: true })
   @JoinColumn({ name: 'vehicle_record_id' })
   vehicleRecord?: VehicleRecord;
-
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

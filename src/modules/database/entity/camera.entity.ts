@@ -48,7 +48,12 @@ export class Camera implements ICameraMasterFields {
   @Column({ type: 'varchar', nullable: true })
   password?: string;
 
-  @Column({ type: 'varchar', nullable: true, enum: ['ftp', 'http'], default: 'ftp' })
+  @Column({
+    type: 'varchar',
+    nullable: true,
+    enum: ['ftp', 'http'],
+    default: 'ftp',
+  })
   integration_method?: string;
 
   @Column({ type: 'varchar', nullable: true })
@@ -91,20 +96,48 @@ export class Camera implements ICameraMasterFields {
   is_deleted!: boolean;
 
   // ─── Compatibility getters for ANPR module (camelCase aliases) ───────────────
-  get cameraCode(): string { return this.code; }
-  get isActive(): boolean { return this.status === 'Active' && !this.is_deleted; }
-  get integrationMethod(): string { return this.integration_method ?? 'http'; }
-  get ftpDirectory(): string | undefined { return this.ftp_directory; }
-  get ipAddress(): string { return this.ip_address; }
-  get isOnline(): boolean { return this.is_online; }
-  set isOnline(val: boolean) { this.is_online = val; }
-  get lastSeenAt(): Date | undefined { return this.last_seen_at; }
-  set lastSeenAt(val: Date | undefined) { this.last_seen_at = val; }
-  get lastEventAt(): Date | undefined { return this.last_event_at; }
-  set lastEventAt(val: Date | undefined) { this.last_event_at = val; }
-  get centreCode(): string | undefined { return undefined; }
-  get laneNumber(): number | null { return null; }
-  get macAddress(): string | null { return null; }
+  get cameraCode(): string {
+    return this.code;
+  }
+  get isActive(): boolean {
+    return this.status === 'Active' && !this.is_deleted;
+  }
+  get integrationMethod(): string {
+    return this.integration_method ?? 'http';
+  }
+  get ftpDirectory(): string | undefined {
+    return this.ftp_directory;
+  }
+  get ipAddress(): string {
+    return this.ip_address;
+  }
+  get isOnline(): boolean {
+    return this.is_online;
+  }
+  set isOnline(val: boolean) {
+    this.is_online = val;
+  }
+  get lastSeenAt(): Date | undefined {
+    return this.last_seen_at;
+  }
+  set lastSeenAt(val: Date | undefined) {
+    this.last_seen_at = val;
+  }
+  get lastEventAt(): Date | undefined {
+    return this.last_event_at;
+  }
+  set lastEventAt(val: Date | undefined) {
+    this.last_event_at = val;
+  }
+  get centreCode(): string | undefined {
+    return undefined;
+  }
+  get laneNumber(): number | null {
+    return null;
+  }
+  get macAddress(): string | null {
+    return null;
+  }
 }
 
 export { Camera as CameraEntity };

@@ -9,11 +9,17 @@ import {
   Min,
 } from 'class-validator';
 import { JOB_SOURCES } from '../enums/job.enums';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreatePaymentsDto {
   @ApiPropertyOptional({
-    description: 'Unique numeric payment transaction identifier (auto-generated if omitted)',
+    description:
+      'Unique numeric payment transaction identifier (auto-generated if omitted)',
     example: 1,
   })
   @IsInt()
@@ -22,7 +28,8 @@ export class CreatePaymentsDto {
   payments_id?: number;
 
   @ApiPropertyOptional({
-    description: 'Existing job snowflake ID — pre-fills customer and vehicle details',
+    description:
+      'Existing job snowflake ID — pre-fills customer and vehicle details',
   })
   @IsOptional()
   @IsString()
@@ -33,12 +40,17 @@ export class CreatePaymentsDto {
   @IsString()
   appointment_id?: string;
 
-  @ApiPropertyOptional({ description: 'Customer snowflake ID (required if job_id not provided)' })
+  @ApiPropertyOptional({
+    description: 'Customer snowflake ID (required if job_id not provided)',
+  })
   @IsOptional()
   @IsString()
   customer_id?: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle record snowflake ID (required if job_id not provided)' })
+  @ApiPropertyOptional({
+    description:
+      'Vehicle record snowflake ID (required if job_id not provided)',
+  })
   @IsOptional()
   @IsString()
   vehicle_record_id?: string;
@@ -69,18 +81,25 @@ export class CreatePaymentsDto {
   camera_id?: string;
 
   @ApiPropertyOptional({
-    description: 'Payment type (mode) master ID from payment_types — Cash / UPI / Card',
+    description:
+      'Payment type (mode) master ID from payment_types — Cash / UPI / Card',
   })
   @IsOptional()
   @IsString()
   payment_type_id?: string;
 
-  @ApiProperty({ description: 'Total amount including VAT (OMR)', example: 26.25 })
+  @ApiProperty({
+    description: 'Total amount including VAT (OMR)',
+    example: 26.25,
+  })
   @IsNumber()
   @Min(0)
   grand_total!: number;
 
-  @ApiPropertyOptional({ description: 'Payment date', example: '2026-05-28T11:00:00.000Z' })
+  @ApiPropertyOptional({
+    description: 'Payment date',
+    example: '2026-05-28T11:00:00.000Z',
+  })
   @IsOptional()
   @IsDateString()
   pay_date?: string;
@@ -93,11 +112,16 @@ export class CreatePaymentsDto {
   @IsBoolean()
   auto_create_job?: boolean;
 
-  @ApiPropertyOptional({ description: 'Job source when auto-creating', enum: JOB_SOURCES })
+  @ApiPropertyOptional({
+    description: 'Job source when auto-creating',
+    enum: JOB_SOURCES,
+  })
   @IsOptional()
   @IsString()
   @IsIn([...JOB_SOURCES])
   job_source?: (typeof JOB_SOURCES)[number];
 }
 
-export class UpdatePaymentsDto extends PartialType(OmitType(CreatePaymentsDto, ['payments_id'] as const)) { }
+export class UpdatePaymentsDto extends PartialType(
+  OmitType(CreatePaymentsDto, ['payments_id'] as const),
+) {}

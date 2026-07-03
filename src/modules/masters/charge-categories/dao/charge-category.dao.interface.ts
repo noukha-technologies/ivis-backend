@@ -4,6 +4,8 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 
 export interface IChargeCategoryDao {
   findActiveById(id: string): Promise<ChargeCategory | null>;
-  findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<ChargeCategory>>;
+  findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<ChargeCategory>>;
   getNextCategoryId(): Promise<number>;
 }

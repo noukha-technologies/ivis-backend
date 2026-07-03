@@ -33,4 +33,4 @@ import { ChargeCategoryModule } from './charge-categories/charge-category.module
     PaymentTypeModule,
   ],
 })
-export class MastersModule { }
+export class MastersModule {}

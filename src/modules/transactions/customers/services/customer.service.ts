@@ -30,8 +30,14 @@ export class CustomerService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createDto: CreateCustomerDto, actor: UserContext): Promise<Customer> {
-    this.logger.log(`Creating customer: ${createDto.owner_name}`, CustomerService.context);
+  async create(
+    createDto: CreateCustomerDto,
+    actor: UserContext,
+  ): Promise<Customer> {
+    this.logger.log(
+      `Creating customer: ${createDto.owner_name}`,
+      CustomerService.context,
+    );
 
     try {
       let customerId = createDto.customer_id;
@@ -40,11 +46,19 @@ export class CustomerService {
       } else {
         const existing = await this.customerDao.findByCustomerId(customerId);
         if (existing) {
-          throw new DuplicateResourceException('Customer', 'customer_id', customerId);
+          throw new DuplicateResourceException(
+            'Customer',
+            'customer_id',
+            customerId,
+          );
         }
       }
 
-      const vehicleRecordId = await this.resolveVehicleRecord(createDto, undefined, actor);
+      const vehicleRecordId = await this.resolveVehicleRecord(
+        createDto,
+        undefined,
+        actor,
+      );
 
       const customer = this.customerDao.create({
         id: generateSnowflakeId(),
@@ -63,7 +77,10 @@ export class CustomerService {
       });
 
       const saved = await this.customerDao.save(customer);
-      this.logger.log(`Customer created with ID: ${saved.id}`, CustomerService.context);
+      this.logger.log(
+        `Customer created with ID: ${saved.id}`,
+        CustomerService.context,
+      );
       return (await this.customerDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
@@ -77,7 +94,9 @@ export class CustomerService {
         (error as Error).stack,
         CustomerService.context,
       );
-      throw new DatabaseException('Failed to create customer. Please try again.');
+      throw new DatabaseException(
+        'Failed to create customer. Please try again.',
+      );
     }
   }
 
@@ -95,7 +114,9 @@ export class CustomerService {
         (error as Error).stack,
         CustomerService.context,
       );
-      throw new DatabaseException('Failed to fetch customers. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch customers. Please try again.',
+      );
     }
   }
 
@@ -117,16 +138,26 @@ export class CustomerService {
         (error as Error).stack,
         CustomerService.context,
       );
-      throw new DatabaseException('Failed to fetch customer. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch customer. Please try again.',
+      );
     }
   }
 
-  async update(id: string, updateDto: UpdateCustomerDto, actor: UserContext): Promise<Customer> {
+  async update(
+    id: string,
+    updateDto: UpdateCustomerDto,
+    actor: UserContext,
+  ): Promise<Customer> {
     this.logger.log(`Updating customer ID: ${id}`, CustomerService.context);
 
     try {
       const customer = await this.findOne(id);
-      const vehicleRecordId = await this.resolveVehicleRecord(updateDto, customer, actor);
+      const vehicleRecordId = await this.resolveVehicleRecord(
+        updateDto,
+        customer,
+        actor,
+      );
 
       const merged = this.customerDao.merge(customer, {
         owner_name: updateDto.owner_name,
@@ -143,7 +174,10 @@ export class CustomerService {
       });
 
       const saved = await this.customerDao.save(merged);
-      this.logger.log(`Customer updated ID: ${saved.id}`, CustomerService.context);
+      this.logger.log(
+        `Customer updated ID: ${saved.id}`,
+        CustomerService.context,
+      );
       return (await this.customerDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
@@ -154,7 +188,9 @@ export class CustomerService {
         (error as Error).stack,
         CustomerService.context,
       );
-      throw new DatabaseException('Failed to update customer. Please try again.');
+      throw new DatabaseException(
+        'Failed to update customer. Please try again.',
+      );
     }
   }
 
@@ -165,7 +201,10 @@ export class CustomerService {
       const customer = await this.findOne(id);
       customer.is_deleted = true;
       await this.customerDao.save(customer);
-      this.logger.log(`Customer soft-deleted ID: ${id}`, CustomerService.context);
+      this.logger.log(
+        `Customer soft-deleted ID: ${id}`,
+        CustomerService.context,
+      );
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -175,7 +214,9 @@ export class CustomerService {
         (error as Error).stack,
         CustomerService.context,
       );
-      throw new DatabaseException('Failed to delete customer. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete customer. Please try again.',
+      );
     }
   }
 
@@ -189,7 +230,10 @@ export class CustomerService {
         dto.vehicle_record_id,
       );
       if (!vehicleRecord) {
-        throw new ResourceNotFoundException('VehicleRecord', dto.vehicle_record_id);
+        throw new ResourceNotFoundException(
+          'VehicleRecord',
+          dto.vehicle_record_id,
+        );
       }
       return dto.vehicle_record_id;
     }
@@ -199,7 +243,8 @@ export class CustomerService {
     }
 
     const normalizedPlate = dto.plate_number.trim();
-    let vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(normalizedPlate);
+    let vehicleRecord =
+      await this.vehicleRecordDao.findByPlateNumber(normalizedPlate);
 
     if (vehicleRecord) {
       if (dto.plate_color) {
@@ -212,7 +257,9 @@ export class CustomerService {
     }
 
     if (!actor) {
-      throw new DatabaseException('Authenticated user is required to create a vehicle record.');
+      throw new DatabaseException(
+        'Authenticated user is required to create a vehicle record.',
+      );
     }
     const createdRecord = await this.createVehicleRecordFromPlate(
       normalizedPlate,
@@ -227,7 +274,8 @@ export class CustomerService {
     plateColor: string | undefined,
     actor: UserContext,
   ): Promise<VehicleRecord> {
-    const vehicleRecordId = await this.vehicleRecordDao.getNextVehicleRecordId();
+    const vehicleRecordId =
+      await this.vehicleRecordDao.getNextVehicleRecordId();
     const vehicleRecord = this.vehicleRecordDao.create({
       id: generateSnowflakeId(),
       vehicle_record_id: vehicleRecordId,

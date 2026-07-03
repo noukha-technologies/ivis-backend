@@ -28,7 +28,7 @@ export function resolveUserLineIds(dto: CentreLineInput): string[] {
 @ValidatorConstraint({ name: 'userCreateCentreLine', async: false })
 export class UserCreateCentreLineConstraint implements ValidatorConstraintInterface {
   validate(_: unknown, args: ValidationArguments): boolean {
-    return resolveUserLineIds(args.object as CentreLineInput).length > 0;
+    return resolveUserLineIds(args.object).length > 0;
   }
 
   defaultMessage(): string {
@@ -41,7 +41,8 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
   validate(_: unknown, args: ValidationArguments): boolean {
     const dto = args.object as CentreLineInput;
     const hasCentreField = dto.center_id !== undefined;
-    const hasLinesField = dto.line_ids !== undefined || dto.line_id !== undefined;
+    const hasLinesField =
+      dto.line_ids !== undefined || dto.line_id !== undefined;
 
     if (!hasCentreField && !hasLinesField) {
       return true;
@@ -58,7 +59,8 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
       return false;
     }
 
-    const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
+    const centerId =
+      typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
 
     // Structural invariant only: a line can't be assigned without a centre.
@@ -85,7 +87,8 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
       return 'each line_id must be a string';
     }
 
-    const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
+    const centerId =
+      typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
 
     if (!centerId && lineIds.length > 0) {

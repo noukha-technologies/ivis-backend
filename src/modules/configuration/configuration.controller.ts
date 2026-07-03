@@ -29,7 +29,10 @@ export class ConfigurationController {
   @Put()
   @Permissions(PermissionKeys.CONFIGURATION_UPSERT)
   @ApiOperation({ summary: 'Create or update a centre configuration' })
-  async upsert(@CurrentUser() actor: UserContext, @Body() dto: CreateConfigurationDto) {
+  async upsert(
+    @CurrentUser() actor: UserContext,
+    @Body() dto: CreateConfigurationDto,
+  ) {
     const data = await this.configurationService.upsert(dto, actor);
     return { message: 'Configuration saved successfully', data };
   }
@@ -43,7 +46,11 @@ export class ConfigurationController {
     @Param('centreId', ParseSnowflakeIdPipe) centreId: string,
     @Body() dto: UpdateConfigurationDto,
   ) {
-    const data = await this.configurationService.updateByCentre(centreId, dto, actor);
+    const data = await this.configurationService.updateByCentre(
+      centreId,
+      dto,
+      actor,
+    );
     return { message: 'Configuration saved successfully', data };
   }
 }

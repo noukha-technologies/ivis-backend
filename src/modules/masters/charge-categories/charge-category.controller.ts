@@ -20,7 +20,10 @@ import {
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateChargeCategoryDto, UpdateChargeCategoryDto } from '../../../common/dto/charge-category.dto';
+import {
+  CreateChargeCategoryDto,
+  UpdateChargeCategoryDto,
+} from '../../../common/dto/charge-category.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ChargeCategoryService } from './service/charge-category.service';
 
@@ -32,7 +35,10 @@ export class ChargeCategoryController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new charge category' })
-  @ApiResponse({ status: 201, description: 'Charge category created successfully.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Charge category created successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   async create(
     @CurrentUser() actor: UserContext,
@@ -43,7 +49,9 @@ export class ChargeCategoryController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all charge categories (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all charge categories (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -59,17 +67,26 @@ export class ChargeCategoryController {
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a charge category by snowflake ID' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Charge category retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Charge category retrieved successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Charge category not found.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const category = await this.chargeCategoryService.findOne(id);
-    return { message: 'Charge category retrieved successfully', data: category };
+    return {
+      message: 'Charge category retrieved successfully',
+      data: category,
+    };
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a charge category' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Charge category updated successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Charge category updated successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Charge category not found.' })
   async update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
@@ -82,7 +99,10 @@ export class ChargeCategoryController {
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a charge category' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Charge category deleted successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Charge category deleted successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Charge category not found.' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.chargeCategoryService.remove(id);

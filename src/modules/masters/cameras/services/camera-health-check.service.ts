@@ -12,7 +12,7 @@ export class CameraHealthCheckService {
   constructor(
     private readonly cameraDao: CameraDao,
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
   async pingCamera(ip: string): Promise<boolean> {
     try {
@@ -22,7 +22,10 @@ export class CameraHealthCheckService {
           const parsed = new URL(targetIp);
           targetIp = parsed.hostname;
         } catch {
-          targetIp = targetIp.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
+          targetIp = targetIp
+            .replace(/^https?:\/\//i, '')
+            .split('/')[0]
+            .split(':')[0];
         }
       } else if (targetIp.includes(':')) {
         targetIp = targetIp.split(':')[0];
@@ -30,7 +33,10 @@ export class CameraHealthCheckService {
       const res = await ping.promise.probe(targetIp, { timeout: 2 });
       return res.alive;
     } catch (error) {
-      this.logger.log(`Ping failed for ${ip}: ${error}`, CameraHealthCheckService.context);
+      this.logger.log(
+        `Ping failed for ${ip}: ${error}`,
+        CameraHealthCheckService.context,
+      );
       return false;
     }
   }
@@ -62,7 +68,10 @@ export class CameraHealthCheckService {
     return this.buildHealthPayload(camera, pingOk);
   }
 
-  private buildHealthPayload(camera: Camera, pingOk: boolean): FullHealthCheckResult {
+  private buildHealthPayload(
+    camera: Camera,
+    pingOk: boolean,
+  ): FullHealthCheckResult {
     return {
       camera: {
         id: camera.id,
@@ -83,7 +92,9 @@ export class CameraHealthCheckService {
     };
   }
 
-  async performFullHealthCheck(cameraId: string): Promise<FullHealthCheckResult | null> {
+  async performFullHealthCheck(
+    cameraId: string,
+  ): Promise<FullHealthCheckResult | null> {
     const camera = await this.cameraDao.findActiveById(cameraId);
     if (!camera) {
       return null;
@@ -104,7 +115,8 @@ export class CameraHealthCheckService {
 
     // Only cameras whose ping interval has elapsed are due this sweep.
     const due = cameras.filter((camera) => {
-      const intervalMs = Math.max(10, camera.health_ping_interval_seconds ?? 30) * 1000;
+      const intervalMs =
+        Math.max(10, camera.health_ping_interval_seconds ?? 30) * 1000;
       const lastCheck = camera.last_health_check?.getTime() ?? 0;
       return now - lastCheck >= intervalMs;
     });
@@ -115,9 +127,13 @@ export class CameraHealthCheckService {
 
     // Ping every due camera in parallel — a slow/offline camera (up to the 2s
     // timeout) never blocks the others, so a whole centre is swept at once.
-    const results = await Promise.allSettled(due.map((camera) => this.pingCheck(camera)));
+    const results = await Promise.allSettled(
+      due.map((camera) => this.pingCheck(camera)),
+    );
 
-    const online = results.filter((r) => r.status === 'fulfilled' && r.value).length;
+    const online = results.filter(
+      (r) => r.status === 'fulfilled' && r.value,
+    ).length;
     this.logger.log(
       `[Camera Health] Checked ${due.length} camera(s) → ${online} online, ${due.length - online} offline`,
       CameraHealthCheckService.context,
@@ -212,9 +228,12 @@ export class CameraHealthCheckService {
   }
 
   getHealthRecommendation(healthStatus: string): string {
-    if (healthStatus === 'ONLINE') return 'Camera is operating normally. No action required.';
-    if (healthStatus === 'OFFLINE') return 'Camera is OFFLINE. Check power and network; verify IP.';
-    if (healthStatus === 'NOT_REACHABLE') return 'Camera is NOT REACHABLE. Check initial network configuration.';
+    if (healthStatus === 'ONLINE')
+      return 'Camera is operating normally. No action required.';
+    if (healthStatus === 'OFFLINE')
+      return 'Camera is OFFLINE. Check power and network; verify IP.';
+    if (healthStatus === 'NOT_REACHABLE')
+      return 'Camera is NOT REACHABLE. Check initial network configuration.';
     return 'Health status unknown or disconnected. Run a health check.';
   }
 

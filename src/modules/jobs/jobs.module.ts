@@ -7,7 +7,12 @@ import { OutfileWatcherService } from './services/outfile-watcher.service';
 
 @Module({
   controllers: [JobController],
-  providers: [JobService, JobIntakeService, InfileGeneratorService, OutfileWatcherService],
+  providers: [
+    JobService,
+    JobIntakeService,
+    InfileGeneratorService,
+    OutfileWatcherService,
+  ],
   exports: [JobService],
 })
 export class JobsModule {}

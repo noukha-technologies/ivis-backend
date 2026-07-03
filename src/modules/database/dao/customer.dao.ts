@@ -40,13 +40,17 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
     });
   }
 
-  async findByVehicleRecordId(vehicleRecordId: string): Promise<Customer | null> {
+  async findByVehicleRecordId(
+    vehicleRecordId: string,
+  ): Promise<Customer | null> {
     return this.findOne({
       where: { vehicle_record_id: vehicleRecordId, is_deleted: false },
     });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Customer>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Customer>> {
     const qb = this.createQueryBuilder('customer').leftJoinAndSelect(
       'customer.vehicleRecord',
       'vehicleRecord',
@@ -77,7 +81,11 @@ export class CustomerDao extends Repository<Customer> implements ICustomerDao {
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'customer', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'customer',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

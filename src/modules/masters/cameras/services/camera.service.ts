@@ -1,9 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { DatabaseException, DuplicateResourceException, ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
+import {
+  DatabaseException,
+  DuplicateResourceException,
+  ResourceNotFoundException,
+} from '../../../../common/exceptions/custom.exception';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
-import { CreateCameraDto, UpdateCameraDto } from '../../../../common/dto/camera.dto';
+import {
+  CreateCameraDto,
+  UpdateCameraDto,
+} from '../../../../common/dto/camera.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 
 import { Camera } from '../../../database/entity/camera.entity';
@@ -22,7 +29,10 @@ function cleanIpAddress(ip: string): string {
       const parsed = new URL(trimmed);
       return parsed.hostname;
     } catch {
-      return trimmed.replace(/^https?:\/\//i, '').split('/')[0].split(':')[0];
+      return trimmed
+        .replace(/^https?:\/\//i, '')
+        .split('/')[0]
+        .split(':')[0];
     }
   }
   return trimmed.split(':')[0];
@@ -36,15 +46,27 @@ export class CameraService {
     private readonly logger: AppLogger,
     private readonly cameraDao: CameraDao,
     private readonly masterScope: MasterScopeService,
-  ) { }
+  ) {}
 
-  async create(createCameraDto: CreateCameraDto, actor: UserContext): Promise<Camera> {
-    this.logger.log(`Creating Camera with code: ${createCameraDto.code}`, CameraService.context);
+  async create(
+    createCameraDto: CreateCameraDto,
+    actor: UserContext,
+  ): Promise<Camera> {
+    this.logger.log(
+      `Creating Camera with code: ${createCameraDto.code}`,
+      CameraService.context,
+    );
 
     try {
-      const existingCode = await this.cameraDao.findByCode(createCameraDto.code);
+      const existingCode = await this.cameraDao.findByCode(
+        createCameraDto.code,
+      );
       if (existingCode) {
-        throw new DuplicateResourceException('Camera', 'code', createCameraDto.code);
+        throw new DuplicateResourceException(
+          'Camera',
+          'code',
+          createCameraDto.code,
+        );
       }
 
       let camera_id = createCameraDto.camera_id;
@@ -53,7 +75,11 @@ export class CameraService {
       } else {
         const existingId = await this.cameraDao.findByCameraId(camera_id);
         if (existingId) {
-          throw new DuplicateResourceException('Camera', 'camera_id', camera_id);
+          throw new DuplicateResourceException(
+            'Camera',
+            'camera_id',
+            camera_id,
+          );
         }
       }
 
@@ -70,7 +96,10 @@ export class CameraService {
       });
       const savedCamera = await this.cameraDao.save(camera);
 
-      this.logger.log(`Camera created with ID: ${savedCamera.id}`, CameraService.context);
+      this.logger.log(
+        `Camera created with ID: ${savedCamera.id}`,
+        CameraService.context,
+      );
       return savedCamera;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
@@ -81,12 +110,17 @@ export class CameraService {
         (error as Error).stack,
         CameraService.context,
       );
-      throw new DatabaseException('Failed to create Camera record. Please try again.');
+      throw new DatabaseException(
+        'Failed to create Camera record. Please try again.',
+      );
     }
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Camera>> {
-    this.logger.log(`Fetching Cameras — page: ${query.page}, limit: ${query.limit}`, CameraService.context);
+    this.logger.log(
+      `Fetching Cameras — page: ${query.page}, limit: ${query.limit}`,
+      CameraService.context,
+    );
 
     try {
       return await this.cameraDao.findPaginated(query);
@@ -96,7 +130,9 @@ export class CameraService {
         (error as Error).stack,
         CameraService.context,
       );
-      throw new DatabaseException('Failed to fetch Camera records. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch Camera records. Please try again.',
+      );
     }
   }
 
@@ -118,7 +154,9 @@ export class CameraService {
         (error as Error).stack,
         CameraService.context,
       );
-      throw new DatabaseException('Failed to fetch Camera record. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch Camera record. Please try again.',
+      );
     }
   }
 
@@ -129,29 +167,46 @@ export class CameraService {
       const camera = await this.findOne(id);
 
       if (updateCameraDto.code && updateCameraDto.code !== camera.code) {
-        const existingCode = await this.cameraDao.findByCode(updateCameraDto.code);
+        const existingCode = await this.cameraDao.findByCode(
+          updateCameraDto.code,
+        );
         if (existingCode) {
-          throw new DuplicateResourceException('Camera', 'code', updateCameraDto.code);
+          throw new DuplicateResourceException(
+            'Camera',
+            'code',
+            updateCameraDto.code,
+          );
         }
       }
 
       const targetLineId = updateCameraDto.line_id ?? camera.line_id;
       if (updateCameraDto.line_id) {
         await this.masterScope.assertLineExists(updateCameraDto.line_id);
-        await this.masterScope.assertLineHasNoCamera(updateCameraDto.line_id, id);
+        await this.masterScope.assertLineHasNoCamera(
+          updateCameraDto.line_id,
+          id,
+        );
       }
 
       const mergedCamera = this.cameraDao.merge(camera, {
         ...updateCameraDto,
         line_id: targetLineId,
-        ip_address: updateCameraDto.ip_address ? cleanIpAddress(updateCameraDto.ip_address) : camera.ip_address,
+        ip_address: updateCameraDto.ip_address
+          ? cleanIpAddress(updateCameraDto.ip_address)
+          : camera.ip_address,
       });
       const savedCamera = await this.cameraDao.save(mergedCamera);
 
-      this.logger.log(`Camera updated ID: ${savedCamera.id}`, CameraService.context);
+      this.logger.log(
+        `Camera updated ID: ${savedCamera.id}`,
+        CameraService.context,
+      );
       return savedCamera;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -159,7 +214,9 @@ export class CameraService {
         (error as Error).stack,
         CameraService.context,
       );
-      throw new DatabaseException('Failed to update Camera record. Please try again.');
+      throw new DatabaseException(
+        'Failed to update Camera record. Please try again.',
+      );
     }
   }
 
@@ -180,7 +237,9 @@ export class CameraService {
         (error as Error).stack,
         CameraService.context,
       );
-      throw new DatabaseException('Failed to delete Camera record. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete Camera record. Please try again.',
+      );
     }
   }
 }

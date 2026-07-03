@@ -28,10 +28,13 @@ export class CreateCentreDto {
   })
   name!: string;
 
-  @ApiProperty({ description: 'Centre unique code (alphanumeric)', example: 'CM001' })
+  @ApiPropertyOptional({
+    description: 'Centre code — auto-generated as CM + sequence (e.g. CM001). Ignored if supplied.',
+    example: 'CM001',
+  })
   @IsString({ message: 'code must be a string' })
-  @IsNotEmpty({ message: 'code is required' })
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @ApiPropertyOptional({ description: 'Centre details description', example: 'Main hub' })
   @IsOptional()

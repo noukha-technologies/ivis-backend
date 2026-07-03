@@ -4,6 +4,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min
 } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -26,10 +27,13 @@ export class CreateVehicleDto {
   @IsNotEmpty({ message: 'name is required' })
   name!: string;
 
-  @ApiProperty({ description: 'Unique vehicle type code (alphanumeric)', example: 'VTSEDAN01' })
+  @ApiPropertyOptional({
+    description: 'Vehicle type code — auto-generated from vehicle_type + category weight (e.g. VT-SED-L). Ignored if supplied.',
+    example: 'VT-SED-L',
+  })
   @IsString({ message: 'code must be a string' })
-  @IsNotEmpty({ message: 'code is required' })
-  code!: string;
+  @IsOptional()
+  code?: string;
 
   @ApiProperty({ description: 'Vehicle type details description', example: 'Light sedan vehicle type' })
   @IsString({ message: 'description must be a string' })
@@ -37,26 +41,29 @@ export class CreateVehicleDto {
   description?: string;
 
   @ApiProperty({
-    description: 'Unique 17-character alphanumeric VIN number',
+    description: 'Valid 17-character VIN (letters + digits, excluding I, O, Q)',
     example: 'JN1AZ32E90U123456',
   })
   @IsString({ message: 'vin no must be a string' })
   @IsNotEmpty({ message: 'vin no is required' })
+  @Matches(/^[A-HJ-NPR-Z0-9]{17}$/i, {
+    message: 'VIN must be a valid 17-character VIN (letters and digits, no I, O, Q)',
+  })
   vin_no!: string;
 
-  @ApiPropertyOptional({ description: 'Vehicle body type (free text, stored lowercase)', example: 'sedan' })
-  @IsOptional()
+  @ApiProperty({ description: 'Vehicle body type (free text, stored lowercase)', example: 'sedan' })
   @Transform(({ value }) => normalizeVehicleType(value))
   @IsString({ message: 'vehicle_type must be a string' })
-  vehicle_type?: string;
+  @IsNotEmpty({ message: 'vehicle_type is required' })
+  vehicle_type!: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'Vehicle category — charge_categories master snowflake ID',
     example: '2058858609483202561',
   })
   @IsString({ message: 'charge_category_id must be a string' })
-  @IsOptional()
-  charge_category_id?: string;
+  @IsNotEmpty({ message: 'charge_category_id is required' })
+  charge_category_id!: string;
 
   @ApiPropertyOptional({
     description: 'Vehicle master status',

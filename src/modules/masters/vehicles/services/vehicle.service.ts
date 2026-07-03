@@ -4,11 +4,13 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { generateVehicleCode } from '../../../../common/utils/generate-vehicle-code.util';
 
 import { Vehicle } from '../../../database/entity/vehicle.entity';
 
 import { IVehicleService } from './vehicle.service.interface';
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
+import { ChargeCategoryDao } from '../../../database/dao/charge-category.dao';
 
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
@@ -20,15 +22,37 @@ export class VehicleService implements IVehicleService {
   constructor(
     private readonly logger: AppLogger,
     private readonly vehicleDao: VehicleDao,
+    private readonly chargeCategoryDao: ChargeCategoryDao,
   ) { }
 
+  /**
+   * Resolve the vehicle-type classification code from the vehicle type + the
+   * linked charge category's weight. This code is the identity of the record —
+   * same type + category → same code → blocked by the unique code index.
+   */
+  private async resolveVehicleCode(
+    vehicleType: string,
+    chargeCategoryId: string,
+  ): Promise<string> {
+    const category = await this.chargeCategoryDao.findActiveById(chargeCategoryId);
+    if (!category) {
+      throw new ResourceNotFoundException('ChargeCategory', chargeCategoryId);
+    }
+    return generateVehicleCode(vehicleType, category.vehicle_weight);
+  }
+
   async create(createVehicleDto: CreateVehicleDto, actor: UserContext): Promise<Vehicle> {
-    this.logger.log(`Creating vehicle master with code: ${createVehicleDto.code}`);
+    this.logger.log(`Creating vehicle master: ${createVehicleDto.vehicle_type}`);
 
     try {
-      const existingCode = await this.vehicleDao.findByCode(createVehicleDto.code);
+      // Code is derived from type + category; it is the duplicate key.
+      const code = await this.resolveVehicleCode(
+        createVehicleDto.vehicle_type,
+        createVehicleDto.charge_category_id,
+      );
+      const existingCode = await this.vehicleDao.findByCode(code);
       if (existingCode) {
-        throw new DuplicateResourceException('Vehicle', 'code', createVehicleDto.code);
+        throw new DuplicateResourceException('Vehicle', 'type and category', code);
       }
 
       if (createVehicleDto.vin_no) {
@@ -51,6 +75,7 @@ export class VehicleService implements IVehicleService {
       const vehicle = this.vehicleDao.create({
         id: generateSnowflakeId(),
         ...createVehicleDto,
+        code,
         vehicle_id,
         status: createVehicleDto.status ?? 'Active',
         description: createVehicleDto.description ?? "",
@@ -61,7 +86,10 @@ export class VehicleService implements IVehicleService {
       this.logger.log(`Vehicle master created with ID: ${savedVehicle.id}`);
       return savedVehicle;
     } catch (error) {
-      if (error instanceof DuplicateResourceException) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ResourceNotFoundException
+      ) {
         throw error;
       }
       this.logger.error(`Failed to create vehicle master: ${(error as Error).message}`, (error as Error).stack);
@@ -110,10 +138,17 @@ export class VehicleService implements IVehicleService {
     try {
       const vehicle = await this.findOne(id);
 
-      if (updateVehicleDto.code && updateVehicleDto.code !== vehicle.code) {
-        const existingCode = await this.vehicleDao.findByCode(updateVehicleDto.code);
-        if (existingCode) {
-          throw new DuplicateResourceException('Vehicle', 'code', updateVehicleDto.code);
+      // Recompute the code from the resulting type + category (either may change).
+      const effectiveType = updateVehicleDto.vehicle_type ?? vehicle.vehicle_type ?? '';
+      const effectiveCategoryId =
+        updateVehicleDto.charge_category_id ?? vehicle.charge_category_id ?? '';
+      const code = effectiveCategoryId
+        ? await this.resolveVehicleCode(effectiveType, effectiveCategoryId)
+        : vehicle.code;
+      if (code !== vehicle.code) {
+        const existingCode = await this.vehicleDao.findByCode(code);
+        if (existingCode && existingCode.id !== id) {
+          throw new DuplicateResourceException('Vehicle', 'type and category', code);
         }
       }
 
@@ -124,7 +159,15 @@ export class VehicleService implements IVehicleService {
         }
       }
 
-      const mergedVehicle = this.vehicleDao.merge(vehicle, updateVehicleDto);
+      const mergedVehicle = this.vehicleDao.merge(vehicle, { ...updateVehicleDto, code });
+      // Detach the stale ManyToOne relation so a changed charge_category_id FK
+      // isn't overwritten by the previously-loaded chargeCategory entity on save.
+      if (
+        updateVehicleDto.charge_category_id !== undefined &&
+        updateVehicleDto.charge_category_id !== vehicle.charge_category_id
+      ) {
+        (mergedVehicle as { chargeCategory?: unknown }).chargeCategory = undefined;
+      }
       const savedVehicle = await this.vehicleDao.save(mergedVehicle);
 
       this.logger.log(`Vehicle master updated ID: ${savedVehicle.id}`);

@@ -47,6 +47,13 @@ export class Line implements ILineMasterFields {
   @Column({ type: 'varchar', nullable: true })
   description?: string;
 
+  // Per-line IN/OUT folder paths for file-driven processing.
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  in_file_path?: string | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  out_file_path?: string | null;
+
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
 

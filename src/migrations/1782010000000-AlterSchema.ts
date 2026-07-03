@@ -415,6 +415,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_LINE_CENTRE_ID" ON "master"."lines" ("centre_id")`,
     );
+    // lines: per-line IN/OUT folder paths for file-driven processing
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "in_file_path" varchar(512)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "out_file_path" varchar(512)`,
+    );
 
     // admin_pcs: drop legacy line_id column and add centre_id (migration 1780120000000),
     // then drop centre_id and restore line_id via admin_pc_line_mappings (1780170000000 / 1781174000000)

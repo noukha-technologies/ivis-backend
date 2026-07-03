@@ -17,7 +17,7 @@ import {
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
 import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
-import { DEFAULT_ACCESS_SCOPE } from '../../../common/constants/access-scope';
+import { DEFAULT_ACCESS_SCOPE, isGlobalScope } from '../../../common/constants/access-scope';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
@@ -216,6 +216,12 @@ export class AuthService implements IAuthService {
   }
 
   private async resolveUserPermissions(user: User): Promise<string[]> {
+    // A global-scope role (Super Admin) always has every permission — this keeps
+    // full access correct even for permission keys not surfaced in the matrix.
+    if (isGlobalScope(user.role?.access_scope)) {
+      return [...ALL_PERMISSION_KEYS];
+    }
+
     const access = user.role?.permission?.access;
     if (access && user.role?.permission?.is_active !== false) {
       return resolveFlatPermissionsFromMatrix(access);

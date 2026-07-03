@@ -48,6 +48,16 @@ export class CreateLineDto {
   @IsString({ message: 'description must be a string' })
   description?: string;
 
+  @ApiPropertyOptional({ description: 'Line IN-file folder path', example: '//192.168.10.10/Admin1/Line1/Infolder' })
+  @IsOptional()
+  @IsString({ message: 'in_file_path must be a string' })
+  in_file_path?: string;
+
+  @ApiPropertyOptional({ description: 'Line OUT-file folder path', example: '//192.168.10.10/Admin1/Line1/Outfolder' })
+  @IsOptional()
+  @IsString({ message: 'out_file_path must be a string' })
+  out_file_path?: string;
+
   @ApiPropertyOptional({ description: 'Line status', example: 'Active', enum: ['Active', 'Inactive'] })
   @IsString({ message: 'status must be a string' })
   @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })

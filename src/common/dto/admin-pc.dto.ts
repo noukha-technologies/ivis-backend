@@ -9,7 +9,12 @@ import {
   Min,
   ValidateIf,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreateAdminPcDto {
   @ApiPropertyOptional({
@@ -21,13 +26,23 @@ export class CreateAdminPcDto {
   @IsOptional()
   admin_pc_id?: number;
 
-  @ApiProperty({ description: 'Admin PC name (alphabets only)', example: 'MCT Reception' })
+  @ApiProperty({
+    description:
+      'Admin PC name (letters, numbers, spaces, and hyphens/underscores)',
+    example: 'MCT Reception 01',
+  })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
+  @Matches(/^[A-Za-z0-9\s'_-]+$/, {
+    message:
+      'name must contain only letters, numbers, spaces, and hyphens/underscores',
+  })
   name!: string;
 
-
-  @ApiProperty({ description: 'Unique code (alphanumeric)', example: 'MCTRECP01' })
+  @ApiProperty({
+    description: 'Unique code (alphanumeric)',
+    example: 'MCTRECP01',
+  })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
@@ -38,9 +53,13 @@ export class CreateAdminPcDto {
   })
   @IsString({ message: 'ip address must be a string' })
   @IsNotEmpty({ message: 'ip address is required' })
-  @Matches(/^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/, {
-    message: 'ip_address must be a valid IPv4 address (example: 192.168.10.15)',
-  })
+  @Matches(
+    /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)$/,
+    {
+      message:
+        'ip_address must be a valid IPv4 address (example: 192.168.10.15)',
+    },
+  )
   ip_address!: string;
 
   @ApiProperty({
@@ -53,7 +72,8 @@ export class CreateAdminPcDto {
   line_id!: string;
 
   @ApiPropertyOptional({
-    description: 'Assigned line snowflake IDs (alternative to line_id); supports multiple lines',
+    description:
+      'Assigned line snowflake IDs (alternative to line_id); supports multiple lines',
     example: ['2058858609483202561', '2058858609483202562'],
     type: [String],
   })
@@ -62,28 +82,43 @@ export class CreateAdminPcDto {
   @IsString({ each: true, message: 'each line_id must be a string' })
   line_ids?: string[];
 
-  @ApiPropertyOptional({ description: 'IN-file folder path (generated IN files)', example: '//192.168.10.10/Admin1/Line1/Infolder' })
+  @ApiPropertyOptional({
+    description: 'IN-file folder path (generated IN files)',
+    example: '//192.168.10.10/Admin1/Line1/Infolder',
+  })
   @IsOptional()
   @IsString({ message: 'in_file_path must be a string' })
   in_file_path?: string;
 
-  @ApiPropertyOptional({ description: 'OUT-file folder path (watched for results)', example: '//192.168.10.10/Admin1/Line1/Outfolder' })
+  @ApiPropertyOptional({
+    description: 'OUT-file folder path (watched for results)',
+    example: '//192.168.10.10/Admin1/Line1/Outfolder',
+  })
   @IsOptional()
   @IsString({ message: 'out_file_path must be a string' })
   out_file_path?: string;
 
-  @ApiPropertyOptional({ description: 'Description details', example: 'Reception PC' })
+  @ApiPropertyOptional({
+    description: 'Description details',
+    example: 'Reception PC',
+  })
   @IsOptional()
   @IsString({ message: 'description must be a string' })
   description?: string;
 
-  @ApiPropertyOptional({ description: 'PC status', example: 'Active', enum: ['Active', 'Inactive'] })
+  @ApiPropertyOptional({
+    description: 'PC status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   @IsOptional()
   status?: string;
 }
 
 export class UpdateAdminPcDto extends PartialType(
   OmitType(CreateAdminPcDto, ['admin_pc_id'] as const),
-) { }
+) {}

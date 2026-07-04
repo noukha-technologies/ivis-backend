@@ -493,10 +493,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" DROP CONSTRAINT IF EXISTS "UQ_b3a5f72708eb14f0b044646653b"`,
     );
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")
-      WHERE "is_deleted" = false
-    `);
+    // cameras.line_id is later migrated to the camera_line_mappings join table
+    // (see migrateAdminPcsAndCameraMultiLine below); only (re)create this index
+    // while the legacy column still exists.
+    if (await queryRunner.hasColumn('master.cameras', 'line_id')) {
+      await queryRunner.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")
+        WHERE "is_deleted" = false
+      `);
+    }
 
     // cameras: drop legacy columns no longer on entity
     await queryRunner.query(

@@ -57,7 +57,7 @@ export class UsersService implements IUsersService {
     );
 
     try {
-      const existingEmail = await this.usersDao.findByEmail(
+      const existingEmail = await this.usersDao.findByEmailIgnoringDelete(
         createUserDto.email,
       );
       if (existingEmail) {
@@ -69,7 +69,8 @@ export class UsersService implements IUsersService {
       }
 
       const trimmedUserCode = normalizeUserCode(createUserDto.user_code);
-      const existingCode = await this.usersDao.findByUserCode(trimmedUserCode);
+      const existingCode =
+        await this.usersDao.findByUserCodeIgnoringDelete(trimmedUserCode);
       if (existingCode) {
         throw new DuplicateResourceException(
           'User',
@@ -248,10 +249,10 @@ export class UsersService implements IUsersService {
       this.assertActorCanManage(actor, user.center_id, user.role?.access_scope);
 
       if (updateUserDto.email && updateUserDto.email !== user.email) {
-        const existingEmail = await this.usersDao.findByEmail(
+        const existingEmail = await this.usersDao.findByEmailIgnoringDelete(
           updateUserDto.email,
         );
-        if (existingEmail) {
+        if (existingEmail && existingEmail.id !== id) {
           throw new DuplicateResourceException(
             'User',
             'email',
@@ -265,7 +266,9 @@ export class UsersService implements IUsersService {
         normalizedUserCode = normalizeUserCode(updateUserDto.user_code);
         if (normalizedUserCode !== user.user_code) {
           const existingCode =
-            await this.usersDao.findByUserCode(normalizedUserCode);
+            await this.usersDao.findByUserCodeIgnoringDelete(
+              normalizedUserCode,
+            );
           if (existingCode && existingCode.id !== id) {
             throw new DuplicateResourceException(
               'User',

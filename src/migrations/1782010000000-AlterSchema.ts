@@ -39,6 +39,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await this.alterTransaction(queryRunner);
     await this.reconcileForeignKeys(queryRunner);
     await this.alignPaymentsAndAnprEvents(queryRunner);
+    await this.alignAdminPcsAndCameraMultiLine(queryRunner);
 
     console.log('[AlterSchema] Done.');
   }
@@ -51,6 +52,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
     console.log('[AlterSchema] Reverting structural alterations...');
 
+    await this.revertAdminPcsAndCameraMultiLine(queryRunner);
     await this.revertPaymentsAndAnprEvents(queryRunner);
     await this.revertForeignKeys(queryRunner);
     await this.revertTransaction(queryRunner);
@@ -1777,6 +1779,121 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."payments" CASCADE`,
+    );
+  }
+
+  private async alignAdminPcsAndCameraMultiLine(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    // 1. admin_pcs: add center_id
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ADMIN_PC_CENTER_ID" ON "master"."admin_pcs" ("center_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'FK_ADMIN_PC_CENTER_ID'
+        ) THEN
+          ALTER TABLE "master"."admin_pcs"
+            ADD CONSTRAINT "FK_ADMIN_PC_CENTER_ID"
+            FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // 2. camera_line_mappings table
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."camera_line_mappings" (
+        "id"          bigint            NOT NULL,
+        "camera_id"   bigint            NOT NULL,
+        "line_id"     bigint            NOT NULL,
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP         NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP         NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean           NOT NULL DEFAULT false,
+        CONSTRAINT "PK_camera_line_mappings_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_camera_line_mappings_camera_id" 
+          FOREIGN KEY ("camera_id") REFERENCES "master"."cameras"("id") ON DELETE CASCADE,
+        CONSTRAINT "FK_camera_line_mappings_line_id" 
+          FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CAMERA_LINE_MAPPING_CAMERA_ID" ON "master"."camera_line_mappings" ("camera_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_MAPPING_LINE" ON "master"."camera_line_mappings" ("line_id") WHERE is_deleted = false`,
+    );
+
+    // 3. Migrate existing data from cameras table if line_id column exists
+    const hasLineIdCol = await queryRunner.hasColumn('master.cameras', 'line_id');
+    if (hasLineIdCol) {
+      await queryRunner.query(`
+        INSERT INTO "master"."camera_line_mappings" ("id", "camera_id", "line_id", "created_by", "created_at", "updated_at", "is_deleted")
+        SELECT 
+          (row_number() over ())::bigint + 2000000000000000000,
+          "id",
+          "line_id",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "is_deleted"
+        FROM "master"."cameras"
+        WHERE "line_id" IS NOT NULL
+      `);
+      // Drop column and constraint
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" DROP CONSTRAINT IF EXISTS "FK_cameras_line_id"`,
+      );
+      await queryRunner.query(
+        `DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`,
+      );
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "line_id"`,
+      );
+    }
+  }
+
+  private async revertAdminPcsAndCameraMultiLine(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    // Drop mapping table and restore column on cameras if mapping exists
+    const hasMappingsTable = await queryRunner.hasTable('master.camera_line_mappings');
+    if (hasMappingsTable) {
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "line_id" bigint`,
+      );
+      await queryRunner.query(`
+        UPDATE "master"."cameras" c
+        SET "line_id" = (
+          SELECT "line_id" 
+          FROM "master"."camera_line_mappings" m 
+          WHERE m."camera_id" = c."id" AND m."is_deleted" = false
+          LIMIT 1
+        )
+      `);
+      await queryRunner.query(`DROP TABLE IF EXISTS "master"."camera_line_mappings"`);
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")`,
+      );
+      await queryRunner.query(`
+        ALTER TABLE "master"."cameras"
+        ADD CONSTRAINT "FK_cameras_line_id"
+        FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE NO ACTION
+      `);
+    }
+
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP CONSTRAINT IF EXISTS "FK_ADMIN_PC_CENTER_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_ADMIN_PC_CENTER_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "center_id"`,
     );
   }
 }

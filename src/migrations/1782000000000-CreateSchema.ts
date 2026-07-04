@@ -332,6 +332,7 @@ export class CreateSchema1782000000000 implements MigrationInterface {
         "ip_address"    character varying     NOT NULL,
         "description"   character varying,
         "status"        character varying     NOT NULL DEFAULT 'Active',
+        "center_id"     bigint,
         "created_by"    character varying,
         "created_at"    TIMESTAMP             NOT NULL DEFAULT NOW(),
         "updated_at"    TIMESTAMP             NOT NULL DEFAULT NOW(),
@@ -347,8 +348,11 @@ export class CreateSchema1782000000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_ADMIN_PC_CODE" ON "master"."admin_pcs" ("code")`,
     );
+    await queryRunner.query(
+      `CREATE INDEX "IDX_ADMIN_PC_CENTER_ID" ON "master"."admin_pcs" ("center_id")`,
+    );
 
-    // cameras (FK → lines)
+    // cameras (FK via camera_line_mappings)
     await queryRunner.query(`
       CREATE TABLE "master"."cameras" (
         "id"          bigint            NOT NULL,
@@ -356,7 +360,6 @@ export class CreateSchema1782000000000 implements MigrationInterface {
         "name"        character varying NOT NULL,
         "code"        character varying NOT NULL,
         "type"        character varying NOT NULL,
-        "line_id"     bigint            NOT NULL,
         "description" character varying,
         "status"      character varying NOT NULL DEFAULT 'Active',
         "created_by"  character varying,
@@ -365,9 +368,7 @@ export class CreateSchema1782000000000 implements MigrationInterface {
         "is_deleted"  boolean           NOT NULL DEFAULT false,
         CONSTRAINT "PK_cameras_id" PRIMARY KEY ("id"),
         CONSTRAINT "UQ_cameras_camera_id" UNIQUE ("camera_id"),
-        CONSTRAINT "UQ_cameras_code" UNIQUE ("code"),
-        CONSTRAINT "FK_cameras_line_id"
-          FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE NO ACTION
+        CONSTRAINT "UQ_cameras_code" UNIQUE ("code")
       )
     `);
     await queryRunner.query(
@@ -376,10 +377,30 @@ export class CreateSchema1782000000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE UNIQUE INDEX "IDX_CAMERA_CODE" ON "master"."cameras" ("code")`,
     );
+
+    // camera_line_mappings (FK → cameras + lines)
     await queryRunner.query(`
-      CREATE UNIQUE INDEX "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")
-      WHERE "is_deleted" = false
+      CREATE TABLE "master"."camera_line_mappings" (
+        "id"          bigint    NOT NULL,
+        "camera_id"   bigint    NOT NULL,
+        "line_id"     bigint    NOT NULL,
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean   NOT NULL DEFAULT false,
+        CONSTRAINT "PK_camera_line_mappings_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_camera_line_mappings_camera_id"
+          FOREIGN KEY ("camera_id") REFERENCES "master"."cameras"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+        CONSTRAINT "FK_camera_line_mappings_line_id"
+          FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+      )
     `);
+    await queryRunner.query(
+      `CREATE INDEX "IDX_CAMERA_LINE_MAPPING_CAMERA_ID" ON "master"."camera_line_mappings" ("camera_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX "UQ_CAMERA_LINE_MAPPING_LINE" ON "master"."camera_line_mappings" ("line_id") WHERE "is_deleted" = false`,
+    );
 
     // admin_pc_line_mappings (FK → admin_pcs + lines)
     await queryRunner.query(`
@@ -781,6 +802,13 @@ export class CreateSchema1782000000000 implements MigrationInterface {
       ALTER TABLE "core"."users"
       ADD CONSTRAINT "FK_users_center_id"
         FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE NO ACTION
+    `);
+
+    // master.admin_pcs → master.centres
+    await queryRunner.query(`
+      ALTER TABLE "master"."admin_pcs"
+      ADD CONSTRAINT "FK_ADMIN_PC_CENTER_ID"
+        FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL
     `);
 
     // core.user_line_mappings → core.users + master.lines

@@ -21,7 +21,7 @@ export class CameraDao extends Repository<Camera> {
   async findActiveById(id: string): Promise<Camera | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { line: true },
+      relations: { lineMappings: { line: { centre: true } } },
     });
   }
 
@@ -34,18 +34,36 @@ export class CameraDao extends Repository<Camera> {
   }
 
   async findActiveByLineId(lineId: string): Promise<Camera | null> {
-    return this.findOne({ where: { line_id: lineId, is_deleted: false } });
+    return this.createQueryBuilder('camera')
+      .innerJoin(
+        'camera.lineMappings',
+        'mapping',
+        'mapping.is_deleted = false AND mapping.line_id = :lineId',
+        { lineId },
+      )
+      .where('camera.is_deleted = false')
+      .getOne();
   }
 
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Camera>> {
     const qb = this.createQueryBuilder('camera')
-      .leftJoinAndSelect('camera.line', 'line')
+      .leftJoinAndSelect('camera.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect('lineMapping.line', 'line')
+      .leftJoinAndSelect('line.centre', 'centre')
       .where('camera.is_deleted = :is_deleted', { is_deleted: false });
 
     const options = buildTypeOrmPaginationOptions<Camera, Camera>(query, {
-      searchFields: ['camera.camera_name', 'camera.code', 'camera.status'],
+      searchFields: [
+        'camera.camera_name',
+        'camera.code',
+        'camera.status',
+        'line.name',
+        'line.code',
+        'centre.name',
+        'centre.code',
+      ],
       allowedSortFields: [
         'camera_id',
         'camera_name',

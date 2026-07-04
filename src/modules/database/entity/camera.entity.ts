@@ -1,16 +1,18 @@
 import {
+  AfterLoad,
   Column,
   CreateDateColumn,
   Entity,
   Index,
   JoinColumn,
-  OneToOne,
+  OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
 
 import { Line } from './line.entity';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { ICameraMasterFields } from '../../../common/interfaces/master.interface';
+import { CameraLineMapping } from './camera-line-mapping.entity';
 
 @Entity({ name: 'cameras', schema: 'master' })
 export class Camera implements ICameraMasterFields {
@@ -28,13 +30,40 @@ export class Camera implements ICameraMasterFields {
   @Index('IDX_CAMERA_CODE', { unique: true })
   code!: string;
 
-  @Column({ type: 'bigint' })
-  @Index('UQ_CAMERA_LINE_ID', { unique: true, where: '"is_deleted" = false' })
-  line_id!: string;
+  @OneToMany(() => CameraLineMapping, (mapping) => mapping.camera)
+  lineMappings?: CameraLineMapping[];
 
-  @OneToOne(() => Line, (line) => line.camera, { nullable: false })
-  @JoinColumn({ name: 'line_id' })
-  line!: Line;
+  line_ids?: string[];
+  lines?: Array<{
+    id: string;
+    line_id: number;
+    name: string;
+    code: string;
+    centre?: { id: string; name: string; code: string };
+  }>;
+
+  @AfterLoad()
+  populateLineFields(): void {
+    const activeMappings = (this.lineMappings ?? []).filter((m) => !m.is_deleted);
+    this.line_ids = activeMappings.map((m) => m.line_id);
+    this.lines = activeMappings
+      .map((m) => m.line)
+      .filter((line): line is NonNullable<typeof line> => Boolean(line))
+      .map((line) => ({
+        id: line.id,
+        line_id: line.line_id,
+        name: line.name,
+        code: line.code,
+        centre: line.centre
+          ? {
+              id: line.centre.id,
+              name: line.centre.name,
+              code: line.centre.code,
+            }
+          : undefined,
+      }));
+    this.lineMappings = undefined;
+  }
 
   @Column({ type: 'varchar', nullable: false })
   ip_address!: string;
@@ -96,6 +125,9 @@ export class Camera implements ICameraMasterFields {
   is_deleted!: boolean;
 
   // ─── Compatibility getters for ANPR module (camelCase aliases) ───────────────
+  get line_id(): string {
+    return this.line_ids?.[0] || '';
+  }
   get cameraCode(): string {
     return this.code;
   }

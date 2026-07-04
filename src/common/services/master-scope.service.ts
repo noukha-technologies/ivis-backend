@@ -7,6 +7,7 @@ import { CentreDao } from '../../modules/database/dao/centre.dao';
 import { LineDao } from '../../modules/database/dao/line.dao';
 import { CameraDao } from '../../modules/database/dao/camera.dao';
 import { AdminPcLineMappingDao } from '../../modules/database/dao/admin-pc-line-mapping.dao';
+import { CameraLineMappingDao } from '../../modules/database/dao/camera-line-mapping.dao';
 import { isGlobalScope } from '../constants/access-scope';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class MasterScopeService {
     private readonly lineDao: LineDao,
     private readonly cameraDao: CameraDao,
     private readonly adminPcLineMappingDao: AdminPcLineMappingDao,
+    private readonly cameraLineMappingDao: CameraLineMappingDao,
   ) {}
 
   /**
@@ -60,14 +62,21 @@ export class MasterScopeService {
     }
   }
 
-  async assertLineHasNoCamera(
-    lineId: string,
-    excludeCameraId?: string,
-  ): Promise<void> {
-    const existing = await this.cameraDao.findActiveByLineId(lineId);
-    if (existing && existing.id !== excludeCameraId) {
-      throw new DuplicateResourceException('Camera', 'line_id', lineId);
+  async assertLinesHaveNoCamera(lineIds: string[], excludeCameraId?: string): Promise<void> {
+    if (!lineIds.length) {
+      return;
     }
+    const conflicts = await this.cameraLineMappingDao.findActiveByLineIds(lineIds);
+    for (const mapping of conflicts) {
+      if (excludeCameraId && mapping.camera_id === excludeCameraId) {
+        continue;
+      }
+      throw new DuplicateResourceException('Camera', 'line_id', mapping.line_id);
+    }
+  }
+
+  async assertLineHasNoCamera(lineId: string, excludeCameraId?: string): Promise<void> {
+    await this.assertLinesHaveNoCamera([lineId], excludeCameraId);
   }
 
   async assertLineHasNoAdminPc(

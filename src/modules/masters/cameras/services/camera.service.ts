@@ -19,6 +19,7 @@ import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 
 import { CameraDao } from '../../../database/dao/camera.dao';
+import { CameraLineMappingDao } from '../../../database/dao/camera-line-mapping.dao';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
 
 function cleanIpAddress(ip: string): string {
@@ -45,8 +46,14 @@ export class CameraService {
   constructor(
     private readonly logger: AppLogger,
     private readonly cameraDao: CameraDao,
+    private readonly cameraLineMappingDao: CameraLineMappingDao,
     private readonly masterScope: MasterScopeService,
   ) {}
+
+  private normalizeLineIds(dto: { line_ids?: string[]; line_id?: string }): string[] {
+    const ids = dto.line_ids ?? (dto.line_id ? [dto.line_id] : []);
+    return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  }
 
   async create(
     createCameraDto: CreateCameraDto,
@@ -83,12 +90,21 @@ export class CameraService {
         }
       }
 
-      await this.masterScope.assertLineExists(createCameraDto.line_id);
-      await this.masterScope.assertLineHasNoCamera(createCameraDto.line_id);
+      const lineIds = this.normalizeLineIds(createCameraDto);
+      for (const lineId of lineIds) {
+        await this.masterScope.assertLineExists(lineId);
+      }
+      await this.masterScope.assertLinesHaveNoCamera(lineIds);
+
+      const {
+        line_ids: _lineIds,
+        line_id: _lineId,
+        ...cameraFields
+      } = createCameraDto;
 
       const camera = this.cameraDao.create({
         id: generateSnowflakeId(),
-        ...createCameraDto,
+        ...cameraFields,
         ip_address: cleanIpAddress(createCameraDto.ip_address),
         camera_id,
         status: createCameraDto.status || 'Active',
@@ -96,11 +112,17 @@ export class CameraService {
       });
       const savedCamera = await this.cameraDao.save(camera);
 
+      await this.cameraLineMappingDao.replaceForCamera(
+        savedCamera.id,
+        lineIds,
+        getCreatedById(actor),
+      );
+
       this.logger.log(
         `Camera created with ID: ${savedCamera.id}`,
         CameraService.context,
       );
-      return savedCamera;
+      return (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
         throw error;
@@ -179,18 +201,28 @@ export class CameraService {
         }
       }
 
-      const targetLineId = updateCameraDto.line_id ?? camera.line_id;
-      if (updateCameraDto.line_id) {
-        await this.masterScope.assertLineExists(updateCameraDto.line_id);
-        await this.masterScope.assertLineHasNoCamera(
-          updateCameraDto.line_id,
+      const hasLinesUpdate = updateCameraDto.line_ids !== undefined || updateCameraDto.line_id !== undefined;
+      if (hasLinesUpdate) {
+        const lineIds = this.normalizeLineIds(updateCameraDto);
+        for (const lineId of lineIds) {
+          await this.masterScope.assertLineExists(lineId);
+        }
+        await this.masterScope.assertLinesHaveNoCamera(lineIds, id);
+        await this.cameraLineMappingDao.replaceForCamera(
           id,
+          lineIds,
+          camera.created_by,
         );
       }
 
+      const {
+        line_ids: _lineIds,
+        line_id: _lineId,
+        ...updateFields
+      } = updateCameraDto;
+
       const mergedCamera = this.cameraDao.merge(camera, {
-        ...updateCameraDto,
-        line_id: targetLineId,
+        ...updateFields,
         ip_address: updateCameraDto.ip_address
           ? cleanIpAddress(updateCameraDto.ip_address)
           : camera.ip_address,
@@ -201,7 +233,7 @@ export class CameraService {
         `Camera updated ID: ${savedCamera.id}`,
         CameraService.context,
       );
-      return savedCamera;
+      return (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera;
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||

@@ -28,7 +28,7 @@ export class AnprCaptureDao
     return this.findOne({
       where: { id, is_deleted: false },
       relations: {
-        camera: { line: { centre: true } },
+        camera: { lineMappings: { line: { centre: true } } },
         rop_verifications: true,
         currentRopVerification: true,
       },
@@ -54,7 +54,8 @@ export class AnprCaptureDao
   ): Promise<PaginatedResult<AnprCapture>> {
     const qb = this.createQueryBuilder('anprCapture')
       .leftJoinAndSelect('anprCapture.camera', 'camera')
-      .leftJoinAndSelect('camera.line', 'cameraLine')
+      .leftJoinAndSelect('camera.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect('lineMapping.line', 'cameraLine')
       .leftJoinAndSelect('cameraLine.centre', 'cameraCentre')
       .leftJoinAndSelect(
         'anprCapture.rop_verifications',

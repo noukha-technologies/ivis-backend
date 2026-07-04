@@ -680,7 +680,7 @@ export class AnprWebhookService {
             plate_confidence: eventDto.confidenceScore ?? undefined,
             capture_time: eventDto.captureTime.toISOString(),
             camera_id: camera.id,
-            line_id: camera.line_id,
+            line_id: camera.line_ids?.[0] || '',
             direction: eventDto.direction ?? undefined,
             country_code:
               eventDto.countryCode != null

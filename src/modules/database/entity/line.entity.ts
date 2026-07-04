@@ -76,9 +76,6 @@ export class Line implements ILineMasterFields {
   @OneToMany(() => UserLineMapping, (mapping) => mapping.line)
   userMappings?: UserLineMapping[];
 
-  @OneToOne(() => Camera, (camera) => camera.line)
-  camera?: Camera;
-
   @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.line)
   adminPcMappings?: AdminPcLineMapping[];
 }

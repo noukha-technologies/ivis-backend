@@ -1,4 +1,5 @@
 import {
+  IsArray,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -39,13 +40,23 @@ export class CreateCameraDto {
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
 
-  @ApiProperty({
-    description: 'Assigned line snowflake ID',
+  @ApiPropertyOptional({
+    description: 'Assigned line snowflake ID (compatibility legacy)',
     example: '2058858609483202561',
   })
   @IsString({ message: 'line_id must be a string' })
-  @IsNotEmpty({ message: 'A line must be selected' })
-  line_id!: string;
+  @IsOptional()
+  line_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Assigned line snowflake IDs; supports multiple lines',
+    example: ['2058858609483202561', '2058858609483202562'],
+    type: [String],
+  })
+  @IsArray({ message: 'line_ids must be an array' })
+  @IsString({ each: true, message: 'each line_id must be a string' })
+  @IsOptional()
+  line_ids?: string[];
 
   @ApiProperty({
     description: 'IPv4 address of the camera in xxx.xxx.xxx.xxx format',

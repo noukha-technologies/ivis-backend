@@ -79,6 +79,20 @@ export class UsersDao extends Repository<User> implements IUserDao {
     });
   }
 
+  async findByEmailIgnoringDelete(email: string): Promise<User | null> {
+    return this.createQueryBuilder('user')
+      .where('LOWER(user.email) = LOWER(:email)', { email: email.trim() })
+      .getOne();
+  }
+
+  async findByUserCodeIgnoringDelete(userCode: string): Promise<User | null> {
+    return this.createQueryBuilder('user')
+      .where('LOWER(user.user_code) = LOWER(:userCode)', {
+        userCode: normalizeUserCode(userCode),
+      })
+      .getOne();
+  }
+
   async findActiveByCenterId(centerId: string): Promise<User | null> {
     return this.findOne({
       where: { center_id: centerId, is_deleted: false },

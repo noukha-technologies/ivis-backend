@@ -100,7 +100,8 @@ export class AnprCaptureService {
     if (!line) {
       throw new ResourceNotFoundException('Line', lineId);
     }
-    if (line.centre_id !== camera.line?.centre_id) {
+    const cameraCentreId = camera.lines?.[0]?.centre?.id;
+    if (cameraCentreId && line.centre_id !== cameraCentreId) {
       throw new BadRequestException(
         "Selected line does not belong to the camera's centre",
       );

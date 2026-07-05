@@ -13,7 +13,9 @@ function requireEnvInt(name: string): number {
   const raw = requireEnv(name);
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed)) {
-    throw new Error(`Environment variable ${name} must be a valid integer (got "${raw}")`);
+    throw new Error(
+      `Environment variable ${name} must be a valid integer (got "${raw}")`,
+    );
   }
   return parsed;
 }

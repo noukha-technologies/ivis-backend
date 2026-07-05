@@ -1,5 +1,18 @@
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Min, IsIn } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  IsIn,
+} from 'class-validator';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreatePaymentDto {
   @ApiPropertyOptional({
@@ -11,7 +24,10 @@ export class CreatePaymentDto {
   @IsOptional()
   payment_id?: number;
 
-  @ApiProperty({ description: 'Customer snowflake ID', example: '1234567890123456789' })
+  @ApiProperty({
+    description: 'Customer snowflake ID',
+    example: '1234567890123456789',
+  })
   @IsString({ message: 'customer_id must be a string' })
   @IsNotEmpty({ message: 'customer_id is required' })
   customer_id!: string;
@@ -21,9 +37,15 @@ export class CreatePaymentDto {
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
 
-  @ApiPropertyOptional({ description: 'Payment status', example: 'Active', enum: ['Active', 'Inactive'] })
+  @ApiPropertyOptional({
+    description: 'Payment status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   @IsOptional()
   status?: string;
 

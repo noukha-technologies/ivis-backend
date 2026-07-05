@@ -11,10 +11,10 @@ import {
 import { normalizeRoleAccessMatrix } from '../auth/role-permissions';
 
 const SUBMODULE_KEYS: Record<string, readonly string[]> = {
-  appointments:      APPOINTMENTS_SUBMODULES,
+  appointments: APPOINTMENTS_SUBMODULES,
   master_management: MASTER_MANAGEMENT_SUBMODULES,
-  transactions:      TRANSACTIONS_SUBMODULES,
-  user_management:   USER_MANAGEMENT_SUBMODULES,
+  transactions: TRANSACTIONS_SUBMODULES,
+  user_management: USER_MANAGEMENT_SUBMODULES,
 };
 
 function isModuleCrudFlags(value: unknown): boolean {
@@ -32,7 +32,11 @@ function validateSubmodules(
   submodulesValue: unknown,
   expectedKeys: readonly string[],
 ): void {
-  if (!submodulesValue || typeof submodulesValue !== 'object' || Array.isArray(submodulesValue)) {
+  if (
+    !submodulesValue ||
+    typeof submodulesValue !== 'object' ||
+    Array.isArray(submodulesValue)
+  ) {
     throw new BadRequestException(
       `Module "${moduleName}" must have a "submodules" object.`,
     );
@@ -58,7 +62,9 @@ function validateSubmodules(
 
 export function validateAccessMatrix(access: unknown): RoleAccessMatrix {
   if (!access || typeof access !== 'object' || Array.isArray(access)) {
-    throw new BadRequestException('Permission access must be a non-empty object.');
+    throw new BadRequestException(
+      'Permission access must be a non-empty object.',
+    );
   }
 
   const record = access as Record<string, unknown>;
@@ -78,8 +84,12 @@ export function validateAccessMatrix(access: unknown): RoleAccessMatrix {
 
   // Reject unknown top-level keys
   for (const key of Object.keys(record)) {
-    if (!ROLE_ACCESS_MODULES.includes(key as (typeof ROLE_ACCESS_MODULES)[number])) {
-      throw new BadRequestException(`Unknown module "${key}" in permission access matrix.`);
+    if (
+      !ROLE_ACCESS_MODULES.includes(key as (typeof ROLE_ACCESS_MODULES)[number])
+    ) {
+      throw new BadRequestException(
+        `Unknown module "${key}" in permission access matrix.`,
+      );
     }
   }
 
@@ -89,5 +99,5 @@ export function validateAccessMatrix(access: unknown): RoleAccessMatrix {
     validateSubmodules(mod, entry['submodules'], SUBMODULE_KEYS[mod]);
   }
 
-  return normalizeRoleAccessMatrix(record as Partial<RoleAccessMatrix>);
+  return normalizeRoleAccessMatrix(record);
 }

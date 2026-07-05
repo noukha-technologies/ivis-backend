@@ -28,11 +28,15 @@ export class AuthGuard implements CanActivate {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      throw new ErrorException('FORBIDDEN_REQUEST', 'Authorization token missing');
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'Authorization token missing',
+      );
     }
 
     const accessToken = authHeader.slice('Bearer '.length).trim();
-    const accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+    const accessSecret =
+      this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
     const payload = verifyAccessToken(accessToken, accessSecret);
     const userContext = await this.authService.buildUserContext(
       payload.sub,
@@ -40,7 +44,10 @@ export class AuthGuard implements CanActivate {
     );
 
     if (!userContext) {
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'No active session');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'No active session',
+      );
     }
 
     req.user = userContext;

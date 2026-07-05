@@ -20,7 +20,10 @@ export class LineDao extends Repository<Line> implements ILineDao {
   }
 
   async findActiveById(id: string): Promise<Line | null> {
-    return this.findOne({ where: { id, is_deleted: false }, relations: { centre: true } });
+    return this.findOne({
+      where: { id, is_deleted: false },
+      relations: { centre: true },
+    });
   }
 
   async findActiveByIds(ids: string[]): Promise<Line[]> {
@@ -45,6 +48,18 @@ export class LineDao extends Repository<Line> implements ILineDao {
     return this.findOne({ where: { code, is_deleted: false } });
   }
 
+  async findByName(name: string, excludeId?: string): Promise<Line | null> {
+    const qb = this.createQueryBuilder('line')
+      .where('LOWER(line.name) = LOWER(:name)', { name: name.trim() })
+      .andWhere('line.is_deleted = false');
+
+    if (excludeId) {
+      qb.andWhere('line.id != :excludeId', { excludeId });
+    }
+
+    return qb.getOne();
+  }
+
   async findByLineId(lineId: number): Promise<Line | null> {
     return this.findOne({ where: { line_id: lineId, is_deleted: false } });
   }
@@ -62,12 +77,30 @@ export class LineDao extends Repository<Line> implements ILineDao {
     }
 
     const options = buildTypeOrmPaginationOptions<Line, Line>(query, {
-      searchFields: ['line.name', 'line.code', 'line.status', 'centre.name', 'centre.code'],
-      allowedSortFields: ['line_id', 'name', 'code', 'display_order', 'status', 'created_at', 'updated_at'],
+      searchFields: [
+        'line.name',
+        'line.code',
+        'line.status',
+        'centre.name',
+        'centre.code',
+      ],
+      allowedSortFields: [
+        'line_id',
+        'name',
+        'code',
+        'display_order',
+        'status',
+        'created_at',
+        'updated_at',
+      ],
       defaultSort: { created_at: 'DESC' },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'line', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'line',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

@@ -6,11 +6,17 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreatePaymentTypeDto {
   @ApiPropertyOptional({
-    description: 'Unique numeric payment type identifier (auto-generated if omitted)',
+    description:
+      'Unique numeric payment type identifier (auto-generated if omitted)',
     example: 1,
   })
   @IsOptional()
@@ -28,10 +34,16 @@ export class CreatePaymentTypeDto {
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
 
-  @ApiPropertyOptional({ description: 'Record status', enum: ['Active', 'Inactive'], example: 'Active' })
+  @ApiPropertyOptional({
+    description: 'Record status',
+    enum: ['Active', 'Inactive'],
+    example: 'Active',
+  })
   @IsOptional()
   @IsString()
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   status?: string;
 }
 

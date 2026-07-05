@@ -18,43 +18,51 @@ import { Role } from './role.entity';
 import { Centre } from './centre.entity';
 import { UserLineMapping } from './user-line-mapping.entity';
 import { IUserFields } from '../../../common/interfaces/user.interface';
+import { DATABASE_SCHEMAS } from 'src/common/constants/database-schemas';
 
-@Entity({ name: 'users', schema: 'core' })
+@Entity({ name: 'users', schema: DATABASE_SCHEMAS.CORE })
+@Index('IDX_USER_CENTER_ID', ['center_id'], { unique: true })
+@Index('IDX_USER_ROLE_ID', ['role_id'], { unique: true })
+@Index('IDX_USER_USER_CODE', ['user_code'], { unique: true })
+@Index('IDX_USER_USER_ID', ['user_id'], { unique: true })
+@Index('IDX_USER_EMAIL', ['email'], { unique: true })
 export class User implements IUserFields {
   @SnowflakePrimaryColumn()
   id!: string;
 
   @Column({ type: 'integer', unique: true, nullable: false })
-  @Index('IDX_USER_USER_ID', { unique: true })
   user_id!: number;
 
   @Column({ type: 'varchar', unique: true, nullable: false })
-  @Index('IDX_USER_USER_CODE', { unique: true })
   user_code!: string;
 
   @Column({ type: 'varchar', nullable: false })
   user_name!: string;
 
   @Column({ type: 'varchar', unique: true, nullable: false })
-  @Index('IDX_USER_EMAIL', { unique: true })
   email!: string;
 
   @Column({ name: 'password', type: 'varchar', nullable: true, select: false })
   password!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
-  @Index('IDX_USER_ROLE_ID')
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   role_id!: string;
 
   @ManyToOne(() => Role, { nullable: false })
   @JoinColumn({ name: 'role_id' })
   role!: Role;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
-  @Index('IDX_USER_CENTER_ID')
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   center_id?: string | null;
 
-  // Multiple users may share the same centre.
   @ManyToOne(() => Centre, (centre) => centre.assignedUsers, { nullable: true })
   @JoinColumn({ name: 'center_id' })
   assignedCentre!: Centre;
@@ -77,7 +85,10 @@ export class User implements IUserFields {
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword(): Promise<void> {
-    if (this.password && !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(this.password)) {
+    if (
+      this.password &&
+      !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(this.password)
+    ) {
       this.password = await bcrypt.hash(this.password, 10);
     }
   }

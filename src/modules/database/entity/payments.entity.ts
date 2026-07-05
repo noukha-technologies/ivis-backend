@@ -35,63 +35,99 @@ export class Payments implements IPaymentsFields {
   @Column({ type: 'integer', unique: true, nullable: false })
   payment_id!: number;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   appointment_id?: string | null;
 
   @ManyToOne(() => Appointment, { nullable: true })
   @JoinColumn({ name: 'appointment_id' })
   appointment?: Appointment;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   customer_id!: string;
 
   @ManyToOne(() => Customer, { nullable: false })
   @JoinColumn({ name: 'customer_id' })
   customer!: Customer;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   vehicle_record_id!: string;
 
   @ManyToOne(() => VehicleRecord, { nullable: false })
   @JoinColumn({ name: 'vehicle_record_id' })
   vehicleRecord!: VehicleRecord;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   job_id?: string | null;
 
   @ManyToOne(() => Job, { nullable: true })
   @JoinColumn({ name: 'job_id' })
   job?: Job;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   anpr_capture_id?: string | null;
 
   @ManyToOne(() => AnprCapture, { nullable: true })
   @JoinColumn({ name: 'anpr_capture_id' })
   anprCapture?: AnprCapture;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   centre_id?: string | null;
 
   @ManyToOne(() => Centre, { nullable: true })
   @JoinColumn({ name: 'centre_id' })
   centre?: Centre;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   line_id?: string | null;
 
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   camera_id?: string | null;
 
   @ManyToOne(() => Camera, { nullable: true })
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   payment_type_id?: string | null;
 
   @ManyToOne(() => PaymentType, { nullable: true })

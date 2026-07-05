@@ -13,7 +13,10 @@ export function getRequestMetadata(req: Request): RequestMetadata {
   let ipAddress: string;
 
   if (xff) {
-    const ips = xff.toString().split(',').map((ip) => ip.trim());
+    const ips = xff
+      .toString()
+      .split(',')
+      .map((ip) => ip.trim());
     ipAddress = ips[ips.length - 1] ?? req.ip;
   } else if (remoteAddress) {
     ipAddress = remoteAddress;
@@ -22,7 +25,9 @@ export function getRequestMetadata(req: Request): RequestMetadata {
   }
 
   const ua =
-    typeof req.headers['user-agent'] === 'string' ? req.headers['user-agent'] : '';
+    typeof req.headers['user-agent'] === 'string'
+      ? req.headers['user-agent']
+      : '';
 
   return {
     browser: ua || 'unknown',

@@ -33,7 +33,11 @@ export class Line implements ILineMasterFields {
   @Index('IDX_LINE_CODE', { unique: true, where: '"is_deleted" = false' })
   code!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   @Index('IDX_LINE_CENTRE_ID')
   centre_id!: string;
 
@@ -46,6 +50,13 @@ export class Line implements ILineMasterFields {
 
   @Column({ type: 'varchar', nullable: true })
   description?: string;
+
+  // Per-line IN/OUT folder paths for file-driven processing.
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  in_file_path?: string | null;
+
+  @Column({ type: 'varchar', length: 512, nullable: true })
+  out_file_path?: string | null;
 
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
@@ -64,9 +75,6 @@ export class Line implements ILineMasterFields {
 
   @OneToMany(() => UserLineMapping, (mapping) => mapping.line)
   userMappings?: UserLineMapping[];
-
-  @OneToOne(() => Camera, (camera) => camera.line)
-  camera?: Camera;
 
   @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.line)
   adminPcMappings?: AdminPcLineMapping[];

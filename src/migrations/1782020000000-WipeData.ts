@@ -81,7 +81,9 @@ export class WipeData1782020000000 implements MigrationInterface {
       await queryRunner.query(`UPDATE "core"."users" SET "center_id" = NULL`);
     }
     if (existing.has('transaction.appointments')) {
-      await queryRunner.query(`UPDATE "transaction"."appointments" SET "payment_id" = NULL`);
+      await queryRunner.query(
+        `UPDATE "transaction"."appointments" SET "payment_id" = NULL`,
+      );
     }
 
     const targets = WipeData1782020000000.WIPE_ORDER.filter((t) =>
@@ -99,12 +101,14 @@ export class WipeData1782020000000 implements MigrationInterface {
     }
     console.log(
       `[WipeData] Wiped: ${targets.join(', ')} ` +
-      `(preserved: ${WipeData1782020000000.PRESERVED.join(', ')})`,
+        `(preserved: ${WipeData1782020000000.PRESERVED.join(', ')})`,
     );
   }
 
   public async down(_queryRunner: QueryRunner): Promise<void> {
-    console.warn('[WipeData] down() is a no-op — deleted data cannot be restored.');
+    console.warn(
+      '[WipeData] down() is a no-op — deleted data cannot be restored.',
+    );
   }
 
   // ─── helpers ─────────────────────────────────────────────────────────────────

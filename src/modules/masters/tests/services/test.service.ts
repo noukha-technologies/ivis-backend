@@ -24,13 +24,23 @@ export class TestService implements ITestService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createTestDto: CreateTestDto, actor: UserContext): Promise<Test> {
-    this.logger.log(`Creating test master with code: ${createTestDto.code}`, TestService.context);
+  async create(
+    createTestDto: CreateTestDto,
+    actor: UserContext,
+  ): Promise<Test> {
+    this.logger.log(
+      `Creating test master with code: ${createTestDto.code}`,
+      TestService.context,
+    );
 
     try {
       const existingCode = await this.testDao.findByCode(createTestDto.code);
       if (existingCode) {
-        throw new DuplicateResourceException('Test', 'code', createTestDto.code);
+        throw new DuplicateResourceException(
+          'Test',
+          'code',
+          createTestDto.code,
+        );
       }
 
       let test_id = createTestDto.test_id;
@@ -52,7 +62,10 @@ export class TestService implements ITestService {
       });
       const savedTest = await this.testDao.save(test);
 
-      this.logger.log(`Test master created with ID: ${savedTest.id}`, TestService.context);
+      this.logger.log(
+        `Test master created with ID: ${savedTest.id}`,
+        TestService.context,
+      );
       return savedTest;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
@@ -63,7 +76,9 @@ export class TestService implements ITestService {
         (error as Error).stack,
         TestService.context,
       );
-      throw new DatabaseException('Failed to create test master. Please try again.');
+      throw new DatabaseException(
+        'Failed to create test master. Please try again.',
+      );
     }
   }
 
@@ -81,7 +96,9 @@ export class TestService implements ITestService {
         (error as Error).stack,
         TestService.context,
       );
-      throw new DatabaseException('Failed to fetch test masters. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch test masters. Please try again.',
+      );
     }
   }
 
@@ -103,7 +120,9 @@ export class TestService implements ITestService {
         (error as Error).stack,
         TestService.context,
       );
-      throw new DatabaseException('Failed to fetch test master. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch test master. Please try again.',
+      );
     }
   }
 
@@ -116,17 +135,27 @@ export class TestService implements ITestService {
       if (updateTestDto.code && updateTestDto.code !== test.code) {
         const existingCode = await this.testDao.findByCode(updateTestDto.code);
         if (existingCode) {
-          throw new DuplicateResourceException('Test', 'code', updateTestDto.code);
+          throw new DuplicateResourceException(
+            'Test',
+            'code',
+            updateTestDto.code,
+          );
         }
       }
 
       const mergedTest = this.testDao.merge(test, updateTestDto);
       const savedTest = await this.testDao.save(mergedTest);
 
-      this.logger.log(`Test master updated ID: ${savedTest.id}`, TestService.context);
+      this.logger.log(
+        `Test master updated ID: ${savedTest.id}`,
+        TestService.context,
+      );
       return savedTest;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -134,7 +163,9 @@ export class TestService implements ITestService {
         (error as Error).stack,
         TestService.context,
       );
-      throw new DatabaseException('Failed to update test master. Please try again.');
+      throw new DatabaseException(
+        'Failed to update test master. Please try again.',
+      );
     }
   }
 
@@ -145,7 +176,10 @@ export class TestService implements ITestService {
       const test = await this.findOne(id);
       test.is_deleted = true;
       await this.testDao.save(test);
-      this.logger.log(`Test master soft-deleted ID: ${id}`, TestService.context);
+      this.logger.log(
+        `Test master soft-deleted ID: ${id}`,
+        TestService.context,
+      );
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -155,7 +189,9 @@ export class TestService implements ITestService {
         (error as Error).stack,
         TestService.context,
       );
-      throw new DatabaseException('Failed to delete test master. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete test master. Please try again.',
+      );
     }
   }
 }

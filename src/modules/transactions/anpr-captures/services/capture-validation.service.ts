@@ -75,10 +75,18 @@ export class CaptureValidationService {
     createdBy: string,
     rop?: RopVerification | null,
   ): Promise<void> {
-    const vehicleRecord = await this.upsertVehicleRecord(capture, rop, createdBy);
+    const vehicleRecord = await this.upsertVehicleRecord(
+      capture,
+      rop,
+      createdBy,
+    );
     // Pre-fill the customer from the ROP owner details when available; the
     // operator completes the remaining required fields (phone, driver, mulkiya).
-    const customerId = await this.ensureCustomerFromRop(rop, vehicleRecord, createdBy);
+    const customerId = await this.ensureCustomerFromRop(
+      rop,
+      vehicleRecord,
+      createdBy,
+    );
 
     const existing = await this.appointmentDao.findByAnprCaptureId(capture.id);
     if (existing) {
@@ -103,11 +111,15 @@ export class CaptureValidationService {
 
     // Carry the capture's line (and its centre) onto the appointment so the
     // queue shows Centre / Line.
-    const line = capture.line_id ? await this.lineDao.findActiveById(capture.line_id) : null;
+    const line = capture.line_id
+      ? await this.lineDao.findActiveById(capture.line_id)
+      : null;
 
     // If the plate is a pre-booked online appointment, mark it Online; otherwise
     // Walk-in. Returns null until the online-appointment integration is wired.
-    const online = await this.onlineAppointmentApi.findByPlate(capture.plate_number);
+    const online = await this.onlineAppointmentApi.findByPlate(
+      capture.plate_number,
+    );
 
     const appointment = this.appointmentDao.create({
       id: generateSnowflakeId(),
@@ -119,7 +131,9 @@ export class CaptureValidationService {
       line_id: capture.line_id ?? null,
       booking_type: online ? BookingType.ONLINE : BookingType.WALK_IN,
       status: AppointmentStatus.QUEUED,
-      appointment_at: online?.appointment_at ? new Date(online.appointment_at) : new Date(),
+      appointment_at: online?.appointment_at
+        ? new Date(online.appointment_at)
+        : new Date(),
       created_by: createdBy,
     });
     await this.appointmentDao.save(appointment);
@@ -145,7 +159,9 @@ export class CaptureValidationService {
       return null;
     }
 
-    const existing = await this.customerDao.findByVehicleRecordId(vehicleRecord.id);
+    const existing = await this.customerDao.findByVehicleRecordId(
+      vehicleRecord.id,
+    );
     if (existing) {
       const merged = this.customerDao.merge(existing, {
         owner_name: existing.owner_name || ownerName,
@@ -205,7 +221,9 @@ export class CaptureValidationService {
       return this.vehicleRecordDao.save(created);
     }
 
-    return this.vehicleRecordDao.save(this.vehicleRecordDao.merge(existing, enrich));
+    return this.vehicleRecordDao.save(
+      this.vehicleRecordDao.merge(existing, enrich),
+    );
   }
 
   /**
@@ -225,7 +243,9 @@ export class CaptureValidationService {
     // Map the vehicle category from the configured charges by matching the
     // vehicle type (centre-specific charge preferred, then global).
     const chargeCategoryId =
-      (await this.resolveChargeCategory(capture, vehicleType)) ?? existing?.charge_category_id ?? null;
+      (await this.resolveChargeCategory(capture, vehicleType)) ??
+      existing?.charge_category_id ??
+      null;
 
     const enrich = {
       vehicle_type: vehicleType,
@@ -246,7 +266,8 @@ export class CaptureValidationService {
       return (await this.vehicleDao.save(created)).id;
     }
 
-    return (await this.vehicleDao.save(this.vehicleDao.merge(existing, enrich))).id;
+    return (await this.vehicleDao.save(this.vehicleDao.merge(existing, enrich)))
+      .id;
   }
 
   /**
@@ -261,8 +282,13 @@ export class CaptureValidationService {
     if (!vehicleType) {
       return null;
     }
-    const line = capture.line_id ? await this.lineDao.findActiveById(capture.line_id) : null;
-    const charge = await this.chargeDao.findByVehicleType(line?.centre_id ?? undefined, vehicleType);
+    const line = capture.line_id
+      ? await this.lineDao.findActiveById(capture.line_id)
+      : null;
+    const charge = await this.chargeDao.findByVehicleType(
+      line?.centre_id ?? undefined,
+      vehicleType,
+    );
     return charge?.charge_category_id ?? null;
   }
 }

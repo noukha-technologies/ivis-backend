@@ -20,10 +20,16 @@ import { Camera } from './camera.entity';
 import { RopVerification } from './rop-verification.entity';
 
 @Entity({ name: 'anpr_captures', schema: DATABASE_SCHEMAS.TRANSACTION })
-@Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], { unique: true })
+@Index('IDX_ANPR_CAPTURE_ANPR_CAPTURE_ID', ['anpr_capture_id'], {
+  unique: true,
+})
 @Index('IDX_ANPR_CAPTURE_PLATE_TIME', ['plate_number', 'capture_time'])
 @Index('IDX_ANPR_CAPTURE_LINE_TIME', ['line_id', 'capture_time'])
-@Index('UQ_ANPR_CAPTURE_LINE_PLATE_TIME', ['line_id', 'plate_number', 'capture_time'], { unique: true })
+@Index(
+  'UQ_ANPR_CAPTURE_LINE_PLATE_TIME',
+  ['line_id', 'plate_number', 'capture_time'],
+  { unique: true },
+)
 export class AnprCapture implements IAnprCaptureFields {
   @SnowflakePrimaryColumn()
   id!: string;
@@ -43,34 +49,47 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'timestamp', nullable: false })
   capture_time!: Date;
 
-
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   camera_id!: string;
 
   @ManyToOne(() => Camera, { nullable: false })
   @JoinColumn({ name: 'camera_id' })
   camera!: Camera;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   line_id?: string | null;
 
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
 
-  @OneToMany(() => RopVerification, (ropVerification) => ropVerification.anpr_capture)
+  @OneToMany(
+    () => RopVerification,
+    (ropVerification) => ropVerification.anpr_capture,
+  )
   rop_verifications?: RopVerification[];
 
   /* Current / latest ROP verification pointer — set by the auto pipeline and
      manual ROP edits so the capture resolves its ROP details unambiguously. */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   @Index('IDX_ANPR_CAPTURE_ROP_VERIFICATION_ID')
   rop_verification_id?: string | null;
 
   @ManyToOne(() => RopVerification, { nullable: true })
   @JoinColumn({ name: 'rop_verification_id' })
   currentRopVerification?: RopVerification;
-
 
   @Column({ type: 'varchar', length: 32, nullable: true })
   direction?: string;
@@ -102,13 +121,16 @@ export class AnprCapture implements IAnprCaptureFields {
   @Column({ type: 'varchar', nullable: true })
   scene_image_url?: string;
 
-  @Column({ type: 'varchar', length: 32, default: AnprCaptureStatus.PENDING, nullable: false })
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: AnprCaptureStatus.PENDING,
+    nullable: false,
+  })
   status!: AnprCaptureStatus;
 
   @Column({ type: 'jsonb', nullable: true })
   raw_payload?: Record<string, unknown>;
-
-
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  HttpCode,
-  HttpStatus,
-  Post,
-} from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -27,12 +21,13 @@ import { AuthService } from './service/auth.service';
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('bootstrap')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
-    summary: 'Bootstrap the first admin user with all permissions (one-time, only on an empty system)',
+    summary:
+      'Bootstrap the first admin user with all permissions (one-time, only on an empty system)',
   })
   @ApiBody({ type: BootstrapAdminDto })
   @ApiOkResponse({ type: BootstrapAdminResponseDto })
@@ -57,7 +52,9 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiBody({ type: RefreshTokenRequestDto })
   @ApiOkResponse({ type: LoginResponseDto })
-  async refresh(@Body() body: RefreshTokenRequestDto): Promise<LoginResponseDto> {
+  async refresh(
+    @Body() body: RefreshTokenRequestDto,
+  ): Promise<LoginResponseDto> {
     return await this.authService.refresh(body.refreshToken);
   }
 

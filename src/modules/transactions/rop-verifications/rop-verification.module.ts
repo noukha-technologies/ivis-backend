@@ -10,4 +10,3 @@ import { AnprCaptureModule } from '../anpr-captures/anpr-capture.module';
   exports: [RopVerificationService],
 })
 export class RopVerificationModule {}
-

@@ -20,7 +20,10 @@ import {
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreatePaymentTypeDto, UpdatePaymentTypeDto } from '../../../common/dto/payment-type.dto';
+import {
+  CreatePaymentTypeDto,
+  UpdatePaymentTypeDto,
+} from '../../../common/dto/payment-type.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaymentTypeService } from './service/payment-type.service';
 
@@ -32,7 +35,10 @@ export class PaymentTypeController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new payment type' })
-  @ApiResponse({ status: 201, description: 'Payment type created successfully.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Payment type created successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
   async create(
@@ -44,7 +50,9 @@ export class PaymentTypeController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all payment types (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all payment types (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({ name: 'search', required: false, type: String })
@@ -60,17 +68,26 @@ export class PaymentTypeController {
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a payment type by snowflake ID' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Payment type retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment type retrieved successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Payment type not found.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const paymentType = await this.paymentTypeService.findOne(id);
-    return { message: 'Payment type retrieved successfully', data: paymentType };
+    return {
+      message: 'Payment type retrieved successfully',
+      data: paymentType,
+    };
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a payment type' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Payment type updated successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment type updated successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Payment type not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
   async update(
@@ -84,7 +101,10 @@ export class PaymentTypeController {
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a payment type' })
   @ApiParam({ name: 'id', type: String })
-  @ApiResponse({ status: 200, description: 'Payment type deleted successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment type deleted successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Payment type not found.' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.paymentTypeService.remove(id);

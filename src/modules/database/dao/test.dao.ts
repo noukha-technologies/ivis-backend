@@ -31,15 +31,28 @@ export class TestDao extends Repository<Test> implements ITestDao {
     return this.findOne({ where: { test_id: testId, is_deleted: false } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Test>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Test>> {
     const options = buildTypeOrmPaginationOptions<Test, Test>(query, {
       searchFields: ['name', 'code', 'status'],
-      allowedSortFields: ['test_id', 'name', 'code', 'status', 'created_at', 'updated_at'],
+      allowedSortFields: [
+        'test_id',
+        'name',
+        'code',
+        'status',
+        'created_at',
+        'updated_at',
+      ],
       defaultSort: { created_at: 'DESC' },
       baseWhere: { is_deleted: false },
     });
 
-    const response = await this.paginationService.paginate(this, 'test', options);
+    const response = await this.paginationService.paginate(
+      this,
+      'test',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

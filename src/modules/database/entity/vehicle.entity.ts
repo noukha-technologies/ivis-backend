@@ -36,7 +36,11 @@ export class Vehicle implements IVehicleMasterFields {
   @Column({ type: 'varchar', length: 64, nullable: true })
   vehicle_type?: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   charge_category_id?: string | null;
 
   @ManyToOne(() => ChargeCategory, { nullable: true })

@@ -20,7 +20,11 @@ import {
 } from '@nestjs/swagger';
 import { PermissionKeys } from '../../common/constants/permissions';
 import { Permissions } from '../../common/decorators/permissions.decorator';
-import { CreateRoleDto, RoleDto, UpdateRoleDto } from '../../common/dto/role.dto';
+import {
+  CreateRoleDto,
+  RoleDto,
+  UpdateRoleDto,
+} from '../../common/dto/role.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -30,7 +34,7 @@ import { RolesService } from './service/roles.service';
 @ApiTags('Roles')
 @Controller('roles')
 export class RolesController {
-  constructor(private readonly rolesService: RolesService) { }
+  constructor(private readonly rolesService: RolesService) {}
 
   @Post()
   @Permissions(PermissionKeys.ROLES_UPSERT)
@@ -50,8 +54,11 @@ export class RolesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'List roles (paginated)' })
   @ApiBearerAuth('jwt')
-  findAll(@Query() query: PaginationQueryDto) {
-    return this.rolesService.findAll(query).then((result) => ({
+  findAll(
+    @CurrentUser() actor: UserContext,
+    @Query() query: PaginationQueryDto,
+  ) {
+    return this.rolesService.findAll(query, actor).then((result) => ({
       message: 'Roles retrieved successfully',
       ...result,
     }));
@@ -90,10 +97,11 @@ export class RolesController {
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
   update(
+    @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() body: UpdateRoleDto,
   ) {
-    return this.rolesService.update(id, body).then((data) => ({
+    return this.rolesService.update(id, body, actor).then((data) => ({
       message: 'Role updated successfully',
       data,
     }));
@@ -105,8 +113,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Soft-delete role' })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
-  async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.rolesService.remove(id);
+  async remove(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    await this.rolesService.remove(id, actor);
     return { message: 'Role deleted successfully', data: null };
   }
 }

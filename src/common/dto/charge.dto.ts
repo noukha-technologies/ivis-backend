@@ -11,7 +11,12 @@ import {
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 import { normalizeVehicleType } from '../utils/normalize-vehicle-type.util';
 
 export class CreateChargeDto {
@@ -33,7 +38,8 @@ export class CreateChargeDto {
   centre_id?: string;
 
   @ApiProperty({
-    description: 'Vehicle type (free text, stored lowercase for charge comparison)',
+    description:
+      'Vehicle type (free text, stored lowercase for charge comparison)',
     example: 'sedan',
   })
   @Transform(({ value }) => normalizeVehicleType(value))
@@ -73,17 +79,29 @@ export class CreateChargeDto {
   @Max(100, { message: 'vat_percent must be 100 or less' })
   vat_percent!: number;
 
-  @ApiProperty({ description: 'Charge validity end date (ISO date)', example: '2025-12-31' })
+  @ApiProperty({
+    description: 'Charge validity end date (ISO date)',
+    example: '2025-12-31',
+  })
   @IsDateString({}, { message: 'validate_to must be a valid ISO date string' })
   validate_to!: string;
 
-  @ApiPropertyOptional({ description: 'Record status', enum: ['Active', 'Inactive'], example: 'Active' })
+  @ApiPropertyOptional({
+    description: 'Record status',
+    enum: ['Active', 'Inactive'],
+    example: 'Active',
+  })
   @IsOptional()
   @IsString()
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   status?: string;
 
-  @ApiPropertyOptional({ description: 'Whether the charge is enabled', example: true })
+  @ApiPropertyOptional({
+    description: 'Whether the charge is enabled',
+    example: true,
+  })
   @IsOptional()
   @IsBoolean({ message: 'is_enabled must be a boolean' })
   is_enabled?: boolean;

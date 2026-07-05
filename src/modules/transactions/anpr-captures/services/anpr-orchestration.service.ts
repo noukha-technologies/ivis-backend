@@ -29,17 +29,24 @@ export class AnprOrchestrationService {
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly ropApiClient: RopApiClientService,
     private readonly captureValidation: CaptureValidationService,
-  ) { }
+  ) {}
 
   runPostCapture(anprCapture: AnprCapture): void {
     this.executePostCapture(anprCapture).catch((err: Error) => {
-      this.logger.error(`[Orchestration] Unhandled failure for plate ${anprCapture.plate_number}: ${err.message}`, err.stack, AnprOrchestrationService.context);
+      this.logger.error(
+        `[Orchestration] Unhandled failure for plate ${anprCapture.plate_number}: ${err.message}`,
+        err.stack,
+        AnprOrchestrationService.context,
+      );
     });
   }
 
   private async executePostCapture(anprCapture: AnprCapture): Promise<void> {
     const plate = anprCapture.plate_number;
-    this.logger.log(`[Orchestration] Starting post-capture pipeline for plate: ${plate}`, AnprOrchestrationService.context);
+    this.logger.log(
+      `[Orchestration] Starting post-capture pipeline for plate: ${plate}`,
+      AnprOrchestrationService.context,
+    );
 
     // ─── Step 1: Vehicle master (master.vehicles) upsert by plate code ───
     let vehicleMasterId: string | undefined;
@@ -106,7 +113,9 @@ export class AnprOrchestrationService {
     //   • API throws                       → Failed.
     try {
       const ropResult = await this.ropApiClient.fetchByPlate(plate);
-      const plateMatches = ropResult != null && normalizePlate(ropResult.reg_no) === normalizePlate(plate);
+      const plateMatches =
+        ropResult != null &&
+        normalizePlate(ropResult.reg_no) === normalizePlate(plate);
 
       let status: RopVerificationStatus;
       if (ropResult == null) {
@@ -124,7 +133,8 @@ export class AnprOrchestrationService {
       const savedRop = await this.ropVerificationDao.save(
         this.ropVerificationDao.create({
           id: generateSnowflakeId(),
-          rop_verification_id: await this.ropVerificationDao.getNextRopVerificationId(),
+          rop_verification_id:
+            await this.ropVerificationDao.getNextRopVerificationId(),
           anpr_capture_id: anprCapture.id,
           owner_name: ropResult?.owner_name,
           vehicle_make: ropResult?.vehicle_make,
@@ -140,18 +150,26 @@ export class AnprOrchestrationService {
 
       // Fetched → validate the capture + queue the appointment (combined data).
       if (status === RopVerificationStatus.VALIDATED) {
-        await this.captureValidation.applyRopFetched(anprCapture, savedRop, SYSTEM_ACTOR);
+        await this.captureValidation.applyRopFetched(
+          anprCapture,
+          savedRop,
+          SYSTEM_ACTOR,
+        );
       }
       this.logger.log(
         `[Orchestration] ROP verification saved (${status}) for capture: ${anprCapture.id}`,
         AnprOrchestrationService.context,
       );
     } catch (err) {
-      this.logger.warn(`[Orchestration] ROP fetch/save failed for ${plate}: ${(err as Error).message}`, AnprOrchestrationService.context);
+      this.logger.warn(
+        `[Orchestration] ROP fetch/save failed for ${plate}: ${(err as Error).message}`,
+        AnprOrchestrationService.context,
+      );
       // Record the failed attempt so the ROP verification tab reflects it; the
       // capture itself stays 'Pending' (not validated).
       try {
-        const nextRopId = await this.ropVerificationDao.getNextRopVerificationId();
+        const nextRopId =
+          await this.ropVerificationDao.getNextRopVerificationId();
         const failedVerification = this.ropVerificationDao.create({
           id: generateSnowflakeId(),
           rop_verification_id: nextRopId,
@@ -163,7 +181,10 @@ export class AnprOrchestrationService {
         await this.ropVerificationDao.save(failedVerification);
         // Capture is NOT stamped on failure — only a successful fetch updates it.
       } catch (saveErr) {
-        this.logger.warn(`[Orchestration] Failed to persist Failed ROP verification for ${plate}: ${(saveErr as Error).message}`, AnprOrchestrationService.context);
+        this.logger.warn(
+          `[Orchestration] Failed to persist Failed ROP verification for ${plate}: ${(saveErr as Error).message}`,
+          AnprOrchestrationService.context,
+        );
       }
     }
 

@@ -14,9 +14,14 @@ import { AnprCapture } from './anpr-capture.entity';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 
 @Entity({ name: 'rop_verifications', schema: DATABASE_SCHEMAS.TRANSACTION })
-@Index('IDX_ROP_VERIFICATION_ROP_VERIFICATION_ID', ['rop_verification_id'], { unique: true })
+@Index('IDX_ROP_VERIFICATION_ROP_VERIFICATION_ID', ['rop_verification_id'], {
+  unique: true,
+})
 @Index('IDX_ROP_VERIFICATION_ANPR_CAPTURE_ID', ['anpr_capture_id'])
-@Index('IDX_ROP_VERIFICATION_FETCH_STATUS_CREATED_AT', ['fetch_status', 'created_at'])
+@Index('IDX_ROP_VERIFICATION_FETCH_STATUS_CREATED_AT', [
+  'fetch_status',
+  'created_at',
+])
 export class RopVerification {
   @SnowflakePrimaryColumn()
   id!: string;
@@ -24,13 +29,21 @@ export class RopVerification {
   @Column({ type: 'integer', unique: true, nullable: false })
   rop_verification_id!: number;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   anpr_capture_id!: string;
 
-  @ManyToOne(() => AnprCapture, (anprCapture) => anprCapture.rop_verifications, {
-    nullable: false,
-    onDelete: 'CASCADE',
-  })
+  @ManyToOne(
+    () => AnprCapture,
+    (anprCapture) => anprCapture.rop_verifications,
+    {
+      nullable: false,
+      onDelete: 'CASCADE',
+    },
+  )
   @JoinColumn({ name: 'anpr_capture_id' })
   anpr_capture!: AnprCapture;
 
@@ -55,7 +68,12 @@ export class RopVerification {
   @Column({ type: 'date', nullable: true })
   reg_expiry?: Date;
 
-  @Column({ type: 'varchar', length: 32, default: 'Not Fetched', nullable: false })
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: 'Not Fetched',
+    nullable: false,
+  })
   fetch_status!: string;
 
   @Column({ type: 'varchar', nullable: true })

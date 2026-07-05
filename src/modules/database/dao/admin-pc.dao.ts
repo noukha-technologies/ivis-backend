@@ -13,6 +13,7 @@ import { AdminPc } from '../entity/admin-pc.entity';
 export class AdminPcDao extends Repository<AdminPc> {
   private static readonly lineRelations = {
     lineMappings: { line: { centre: true } },
+    centre: true,
   } as const;
 
   constructor(
@@ -41,20 +42,41 @@ export class AdminPcDao extends Repository<AdminPc> {
       .getOne();
   }
 
+  async findByName(name: string): Promise<AdminPc | null> {
+    return this.createQueryBuilder('adminPc')
+      .where('LOWER(adminPc.name) = LOWER(:name)', { name })
+      .andWhere('adminPc.is_deleted = :is_deleted', { is_deleted: false })
+      .getOne();
+  }
+
   async findByCode(code: string): Promise<AdminPc | null> {
     return this.findOne({ where: { code, is_deleted: false } });
   }
 
   async findByAdminPcId(adminPcId: number): Promise<AdminPc | null> {
-    return this.findOne({ where: { admin_pc_id: adminPcId, is_deleted: false } });
+    return this.findOne({
+      where: { admin_pc_id: adminPcId, is_deleted: false },
+    });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<AdminPc>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+    centerId?: string,
+  ): Promise<PaginatedResult<AdminPc>> {
     const qb = this.createQueryBuilder('adminPc')
-      .leftJoinAndSelect('adminPc.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect(
+        'adminPc.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = false',
+      )
       .leftJoinAndSelect('lineMapping.line', 'line')
       .leftJoinAndSelect('line.centre', 'centre')
+      .leftJoinAndSelect('adminPc.centre', 'pcCentre')
       .where('adminPc.is_deleted = :is_deleted', { is_deleted: false });
+
+    if (centerId) {
+      qb.andWhere('adminPc.center_id = :centerId', { centerId });
+    }
 
     const options = buildTypeOrmPaginationOptions<AdminPc, AdminPc>(query, {
       searchFields: [
@@ -67,11 +89,22 @@ export class AdminPcDao extends Repository<AdminPc> {
         'centre.name',
         'centre.code',
       ],
-      allowedSortFields: ['admin_pc_id', 'name', 'code', 'ip_address', 'status', 'created_at'],
+      allowedSortFields: [
+        'admin_pc_id',
+        'name',
+        'code',
+        'ip_address',
+        'status',
+        'created_at',
+      ],
       defaultSort: { created_at: 'DESC' },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'adminPc', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'adminPc',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

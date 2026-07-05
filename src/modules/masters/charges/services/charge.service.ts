@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreateChargeDto, UpdateChargeDto } from '../../../../common/dto/charge.dto';
+import {
+  CreateChargeDto,
+  UpdateChargeDto,
+} from '../../../../common/dto/charge.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -27,12 +30,21 @@ export class ChargeService {
     private readonly logger: AppLogger,
   ) {}
 
-  private computeGrandTotal(centerCharges: number, ropCharges: number, vatPercent: number): number {
-    return Number(((centerCharges + ropCharges) * (1 + vatPercent / 100)).toFixed(3));
+  private computeGrandTotal(
+    centerCharges: number,
+    ropCharges: number,
+    vatPercent: number,
+  ): number {
+    return Number(
+      ((centerCharges + ropCharges) * (1 + vatPercent / 100)).toFixed(3),
+    );
   }
 
   async create(dto: CreateChargeDto, actor: UserContext): Promise<Charge> {
-    this.logger.log(`Creating charge — category: ${dto.charge_category_id}`, ChargeService.context);
+    this.logger.log(
+      `Creating charge — category: ${dto.charge_category_id}`,
+      ChargeService.context,
+    );
 
     try {
       if (dto.centre_id) {
@@ -42,14 +54,27 @@ export class ChargeService {
         }
       }
 
-      const chargeCategory = await this.chargeCategoryDao.findActiveById(dto.charge_category_id);
+      const chargeCategory = await this.chargeCategoryDao.findActiveById(
+        dto.charge_category_id,
+      );
       if (!chargeCategory) {
-        throw new ResourceNotFoundException('ChargeCategory', dto.charge_category_id);
+        throw new ResourceNotFoundException(
+          'ChargeCategory',
+          dto.charge_category_id,
+        );
       }
 
-      const existing = await this.chargeDao.findByCombo(dto.centre_id, dto.vehicle_type, dto.charge_category_id);
+      const existing = await this.chargeDao.findByCombo(
+        dto.centre_id,
+        dto.vehicle_type,
+        dto.charge_category_id,
+      );
       if (existing) {
-        throw new DuplicateResourceException('Charge', 'centre/vehicle/category combination', dto.charge_category_id);
+        throw new DuplicateResourceException(
+          'Charge',
+          'centre/vehicle/category combination',
+          dto.charge_category_id,
+        );
       }
 
       let charge_id = dto.charge_id;
@@ -58,11 +83,19 @@ export class ChargeService {
       } else {
         const existingId = await this.chargeDao.findByChargeId(charge_id);
         if (existingId) {
-          throw new DuplicateResourceException('Charge', 'charge_id', charge_id);
+          throw new DuplicateResourceException(
+            'Charge',
+            'charge_id',
+            charge_id,
+          );
         }
       }
 
-      const grand_total = this.computeGrandTotal(dto.center_charges, dto.rop_charges, dto.vat_percent);
+      const grand_total = this.computeGrandTotal(
+        dto.center_charges,
+        dto.rop_charges,
+        dto.vat_percent,
+      );
 
       const charge = this.chargeDao.create({
         id: generateSnowflakeId(),
@@ -94,7 +127,10 @@ export class ChargeService {
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Charge>> {
-    this.logger.log(`Fetching charges — page: ${query.page}, limit: ${query.limit}`, ChargeService.context);
+    this.logger.log(
+      `Fetching charges — page: ${query.page}, limit: ${query.limit}`,
+      ChargeService.context,
+    );
 
     try {
       return await this.chargeDao.findPaginated(query);
@@ -145,14 +181,23 @@ export class ChargeService {
         }
       }
 
-      if (dto.charge_category_id && dto.charge_category_id !== charge.charge_category_id) {
-        const chargeCategory = await this.chargeCategoryDao.findActiveById(dto.charge_category_id);
+      if (
+        dto.charge_category_id &&
+        dto.charge_category_id !== charge.charge_category_id
+      ) {
+        const chargeCategory = await this.chargeCategoryDao.findActiveById(
+          dto.charge_category_id,
+        );
         if (!chargeCategory) {
-          throw new ResourceNotFoundException('ChargeCategory', dto.charge_category_id);
+          throw new ResourceNotFoundException(
+            'ChargeCategory',
+            dto.charge_category_id,
+          );
         }
       }
 
-      const newCentreId = dto.centre_id !== undefined ? dto.centre_id : charge.centre_id;
+      const newCentreId =
+        dto.centre_id !== undefined ? dto.centre_id : charge.centre_id;
       const newVehicleType = dto.vehicle_type ?? charge.vehicle_type;
       const newCategoryId = dto.charge_category_id ?? charge.charge_category_id;
 
@@ -161,9 +206,17 @@ export class ChargeService {
         newVehicleType !== charge.vehicle_type ||
         newCategoryId !== charge.charge_category_id
       ) {
-        const existing = await this.chargeDao.findByCombo(newCentreId, newVehicleType, newCategoryId!);
+        const existing = await this.chargeDao.findByCombo(
+          newCentreId,
+          newVehicleType,
+          newCategoryId!,
+        );
         if (existing && existing.id !== id) {
-          throw new DuplicateResourceException('Charge', 'centre/vehicle/category combination', newCategoryId!);
+          throw new DuplicateResourceException(
+            'Charge',
+            'centre/vehicle/category combination',
+            newCategoryId!,
+          );
         }
       }
 
@@ -172,7 +225,11 @@ export class ChargeService {
       const finalCenterCharges = Number(mergedCharge.center_charges);
       const finalRopCharges = Number(mergedCharge.rop_charges);
       const finalVatPercent = Number(mergedCharge.vat_percent);
-      mergedCharge.grand_total = this.computeGrandTotal(finalCenterCharges, finalRopCharges, finalVatPercent);
+      mergedCharge.grand_total = this.computeGrandTotal(
+        finalCenterCharges,
+        finalRopCharges,
+        finalVatPercent,
+      );
 
       const saved = await this.chargeDao.save(mergedCharge);
       this.logger.log(`Charge updated ID: ${saved.id}`, ChargeService.context);

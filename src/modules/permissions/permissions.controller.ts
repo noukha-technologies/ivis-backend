@@ -26,7 +26,11 @@ import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe
 
 import type { UserContext } from '../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
-import { CreatePermissionProfileDto, PermissionProfileDto, UpdatePermissionProfileDto } from '../../common/dto/permission-profile.dto';
+import {
+  CreatePermissionProfileDto,
+  PermissionProfileDto,
+  UpdatePermissionProfileDto,
+} from '../../common/dto/permission-profile.dto';
 
 import { PermissionService } from './service/permissions.service';
 import { Public } from 'src/common/decorators/public.decorator';
@@ -34,7 +38,7 @@ import { Public } from 'src/common/decorators/public.decorator';
 @ApiTags('Permissions')
 @Controller('permissions')
 export class PermissionsController {
-  constructor(private readonly permissionProfileService: PermissionService) { }
+  constructor(private readonly permissionProfileService: PermissionService) {}
 
   @Get('keys')
   @Permissions(PermissionKeys.PERMISSIONS_VIEW)
@@ -53,10 +57,18 @@ export class PermissionsController {
   @Post()
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create permission access profile (create before role)' })
+  @ApiOperation({
+    summary: 'Create permission access profile (create before role)',
+  })
   @ApiBearerAuth('jwt')
-  @ApiCreatedResponse({ description: 'Permission profile created', type: PermissionProfileDto })
-  create(@CurrentUser() actor: UserContext, @Body() body: CreatePermissionProfileDto) {
+  @ApiCreatedResponse({
+    description: 'Permission profile created',
+    type: PermissionProfileDto,
+  })
+  create(
+    @CurrentUser() actor: UserContext,
+    @Body() body: CreatePermissionProfileDto,
+  ) {
     return this.permissionProfileService.create(body, actor).then((data) => ({
       message: 'Permission profile created successfully',
       data,
@@ -92,7 +104,9 @@ export class PermissionsController {
   @Patch(':id')
   @Permissions(PermissionKeys.PERMISSIONS_UPSERT)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update permission access profile (invalidates affected sessions)' })
+  @ApiOperation({
+    summary: 'Update permission access profile (invalidates affected sessions)',
+  })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
   update(

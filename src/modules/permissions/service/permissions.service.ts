@@ -5,7 +5,7 @@ import { ErrorException } from '../../../common/errors/custom-error.exception';
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException
+  ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
 
 import { AppLogger } from '../../../common/logger/app.logger';
@@ -25,9 +25,8 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import {
   CreatePermissionProfileDto,
   PermissionProfileDto,
-  UpdatePermissionProfileDto
+  UpdatePermissionProfileDto,
 } from '../../../common/dto/permission-profile.dto';
-
 
 @Injectable()
 export class PermissionService {
@@ -38,10 +37,16 @@ export class PermissionService {
     private readonly roleDao: RoleDao,
     private readonly userSessionsDao: UserSessionsDao,
     private readonly logger: AppLogger,
-  ) { }
+  ) {}
 
-  async create(dto: CreatePermissionProfileDto, actor: UserContext): Promise<PermissionProfileDto> {
-    this.logger.log(`Creating permission profile: ${dto.name}`, PermissionService.context);
+  async create(
+    dto: CreatePermissionProfileDto,
+    actor: UserContext,
+  ): Promise<PermissionProfileDto> {
+    this.logger.log(
+      `Creating permission profile: ${dto.name}`,
+      PermissionService.context,
+    );
 
     try {
       const existing = await this.permissionDao.findByName(dto.name);
@@ -55,7 +60,7 @@ export class PermissionService {
         name: dto.name.trim(),
         access,
         is_active: dto.is_active ?? true,
-        created_by: "System Admin",
+        created_by: 'System Admin',
       });
       const saved = await this.permissionDao.save(permission);
       return this.toDto(saved);
@@ -68,11 +73,15 @@ export class PermissionService {
         (error as Error).stack,
         PermissionService.context,
       );
-      throw new DatabaseException('Failed to create permission profile. Please try again.');
+      throw new DatabaseException(
+        'Failed to create permission profile. Please try again.',
+      );
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<PermissionProfileDto>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<PermissionProfileDto>> {
     const result = await this.permissionDao.findPaginated(query);
     return {
       ...result,
@@ -88,7 +97,10 @@ export class PermissionService {
     return this.toDto(row);
   }
 
-  async update(id: string, dto: UpdatePermissionProfileDto): Promise<PermissionProfileDto> {
+  async update(
+    id: string,
+    dto: UpdatePermissionProfileDto,
+  ): Promise<PermissionProfileDto> {
     const row = await this.permissionDao.findActiveById(id);
     if (!row) {
       throw new ResourceNotFoundException('Permission', id);
@@ -101,11 +113,14 @@ export class PermissionService {
       }
     }
 
-    const access = dto.access !== undefined ? validateAccessMatrix(dto.access) : row.access;
+    const access =
+      dto.access !== undefined ? validateAccessMatrix(dto.access) : row.access;
 
     const merged = this.permissionDao.merge(row, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-      ...(dto.description !== undefined ? { description: dto.description?.trim() } : {}),
+      ...(dto.description !== undefined
+        ? { description: dto.description?.trim() }
+        : {}),
       ...(dto.access !== undefined ? { access } : {}),
       ...(dto.is_active !== undefined ? { is_active: dto.is_active } : {}),
     });

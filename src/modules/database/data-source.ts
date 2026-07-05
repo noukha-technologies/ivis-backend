@@ -10,6 +10,7 @@ import { Role } from './entity/role.entity';
 import { Line } from './entity/line.entity';
 import { Charge } from './entity/charge.entity';
 import { Camera } from './entity/camera.entity';
+import { CameraLineMapping } from './entity/camera-line-mapping.entity';
 import { Centre } from './entity/centre.entity';
 import { Vehicle } from './entity/vehicle.entity';
 import { AdminPc } from './entity/admin-pc.entity';
@@ -22,6 +23,7 @@ import { PaymentType } from './entity/payment-type.entity';
 import { AnprCapture } from './entity/anpr-capture.entity';
 import { VehicleRecord } from './entity/vehicle-record.entity';
 import { ChargeCategory } from './entity/charge-category.entity';
+import { Configurations } from './entity/configuration.entity';
 import { RopVerification } from './entity/rop-verification.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
@@ -49,6 +51,7 @@ export const AppDataSource = new DataSource({
     AdminPc,
     AdminPcLineMapping,
     Camera,
+    CameraLineMapping,
     Payments,
     AnprCapture,
     RopVerification,
@@ -59,6 +62,7 @@ export const AppDataSource = new DataSource({
     Charge,
     ChargeCategory,
     PaymentType,
+    Configurations,
   ],
   migrations: [__dirname + '/../../migrations/*{.ts,.js}'],
   subscribers: [],

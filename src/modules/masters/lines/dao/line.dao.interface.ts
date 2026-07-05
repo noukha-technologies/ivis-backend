@@ -5,6 +5,7 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 export interface ILineDao {
   findActiveById(id: string): Promise<Line | null>;
   findByCode(code: string): Promise<Line | null>;
+  findByName(name: string, excludeId?: string): Promise<Line | null>;
   findByLineId(lineId: number): Promise<Line | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Line>>;
   getNextLineId(): Promise<number>;

@@ -13,7 +13,8 @@ export function normalizeOmanPhone(value: unknown): unknown {
 
   // Drop the country code in any of its common forms.
   if (digits.startsWith('00968')) digits = digits.slice(5);
-  else if (digits.startsWith('968') && digits.length > 8) digits = digits.slice(3);
+  else if (digits.startsWith('968') && digits.length > 8)
+    digits = digits.slice(3);
 
   // Drop a stray leading zero (e.g. 091234567).
   if (digits.length === 9 && digits.startsWith('0')) digits = digits.slice(1);

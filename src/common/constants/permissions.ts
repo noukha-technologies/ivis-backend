@@ -72,12 +72,15 @@ export const PermissionKeys = {
   DASHBOARD_VIEW: 'DASHBOARD_VIEW',
   REPORTS_VIEW: 'REPORTS_VIEW',
   CONFIGURATION_VIEW: 'CONFIGURATION_VIEW',
+  CONFIGURATION_UPSERT: 'CONFIGURATION_UPSERT',
   FILE_PROCESSING_VIEW: 'FILE_PROCESSING_VIEW',
 } as const;
 
-export type PermissionKey = (typeof PermissionKeys)[keyof typeof PermissionKeys];
+export type PermissionKey =
+  (typeof PermissionKeys)[keyof typeof PermissionKeys];
 
-export const ALL_PERMISSION_KEYS: PermissionKey[] = Object.values(PermissionKeys);
+export const ALL_PERMISSION_KEYS: PermissionKey[] =
+  Object.values(PermissionKeys);
 
 export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.USER_VIEW]: 'View users',
@@ -138,12 +141,16 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.DASHBOARD_VIEW]: 'View dashboard',
   [PermissionKeys.REPORTS_VIEW]: 'View reports and analytics',
   [PermissionKeys.CONFIGURATION_VIEW]: 'View and manage configuration',
+  [PermissionKeys.CONFIGURATION_UPSERT]:
+    'Create or update centre configuration',
   [PermissionKeys.FILE_PROCESSING_VIEW]: 'View and manage file processing',
 };
 
 /** DB seed rows derived from PermissionKeys + PERMISSION_DESCRIPTIONS */
-export const PERMISSION_SEED_ROWS: Array<{ key: PermissionKey; description: string }> =
-  ALL_PERMISSION_KEYS.map((key) => ({
-    key,
-    description: PERMISSION_DESCRIPTIONS[key],
-  }));
+export const PERMISSION_SEED_ROWS: Array<{
+  key: PermissionKey;
+  description: string;
+}> = ALL_PERMISSION_KEYS.map((key) => ({
+  key,
+  description: PERMISSION_DESCRIPTIONS[key],
+}));

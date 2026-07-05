@@ -40,31 +40,31 @@ export class RopVerificationDao
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<RopVerification>> {
-    const options = buildTypeOrmPaginationOptions<RopVerification, RopVerification>(
-      query,
-      {
-        searchFields: [
-          'owner_name',
-          'vehicle_make',
-          'vehicle_model',
-          'reg_no',
-          'chassis_no',
-          'insurance',
-          'fetch_status',
-        ],
-        allowedSortFields: [
-          'rop_verification_id',
-          'owner_name',
-          'reg_no',
-          'reg_expiry',
-          'fetch_status',
-          'created_at',
-          'updated_at',
-        ],
-        defaultSort: { created_at: 'DESC' },
-        baseWhere: { is_deleted: false },
-      },
-    );
+    const options = buildTypeOrmPaginationOptions<
+      RopVerification,
+      RopVerification
+    >(query, {
+      searchFields: [
+        'owner_name',
+        'vehicle_make',
+        'vehicle_model',
+        'reg_no',
+        'chassis_no',
+        'insurance',
+        'fetch_status',
+      ],
+      allowedSortFields: [
+        'rop_verification_id',
+        'owner_name',
+        'reg_no',
+        'reg_expiry',
+        'fetch_status',
+        'created_at',
+        'updated_at',
+      ],
+      defaultSort: { created_at: 'DESC' },
+      baseWhere: { is_deleted: false },
+    });
 
     const response = await this.paginationService.paginate(
       this,
@@ -82,4 +82,3 @@ export class RopVerificationDao
     return max + 1;
   }
 }
-

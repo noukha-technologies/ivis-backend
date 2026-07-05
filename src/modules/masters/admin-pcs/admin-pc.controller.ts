@@ -18,11 +18,15 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateAdminPcDto, UpdateAdminPcDto } from '../../../common/dto/admin-pc.dto';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+
 import { AdminPcService } from './services/admin-pc.service';
+import type { UserContext } from '../../../common/dto/auth.dto';
+import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import {
+  CreateAdminPcDto,
+  UpdateAdminPcDto,
+} from '../../../common/dto/admin-pc.dto';
 
 @ApiTags('Masters / Admin PCs')
 @Controller('masters/admin-pcs')
@@ -44,7 +48,9 @@ export class AdminPcController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all Admin PCs (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all Admin PCs (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({
@@ -55,9 +61,18 @@ export class AdminPcController {
   })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
+  @ApiQuery({
+    name: 'center_id',
+    required: false,
+    type: String,
+    description: 'Filter by Center snowflake ID',
+  })
   @ApiResponse({ status: 200, description: 'Admin PCs list retrieved.' })
-  async findAll(@Query() query: PaginationQueryDto) {
-    const result = await this.adminPcService.findAll(query);
+  async findAll(
+    @CurrentUser() actor: UserContext,
+    @Query() query: PaginationQueryDto & { center_id?: string },
+  ) {
+    const result = await this.adminPcService.findAll(query, actor);
     return { message: 'Admin PCs retrieved successfully', ...result };
   }
 
@@ -66,8 +81,11 @@ export class AdminPcController {
   @ApiParam({ name: 'id', type: String, description: 'Admin PC snowflake ID' })
   @ApiResponse({ status: 200, description: 'Admin PC retrieved successfully.' })
   @ApiResponse({ status: 404, description: 'Admin PC not found.' })
-  async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    const pc = await this.adminPcService.findOne(id);
+  async findOne(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    const pc = await this.adminPcService.findOne(id, actor);
     return { message: 'Admin PC retrieved successfully', data: pc };
   }
 
@@ -78,10 +96,11 @@ export class AdminPcController {
   @ApiResponse({ status: 404, description: 'Admin PC not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
   async update(
+    @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateAdminPcDto: UpdateAdminPcDto,
   ) {
-    const pc = await this.adminPcService.update(id, updateAdminPcDto);
+    const pc = await this.adminPcService.update(id, updateAdminPcDto, actor);
     return { message: 'Admin PC updated successfully', data: pc };
   }
 
@@ -90,8 +109,11 @@ export class AdminPcController {
   @ApiParam({ name: 'id', type: String, description: 'Admin PC snowflake ID' })
   @ApiResponse({ status: 200, description: 'Admin PC deleted successfully.' })
   @ApiResponse({ status: 404, description: 'Admin PC not found.' })
-  async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.adminPcService.remove(id);
+  async remove(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    await this.adminPcService.remove(id, actor);
     return { message: 'Admin PC deleted successfully', data: null };
   }
 }

@@ -32,16 +32,24 @@ export class TestController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a new test master record' })
-  @ApiResponse({ status: 201, description: 'Test master created successfully.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Test master created successfully.',
+  })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or test_id.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createTestDto: CreateTestDto) {
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createTestDto: CreateTestDto,
+  ) {
     const test = await this.testService.create(createTestDto, actor);
     return { message: 'Test master created successfully', data: test };
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all test masters (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all test masters (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({
@@ -62,8 +70,15 @@ export class TestController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve a test master by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'Test master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Test master retrieved successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Test master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Test master retrieved successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Test master not found.' })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const test = await this.testService.findOne(id);
@@ -72,8 +87,15 @@ export class TestController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update test master details' })
-  @ApiParam({ name: 'id', type: String, description: 'Test master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Test master updated successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Test master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Test master updated successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Test master not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
   async update(
@@ -86,8 +108,15 @@ export class TestController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete a test master' })
-  @ApiParam({ name: 'id', type: String, description: 'Test master snowflake ID' })
-  @ApiResponse({ status: 200, description: 'Test master deleted successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'Test master snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Test master deleted successfully.',
+  })
   @ApiResponse({ status: 404, description: 'Test master not found.' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.testService.remove(id);

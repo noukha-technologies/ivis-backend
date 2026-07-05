@@ -33,7 +33,7 @@ import { UsersService } from './service/users.service';
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) { }
+  constructor(private readonly usersService: UsersService) {}
 
   @Post()
   @Permissions(PermissionKeys.USER_CREATE)
@@ -52,17 +52,27 @@ export class UsersController {
 
   @Get()
   @Permissions(PermissionKeys.USER_VIEW)
-  @ApiOperation({ summary: 'Retrieve all users (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all users (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'user_name, email' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'user_name, email',
+  })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
   @ApiResponse({ status: 200, description: 'Users list retrieved.' })
-  async findAll(@Query() query: PaginationQueryDto) {
-    const result = await this.usersService.findAll(query);
+  async findAll(
+    @CurrentUser() actor: UserContext,
+    @Query() query: PaginationQueryDto,
+  ) {
+    const result = await this.usersService.findAll(query, actor);
     return { message: 'Users retrieved successfully', ...result };
   }
 
@@ -99,8 +109,11 @@ export class UsersController {
   @ApiParam({ name: 'id', type: String, description: 'User snowflake ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully.' })
   @ApiResponse({ status: 404, description: 'User not found.' })
-  async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    await this.usersService.remove(id);
+  async remove(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    await this.usersService.remove(id, actor);
     return { message: 'User deleted successfully', data: null };
   }
 }

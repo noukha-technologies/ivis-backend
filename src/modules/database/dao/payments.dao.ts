@@ -46,7 +46,9 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Payments>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Payments>> {
     const qb = this.createQueryBuilder('payment')
       .leftJoinAndSelect('payment.customer', 'customer')
       .leftJoinAndSelect('payment.vehicleRecord', 'vehicleRecord')
@@ -54,17 +56,24 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
       .leftJoinAndSelect('payment.paymentType', 'paymentType')
       .leftJoinAndSelect('payment.job', 'job');
 
-    const options = buildTypeOrmPaginationOptions<Payments, Payments>(
-      query,
-      {
-        searchFields: ['status', 'paymentType.name', 'customer.owner_name'],
-        allowedSortFields: ['payment_id', 'status', 'pay_date', 'grand_total', 'created_at'],
-        defaultSort: { created_at: 'DESC' },
-        baseWhere: { is_deleted: false },
-      },
-    );
+    const options = buildTypeOrmPaginationOptions<Payments, Payments>(query, {
+      searchFields: ['status', 'paymentType.name', 'customer.owner_name'],
+      allowedSortFields: [
+        'payment_id',
+        'status',
+        'pay_date',
+        'grand_total',
+        'created_at',
+      ],
+      defaultSort: { created_at: 'DESC' },
+      baseWhere: { is_deleted: false },
+    });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'payment', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'payment',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

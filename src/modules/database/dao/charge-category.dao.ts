@@ -11,7 +11,10 @@ import { IChargeCategoryDao } from '../../masters/charge-categories/dao/charge-c
 import { ChargeCategory } from '../entity/charge-category.entity';
 
 @Injectable()
-export class ChargeCategoryDao extends Repository<ChargeCategory> implements IChargeCategoryDao {
+export class ChargeCategoryDao
+  extends Repository<ChargeCategory>
+  implements IChargeCategoryDao
+{
   constructor(
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
@@ -23,17 +26,35 @@ export class ChargeCategoryDao extends Repository<ChargeCategory> implements ICh
     return this.findOne({ where: { id, is_deleted: false } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<ChargeCategory>> {
-    const qb = this.createQueryBuilder('cc')
-      .where('cc.is_deleted = :is_deleted', { is_deleted: false });
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<ChargeCategory>> {
+    const qb = this.createQueryBuilder('cc').where(
+      'cc.is_deleted = :is_deleted',
+      { is_deleted: false },
+    );
 
-    const options = buildTypeOrmPaginationOptions<ChargeCategory, ChargeCategory>(query, {
+    const options = buildTypeOrmPaginationOptions<
+      ChargeCategory,
+      ChargeCategory
+    >(query, {
       searchFields: ['cc.vehicle_weight', 'cc.engine_capacity', 'cc.status'],
-      allowedSortFields: ['category_id', 'vehicle_weight', 'engine_capacity', 'fees', 'status', 'created_at'],
+      allowedSortFields: [
+        'category_id',
+        'vehicle_weight',
+        'engine_capacity',
+        'fees',
+        'status',
+        'created_at',
+      ],
       defaultSort: { created_at: 'DESC' },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'cc', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'cc',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

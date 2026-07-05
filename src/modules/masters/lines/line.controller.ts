@@ -44,7 +44,9 @@ export class LineController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all lines (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all lines (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiQuery({

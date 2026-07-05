@@ -17,6 +17,10 @@ import {
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
 import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
+import {
+  DEFAULT_ACCESS_SCOPE,
+  isGlobalScope,
+} from '../../../common/constants/access-scope';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
@@ -52,12 +56,20 @@ export class AuthService implements IAuthService {
     private readonly permissionDao: PermissionDao,
     private readonly configService: ConfigService,
   ) {
-    this.accessSecret = this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
-    this.refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
-    this.accessExpiresIn = this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '15m';
-    this.refreshExpiresIn = this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d';
-    this.refreshExpiryDays = Number(this.configService.get<string>('JWT_REFRESH_EXPIRY_DAYS') ?? '7');
-    const encryptKey = this.configService.getOrThrow<string>('REFRESH_TOKEN_ENCRYPT_KEY');
+    this.accessSecret =
+      this.configService.getOrThrow<string>('JWT_ACCESS_SECRET');
+    this.refreshSecret =
+      this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+    this.accessExpiresIn =
+      this.configService.get<string>('JWT_ACCESS_EXPIRES_IN') ?? '15m';
+    this.refreshExpiresIn =
+      this.configService.get<string>('JWT_REFRESH_EXPIRES_IN') ?? '7d';
+    this.refreshExpiryDays = Number(
+      this.configService.get<string>('JWT_REFRESH_EXPIRY_DAYS') ?? '7',
+    );
+    const encryptKey = this.configService.getOrThrow<string>(
+      'REFRESH_TOKEN_ENCRYPT_KEY',
+    );
     this.refreshTokenEncryptKey = hashRefreshTokenKey(encryptKey);
   }
 
@@ -67,7 +79,10 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_USER');
     }
 
-    const passwordMatches = await bcrypt.compare(request.password, user.password);
+    const passwordMatches = await bcrypt.compare(
+      request.password,
+      user.password,
+    );
     if (!passwordMatches) {
       throw new ErrorException('INVALID_USER');
     }
@@ -88,8 +103,12 @@ export class AuthService implements IAuthService {
    * every permission. Allowed only while the system has no users, so it cannot be
    * abused once anyone exists.
    */
-  async bootstrapAdmin(dto: BootstrapAdminDto): Promise<BootstrapAdminResponseDto> {
-    const userCount = await this.usersDao.count({ where: { is_deleted: false } });
+  async bootstrapAdmin(
+    dto: BootstrapAdminDto,
+  ): Promise<BootstrapAdminResponseDto> {
+    const userCount = await this.usersDao.count({
+      where: { is_deleted: false },
+    });
     if (userCount > 0) {
       throw new ErrorException(
         'FORBIDDEN_REQUEST',
@@ -124,6 +143,7 @@ export class AuthService implements IAuthService {
         role_name: roleName,
         permission_id: permission.id,
         description: 'Bootstrap admin role',
+        access_scope: 'global',
       });
       role = await this.roleDao.save(role);
     }
@@ -164,14 +184,20 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_AUTHORISATION_TOKEN');
     }
 
-    const storedRefresh = decrypt(session.refresh_token, this.refreshTokenEncryptKey);
+    const storedRefresh = decrypt(
+      session.refresh_token,
+      this.refreshTokenEncryptKey,
+    );
     if (storedRefresh !== refreshToken) {
       throw new ErrorException('INVALID_AUTHORISATION_TOKEN');
     }
 
     const user = await this.usersDao.findActiveById(payload.sub);
     if (!user) {
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Session user is inactive or not found');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'Session user is inactive or not found',
+      );
     }
 
     const tokens = await this.issueTokens(user, session.id);
@@ -192,7 +218,10 @@ export class AuthService implements IAuthService {
     );
   }
 
-  async buildUserContext(userId: string, accessJti: string): Promise<UserContext | null> {
+  async buildUserContext(
+    userId: string,
+    accessJti: string,
+  ): Promise<UserContext | null> {
     const session = await this.userSessionsDao.getUserSessionByUserIdAndJti(
       userId,
       accessJti,
@@ -214,13 +243,21 @@ export class AuthService implements IAuthService {
   }
 
   private async resolveUserPermissions(user: User): Promise<string[]> {
+    // A global-scope role (Super Admin) always has every permission — this keeps
+    // full access correct even for permission keys not surfaced in the matrix.
+    if (isGlobalScope(user.role?.access_scope)) {
+      return [...ALL_PERMISSION_KEYS];
+    }
+
     const access = user.role?.permission?.access;
     if (access && user.role?.permission?.is_active !== false) {
       return resolveFlatPermissionsFromMatrix(access);
     }
 
     if (user.role_id) {
-      const role = await this.roleDao.findActiveByIdWithPermission(user.role_id);
+      const role = await this.roleDao.findActiveByIdWithPermission(
+        user.role_id,
+      );
       if (role?.permission?.access && role.permission.is_active) {
         return resolveFlatPermissionsFromMatrix(role.permission.access);
       }
@@ -229,7 +266,10 @@ export class AuthService implements IAuthService {
     return [];
   }
 
-  private async issueTokens(user: User, sessionId?: string): Promise<TokenPair> {
+  private async issueTokens(
+    user: User,
+    sessionId?: string,
+  ): Promise<TokenPair> {
     const accessJti = randomUUID();
     const refreshJti = randomUUID();
     const refreshExpiresAt = new Date(
@@ -271,7 +311,9 @@ export class AuthService implements IAuthService {
   }
 
   private toAuthUser(user: User): AuthUserDto {
-    const activeMappings = (user.lineMappings ?? []).filter((m) => !m.is_deleted);
+    const activeMappings = (user.lineMappings ?? []).filter(
+      (m) => !m.is_deleted,
+    );
     const lines = activeMappings
       .filter((m) => m.line)
       .map((m) => ({
@@ -290,6 +332,8 @@ export class AuthService implements IAuthService {
       role: user.role?.role_name ?? '',
       role_id: user.role_id,
       role_access_id: user.role_id,
+      access_scope: user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE,
+      is_center_admin: user.role?.is_center_admin ?? false,
       center: user.assignedCentre?.name,
       line: lines[0]?.name,
       center_id: user.center_id ?? undefined,

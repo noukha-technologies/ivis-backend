@@ -5,6 +5,7 @@ import { PaginatedResult } from '../../../../common/interfaces/pagination.interf
 export interface ICentreDao {
   findActiveById(id: string): Promise<Centre | null>;
   findByCode(code: string): Promise<Centre | null>;
+  findByName(name: string): Promise<Centre | null>;
   findByCentreId(centreId: number): Promise<Centre | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Centre>>;
   getNextCentreId(): Promise<number>;

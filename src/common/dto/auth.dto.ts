@@ -1,8 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 import { UserSession } from '../../modules/database/entity/user-session.entity';
-
+import { ACCESS_SCOPES, AccessScope } from '../constants/access-scope';
 
 export class AuthUserDto {
   @ApiProperty()
@@ -11,7 +17,10 @@ export class AuthUserDto {
   @ApiProperty()
   user_id!: number;
 
-  @ApiProperty({ description: 'Unique alphanumeric user code', example: 'USR1001' })
+  @ApiProperty({
+    description: 'Unique alphanumeric user code',
+    example: 'USR1001',
+  })
   user_code!: string;
 
   @ApiProperty()
@@ -32,16 +41,34 @@ export class AuthUserDto {
   })
   role_access_id!: string;
 
+  @ApiProperty({
+    description:
+      'Role data-access scope: "global" (all centres) or "centre" (single centre)',
+    enum: ACCESS_SCOPES,
+  })
+  access_scope!: AccessScope;
+
+  @ApiProperty({
+    description:
+      'Whether the role is a Centre Admin (only meaningful for centre scope)',
+  })
+  is_center_admin!: boolean;
+
   @ApiPropertyOptional({ description: 'Centre display name' })
   center?: string;
 
-  @ApiPropertyOptional({ description: 'Primary line display name (first assigned line)' })
+  @ApiPropertyOptional({
+    description: 'Primary line display name (first assigned line)',
+  })
   line?: string;
 
   @ApiPropertyOptional({ description: 'Centre snowflake ID' })
   center_id?: string;
 
-  @ApiPropertyOptional({ description: 'Assigned line snowflake IDs', type: [String] })
+  @ApiPropertyOptional({
+    description: 'Assigned line snowflake IDs',
+    type: [String],
+  })
   line_ids?: string[];
 
   @ApiPropertyOptional({
@@ -94,19 +121,27 @@ export class LoginResponseDto {
   user!: AuthUserDto;
 
   @ApiProperty({
-    description: 'Flat permission keys resolved from role → permission.access (guard vocabulary)',
+    description:
+      'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],
   })
   permissions!: string[];
 }
 
 export class BootstrapAdminDto {
-  @ApiProperty({ example: 'admin@ivis.local', description: 'Admin login email' })
+  @ApiProperty({
+    example: 'admin@ivis.local',
+    description: 'Admin login email',
+  })
   @IsEmail()
   @IsNotEmpty()
   email!: string;
 
-  @ApiProperty({ example: 'Admin@12345', minLength: 8, description: 'Admin password' })
+  @ApiProperty({
+    example: 'Admin@12345',
+    minLength: 8,
+    description: 'Admin password',
+  })
   @IsString()
   @MinLength(8)
   password!: string;
@@ -116,7 +151,11 @@ export class BootstrapAdminDto {
   @IsString()
   user_name?: string;
 
-  @ApiPropertyOptional({ example: 'ADMIN', default: 'ADMIN', description: 'Unique alphanumeric user code' })
+  @ApiPropertyOptional({
+    example: 'ADMIN',
+    default: 'ADMIN',
+    description: 'Unique alphanumeric user code',
+  })
   @IsOptional()
   @IsString()
   user_code?: string;
@@ -159,7 +198,10 @@ export class BootstrapAdminResponseDto {
   })
   role_access_id!: string;
 
-  @ApiProperty({ description: 'All flat permission keys granted to the admin', type: [String] })
+  @ApiProperty({
+    description: 'All flat permission keys granted to the admin',
+    type: [String],
+  })
   permissions!: string[];
 }
 

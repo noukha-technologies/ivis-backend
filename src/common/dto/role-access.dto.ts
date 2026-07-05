@@ -225,7 +225,10 @@ export class RoleAccessDto {
   @ApiProperty({
     description: 'Module access matrix with submodule-level flags',
     example: Object.fromEntries(
-      ROLE_ACCESS_MODULES.map((m) => [m, { create: false, edit: false, view: false }]),
+      ROLE_ACCESS_MODULES.map((m) => [
+        m,
+        { create: false, edit: false, view: false },
+      ]),
     ),
   })
   access!: RoleAccessMatrix;

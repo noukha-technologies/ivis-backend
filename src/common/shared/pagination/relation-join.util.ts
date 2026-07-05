@@ -45,9 +45,14 @@ export function applyRelationJoins<T extends ObjectLiteral>(
     }
 
     const inner = join.type === 'inner';
-    const method = join.select === false
-      ? (inner ? 'innerJoin' : 'leftJoin')
-      : (inner ? 'innerJoinAndSelect' : 'leftJoinAndSelect');
+    const method =
+      join.select === false
+        ? inner
+          ? 'innerJoin'
+          : 'leftJoin'
+        : inner
+          ? 'innerJoinAndSelect'
+          : 'leftJoinAndSelect';
 
     if (join.condition) {
       qb[method](join.path, join.alias, join.condition, join.params);

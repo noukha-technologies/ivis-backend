@@ -36,34 +36,54 @@ export class RopVerificationService {
    * the appointment (same pipeline as the automatic ROP fetch). No-op otherwise.
    */
   private async syncCaptureFromRop(rop: RopVerification): Promise<void> {
-    if (rop.fetch_status !== RopVerificationStatus.VALIDATED || !rop.anpr_capture_id) {
+    if (
+      rop.fetch_status !== RopVerificationStatus.VALIDATED ||
+      !rop.anpr_capture_id
+    ) {
       return;
     }
-    const capture = await this.anprCaptureDao.findActiveById(rop.anpr_capture_id);
+    const capture = await this.anprCaptureDao.findActiveById(
+      rop.anpr_capture_id,
+    );
     if (!capture) {
       return;
     }
-    await this.captureValidation.applyRopFetched(capture, rop, rop.created_by ?? 'operator');
+    await this.captureValidation.applyRopFetched(
+      capture,
+      rop,
+      rop.created_by ?? 'operator',
+    );
   }
 
-  async create(createDto: CreateRopVerificationDto, actor: UserContext): Promise<RopVerification> {
+  async create(
+    createDto: CreateRopVerificationDto,
+    actor: UserContext,
+  ): Promise<RopVerification> {
     this.logger.log(
       `Creating ROP verification for ANPR capture: ${createDto.anpr_capture_id}`,
       RopVerificationService.context,
     );
 
     try {
-      const anprCapture = await this.anprCaptureDao.findActiveById(createDto.anpr_capture_id);
+      const anprCapture = await this.anprCaptureDao.findActiveById(
+        createDto.anpr_capture_id,
+      );
       if (!anprCapture) {
-        throw new ResourceNotFoundException('AnprCapture', createDto.anpr_capture_id);
+        throw new ResourceNotFoundException(
+          'AnprCapture',
+          createDto.anpr_capture_id,
+        );
       }
 
       let ropVerificationId = createDto.rop_verification_id;
       if (!ropVerificationId) {
-        ropVerificationId = await this.ropVerificationDao.getNextRopVerificationId();
+        ropVerificationId =
+          await this.ropVerificationDao.getNextRopVerificationId();
       } else {
         const existing =
-          await this.ropVerificationDao.findByRopVerificationId(ropVerificationId);
+          await this.ropVerificationDao.findByRopVerificationId(
+            ropVerificationId,
+          );
         if (existing) {
           throw new DuplicateResourceException(
             'RopVerification',
@@ -77,7 +97,9 @@ export class RopVerificationService {
         id: generateSnowflakeId(),
         ...createDto,
         rop_verification_id: ropVerificationId,
-        reg_expiry: createDto.reg_expiry ? new Date(createDto.reg_expiry) : undefined,
+        reg_expiry: createDto.reg_expiry
+          ? new Date(createDto.reg_expiry)
+          : undefined,
         // Manually entered ROP details are treated as Fetched unless stated otherwise.
         fetch_status: createDto.fetch_status || RopVerificationStatus.VALIDATED,
         created_by: getCreatedById(actor),
@@ -103,11 +125,15 @@ export class RopVerificationService {
         (error as Error).stack,
         RopVerificationService.context,
       );
-      throw new DatabaseException('Failed to create ROP verification. Please try again.');
+      throw new DatabaseException(
+        'Failed to create ROP verification. Please try again.',
+      );
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<RopVerification>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<RopVerification>> {
     this.logger.log(
       `Fetching ROP verifications — page: ${query.page}, limit: ${query.limit}`,
       RopVerificationService.context,
@@ -120,12 +146,17 @@ export class RopVerificationService {
         (error as Error).stack,
         RopVerificationService.context,
       );
-      throw new DatabaseException('Failed to fetch ROP verifications. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch ROP verifications. Please try again.',
+      );
     }
   }
 
   async findOne(id: string): Promise<RopVerification> {
-    this.logger.log(`Fetching ROP verification ID: ${id}`, RopVerificationService.context);
+    this.logger.log(
+      `Fetching ROP verification ID: ${id}`,
+      RopVerificationService.context,
+    );
     try {
       const ropVerification = await this.ropVerificationDao.findActiveById(id);
       if (!ropVerification) {
@@ -141,7 +172,9 @@ export class RopVerificationService {
         (error as Error).stack,
         RopVerificationService.context,
       );
-      throw new DatabaseException('Failed to fetch ROP verification. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch ROP verification. Please try again.',
+      );
     }
   }
 
@@ -149,12 +182,17 @@ export class RopVerificationService {
     id: string,
     updateDto: UpdateRopVerificationDto,
   ): Promise<RopVerification> {
-    this.logger.log(`Updating ROP verification ID: ${id}`, RopVerificationService.context);
+    this.logger.log(
+      `Updating ROP verification ID: ${id}`,
+      RopVerificationService.context,
+    );
     try {
       const ropVerification = await this.findOne(id);
       const merged = this.ropVerificationDao.merge(ropVerification, {
         ...updateDto,
-        ...(updateDto.reg_expiry ? { reg_expiry: new Date(updateDto.reg_expiry) } : {}),
+        ...(updateDto.reg_expiry
+          ? { reg_expiry: new Date(updateDto.reg_expiry) }
+          : {}),
       });
       const saved = await this.ropVerificationDao.save(merged);
       // Fetched → validate the linked capture + queue the appointment.
@@ -173,12 +211,17 @@ export class RopVerificationService {
         (error as Error).stack,
         RopVerificationService.context,
       );
-      throw new DatabaseException('Failed to update ROP verification. Please try again.');
+      throw new DatabaseException(
+        'Failed to update ROP verification. Please try again.',
+      );
     }
   }
 
   async remove(id: string): Promise<void> {
-    this.logger.log(`Deleting ROP verification ID: ${id}`, RopVerificationService.context);
+    this.logger.log(
+      `Deleting ROP verification ID: ${id}`,
+      RopVerificationService.context,
+    );
     try {
       const ropVerification = await this.findOne(id);
       ropVerification.is_deleted = true;
@@ -196,8 +239,9 @@ export class RopVerificationService {
         (error as Error).stack,
         RopVerificationService.context,
       );
-      throw new DatabaseException('Failed to delete ROP verification. Please try again.');
+      throw new DatabaseException(
+        'Failed to delete ROP verification. Please try again.',
+      );
     }
   }
 }
-

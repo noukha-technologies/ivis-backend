@@ -3,11 +3,7 @@
  * Pending → In Progress → Completed.
  * Pass/Fail/Redo is NOT a status — it lives in `overall_result` (JOB_OVERALL_RESULTS).
  */
-export const JOB_STATUSES = [
-  'Pending',
-  'In Progress',
-  'Completed',
-] as const;
+export const JOB_STATUSES = ['Pending', 'In Progress', 'Completed'] as const;
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
 

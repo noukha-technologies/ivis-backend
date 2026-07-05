@@ -30,13 +30,21 @@ import { RopVerificationService } from './services/rop-verification.service';
 @ApiTags('Transactions / ROP Verifications')
 @Controller('transactions/rop-verifications')
 export class RopVerificationController {
-  constructor(private readonly ropVerificationService: RopVerificationService) {}
+  constructor(
+    private readonly ropVerificationService: RopVerificationService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Create a ROP verification record' })
-  @ApiResponse({ status: 201, description: 'ROP verification created successfully.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreateRopVerificationDto) {
+  @ApiResponse({
+    status: 201,
+    description: 'ROP verification created successfully.',
+  })
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreateRopVerificationDto,
+  ) {
     const data = await this.ropVerificationService.create(createDto, actor);
     return { message: 'ROP verification created successfully', data };
   }
@@ -52,7 +60,10 @@ export class RopVerificationController {
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'filters', required: false, type: String })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
-  @ApiResponse({ status: 200, description: 'ROP verifications retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'ROP verifications retrieved successfully.',
+  })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.ropVerificationService.findAll(query);
     return { message: 'ROP verifications retrieved successfully', ...result };
@@ -60,8 +71,15 @@ export class RopVerificationController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Retrieve ROP verification by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'ROP verification snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ROP verification retrieved successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ROP verification snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ROP verification retrieved successfully.',
+  })
   async findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.ropVerificationService.findOne(id);
     return { message: 'ROP verification retrieved successfully', data };
@@ -69,8 +87,15 @@ export class RopVerificationController {
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update ROP verification by ID' })
-  @ApiParam({ name: 'id', type: String, description: 'ROP verification snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ROP verification updated successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ROP verification snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ROP verification updated successfully.',
+  })
   async update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateDto: UpdateRopVerificationDto,
@@ -81,11 +106,17 @@ export class RopVerificationController {
 
   @Delete(':id')
   @ApiOperation({ summary: 'Soft-delete ROP verification' })
-  @ApiParam({ name: 'id', type: String, description: 'ROP verification snowflake ID' })
-  @ApiResponse({ status: 200, description: 'ROP verification deleted successfully.' })
+  @ApiParam({
+    name: 'id',
+    type: String,
+    description: 'ROP verification snowflake ID',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'ROP verification deleted successfully.',
+  })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.ropVerificationService.remove(id);
     return { message: 'ROP verification deleted successfully', data: null };
   }
 }
-

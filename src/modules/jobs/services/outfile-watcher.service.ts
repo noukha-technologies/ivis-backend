@@ -3,7 +3,10 @@ import { Interval } from '@nestjs/schedule';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AppLogger } from '../../../common/logger/app.logger';
-import { deriveOverallResult, parseIni } from '../../../common/shared/files/ini-parser.util';
+import {
+  deriveOverallResult,
+  parseIni,
+} from '../../../common/shared/files/ini-parser.util';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { JobDao } from '../../database/dao/job.dao';
 
@@ -29,13 +32,18 @@ export class OutfileWatcherService {
   async tick(): Promise<void> {
     if (process.env.OUT_FILE_WATCH_DISABLED === 'true') return;
     try {
-      const adminPcs = await this.adminPcDao.find({ where: { is_deleted: false } });
+      const adminPcs = await this.adminPcDao.find({
+        where: { is_deleted: false },
+      });
       for (const pc of adminPcs) {
         const dir = pc.out_file_path?.trim();
         if (dir) await this.scanFolder(dir);
       }
     } catch (err) {
-      this.logger.warn(`OUT watcher cycle failed: ${(err as Error).message}`, OutfileWatcherService.context);
+      this.logger.warn(
+        `OUT watcher cycle failed: ${(err as Error).message}`,
+        OutfileWatcherService.context,
+      );
     }
   }
 

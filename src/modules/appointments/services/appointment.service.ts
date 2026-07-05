@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
-import { CreateAppointmentDto, UpdateAppointmentDto } from '../../../common/dto/appointment.dto';
+import {
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+} from '../../../common/dto/appointment.dto';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
@@ -11,7 +14,7 @@ import { generateIdNumber } from '../../../common/shared/id-number.util';
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException
+  ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
 
 import { LineDao } from '../../database/dao/line.dao';
@@ -52,7 +55,7 @@ export class AppointmentService {
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly paymentTypeDao: PaymentTypeDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-  ) { }
+  ) {}
 
   /**
    * Resolve known vehicle + customer details for a plate from the vehicle
@@ -80,13 +83,17 @@ export class AppointmentService {
       customer_phone: customer?.owner_phone_number ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
       plate_color: latestCapture?.plate_color ?? record.plate_color ?? null,
-      vehicle_type: record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
+      vehicle_type:
+        record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
       chassis_no: record.chassis_no ?? null,
       charge_category_id: record.vehicleMaster?.charge_category_id ?? null,
     };
   }
 
-  async create(createDto: CreateAppointmentDto, actor: UserContext): Promise<Appointment> {
+  async create(
+    createDto: CreateAppointmentDto,
+    actor: UserContext,
+  ): Promise<Appointment> {
     this.logger.log('Creating appointment', AppointmentService.context);
 
     try {
@@ -96,9 +103,14 @@ export class AppointmentService {
       if (!appointmentId) {
         appointmentId = await this.appointmentDao.getNextAppointmentId();
       } else {
-        const existing = await this.appointmentDao.findByAppointmentId(appointmentId);
+        const existing =
+          await this.appointmentDao.findByAppointmentId(appointmentId);
         if (existing) {
-          throw new DuplicateResourceException('Appointment', 'appointment_id', appointmentId);
+          throw new DuplicateResourceException(
+            'Appointment',
+            'appointment_id',
+            appointmentId,
+          );
         }
       }
 
@@ -106,9 +118,14 @@ export class AppointmentService {
       let plateNumber = createDto.plate_number;
       let capture = null;
       if (createDto.anpr_capture_id) {
-        capture = await this.anprCaptureDao.findActiveById(createDto.anpr_capture_id);
+        capture = await this.anprCaptureDao.findActiveById(
+          createDto.anpr_capture_id,
+        );
         if (!capture) {
-          throw new ResourceNotFoundException('AnprCapture', createDto.anpr_capture_id);
+          throw new ResourceNotFoundException(
+            'AnprCapture',
+            createDto.anpr_capture_id,
+          );
         }
         plateNumber = plateNumber || capture.plate_number;
       }
@@ -151,7 +168,10 @@ export class AppointmentService {
       });
 
       const saved = await this.appointmentDao.save(appointment);
-      this.logger.log(`Appointment created ID: ${saved.id}`, AppointmentService.context);
+      this.logger.log(
+        `Appointment created ID: ${saved.id}`,
+        AppointmentService.context,
+      );
       return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
     } catch (error) {
       if (
@@ -165,11 +185,15 @@ export class AppointmentService {
         (error as Error).stack,
         AppointmentService.context,
       );
-      throw new DatabaseException('Failed to create appointment. Please try again.');
+      throw new DatabaseException(
+        'Failed to create appointment. Please try again.',
+      );
     }
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Appointment>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Appointment>> {
     try {
       return await this.appointmentDao.findPaginated(query);
     } catch (error) {
@@ -178,7 +202,9 @@ export class AppointmentService {
         (error as Error).stack,
         AppointmentService.context,
       );
-      throw new DatabaseException('Failed to fetch appointments. Please try again.');
+      throw new DatabaseException(
+        'Failed to fetch appointments. Please try again.',
+      );
     }
   }
 
@@ -190,7 +216,11 @@ export class AppointmentService {
     return appointment;
   }
 
-  async update(id: string, updateDto: UpdateAppointmentDto, actor: UserContext): Promise<Appointment> {
+  async update(
+    id: string,
+    updateDto: UpdateAppointmentDto,
+    actor: UserContext,
+  ): Promise<Appointment> {
     const appointment = await this.findOne(id);
     await this.validateReferences(updateDto);
 
@@ -207,7 +237,11 @@ export class AppointmentService {
     const customerId =
       updateDto.sync_customer !== false
         ? await this.ensureCustomer(
-            { ...updateDto, customer_id: updateDto.customer_id ?? appointment.customer_id ?? undefined },
+            {
+              ...updateDto,
+              customer_id:
+                updateDto.customer_id ?? appointment.customer_id ?? undefined,
+            },
             vehicleRecordId,
             actor,
           )
@@ -216,15 +250,27 @@ export class AppointmentService {
     // Only the appointment's own columns are merged — booking_type is left
     // untouched unless explicitly provided (#5: never silently flip Walk-in).
     const merged = this.appointmentDao.merge(appointment, {
-      ...(updateDto.anpr_capture_id !== undefined ? { anpr_capture_id: updateDto.anpr_capture_id } : {}),
+      ...(updateDto.anpr_capture_id !== undefined
+        ? { anpr_capture_id: updateDto.anpr_capture_id }
+        : {}),
       ...(customerId !== undefined ? { customer_id: customerId } : {}),
-      ...(vehicleRecordId !== undefined ? { vehicle_record_id: vehicleRecordId } : {}),
-      ...(updateDto.centre_id !== undefined ? { centre_id: updateDto.centre_id } : {}),
-      ...(updateDto.line_id !== undefined ? { line_id: updateDto.line_id } : {}),
-      ...(updateDto.booking_type !== undefined ? { booking_type: updateDto.booking_type } : {}),
+      ...(vehicleRecordId !== undefined
+        ? { vehicle_record_id: vehicleRecordId }
+        : {}),
+      ...(updateDto.centre_id !== undefined
+        ? { centre_id: updateDto.centre_id }
+        : {}),
+      ...(updateDto.line_id !== undefined
+        ? { line_id: updateDto.line_id }
+        : {}),
+      ...(updateDto.booking_type !== undefined
+        ? { booking_type: updateDto.booking_type }
+        : {}),
       ...(updateDto.status !== undefined ? { status: updateDto.status } : {}),
       ...(updateDto.notes !== undefined ? { notes: updateDto.notes } : {}),
-      ...(updateDto.appointment_at ? { appointment_at: new Date(updateDto.appointment_at) } : {}),
+      ...(updateDto.appointment_at
+        ? { appointment_at: new Date(updateDto.appointment_at) }
+        : {}),
     });
 
     const saved = await this.appointmentDao.save(merged);
@@ -250,7 +296,8 @@ export class AppointmentService {
     actor: UserContext,
   ): Promise<string | undefined> {
     if (existingRecordId) {
-      const record = await this.vehicleRecordDao.findActiveById(existingRecordId);
+      const record =
+        await this.vehicleRecordDao.findActiveById(existingRecordId);
       if (record) {
         const merged = this.vehicleRecordDao.merge(record, {
           vehicle_type: vehicleType ?? record.vehicle_type,
@@ -296,7 +343,17 @@ export class AppointmentService {
     dto: Partial<
       Pick<
         CreateAppointmentDto,
-        'customer_id' | 'customer_name' | 'customer_phone' | 'id_number' | 'owner_name' | 'owner_phone' | 'driver_name' | 'driver_phone' | 'mulkiya_id' | 'chassis_no' | 'plate_number'
+        | 'customer_id'
+        | 'customer_name'
+        | 'customer_phone'
+        | 'id_number'
+        | 'owner_name'
+        | 'owner_phone'
+        | 'driver_name'
+        | 'driver_phone'
+        | 'mulkiya_id'
+        | 'chassis_no'
+        | 'plate_number'
       >
     >,
     vehicleRecordId: string | undefined,
@@ -309,7 +366,8 @@ export class AppointmentService {
       }
       const merged = this.customerDao.merge(customer, {
         owner_name: dto.owner_name ?? dto.customer_name ?? customer.owner_name,
-        owner_phone_number: dto.owner_phone ?? dto.customer_phone ?? customer.owner_phone_number,
+        owner_phone_number:
+          dto.owner_phone ?? dto.customer_phone ?? customer.owner_phone_number,
         driver_name: dto.driver_name ?? customer.driver_name,
         driver_phone_number: dto.driver_phone ?? customer.driver_phone_number,
         plate_number: dto.plate_number ?? customer.plate_number,
@@ -324,7 +382,9 @@ export class AppointmentService {
     }
 
     if (!dto.customer_name || !dto.customer_phone) {
-      throw new DatabaseException('Customer name and phone are required to create a customer.');
+      throw new DatabaseException(
+        'Customer name and phone are required to create a customer.',
+      );
     }
 
     const customer = this.customerDao.create({
@@ -349,11 +409,20 @@ export class AppointmentService {
 
   private async validateReferences(
     dto: Partial<
-      Pick<CreateAppointmentDto, 'anpr_capture_id' | 'centre_id' | 'line_id' | 'customer_id' | 'payment_type_id'>
+      Pick<
+        CreateAppointmentDto,
+        | 'anpr_capture_id'
+        | 'centre_id'
+        | 'line_id'
+        | 'customer_id'
+        | 'payment_type_id'
+      >
     >,
   ): Promise<void> {
     if (dto.anpr_capture_id) {
-      const capture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
+      const capture = await this.anprCaptureDao.findActiveById(
+        dto.anpr_capture_id,
+      );
       if (!capture) {
         throw new ResourceNotFoundException('AnprCapture', dto.anpr_capture_id);
       }
@@ -377,7 +446,9 @@ export class AppointmentService {
       }
     }
     if (dto.payment_type_id) {
-      const paymentType = await this.paymentTypeDao.findActiveById(dto.payment_type_id);
+      const paymentType = await this.paymentTypeDao.findActiveById(
+        dto.payment_type_id,
+      );
       if (!paymentType) {
         throw new ResourceNotFoundException('PaymentType', dto.payment_type_id);
       }

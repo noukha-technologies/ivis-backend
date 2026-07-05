@@ -39,6 +39,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await this.alterTransaction(queryRunner);
     await this.reconcileForeignKeys(queryRunner);
     await this.alignPaymentsAndAnprEvents(queryRunner);
+    await this.alignAdminPcsAndCameraMultiLine(queryRunner);
 
     console.log('[AlterSchema] Done.');
   }
@@ -51,6 +52,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
     console.log('[AlterSchema] Reverting structural alterations...');
 
+    await this.revertAdminPcsAndCameraMultiLine(queryRunner);
     await this.revertPaymentsAndAnprEvents(queryRunner);
     await this.revertForeignKeys(queryRunner);
     await this.revertTransaction(queryRunner);
@@ -74,8 +76,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
 
     // users: replace text center/line columns with FK bigint columns (migration 1780000000000)
-    await queryRunner.query(`ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "center"`);
-    await queryRunner.query(`ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "line"`);
+    await queryRunner.query(
+      `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "center"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "line"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "core"."users" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
     );
@@ -91,7 +97,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP CONSTRAINT IF EXISTS "FK_users_role_access_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_ROLE_ACCESS_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_USER_ROLE_ACCESS_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "role_access_id"`,
     );
@@ -167,7 +175,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       WHERE "is_deleted" = false
     `);
     // Lines are shareable across users — drop the one-user-per-line constraint.
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`,
+    );
 
     // permissions table (migration 1780140000000) — recreated with new shape
     await queryRunner.query(`
@@ -223,6 +233,48 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" DROP COLUMN IF EXISTS "is_system"`,
     );
+    // roles.access_scope: 'global' (Super Admin, all centres) | 'centre' (Centre Admin, single centre)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "access_scope" varchar(16) NOT NULL DEFAULT 'centre'`,
+    );
+    // roles.is_center_admin: centre-admin rank within a centre (meaningful only for centre scope)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "is_center_admin" boolean NOT NULL DEFAULT false`,
+    );
+    // roles.center_id: owning centre (NULL → global/system role). Tenant-scoped roles.
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
+    );
+    // Role names are unique per owning centre (globals unique among themselves):
+    // drop the old global-unique index/constraint and add a composite unique on
+    // (center_id, role_name).
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_ROLE_NAME"`);
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "UQ_roles_role_name"`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_CENTER_ROLE_NAME" ON "core"."roles" ("center_id", "role_name")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ROLE_CENTER_ID" ON "core"."roles" ("center_id")`,
+    );
+    // FK roles.center_id → master.centres(id)
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "FK_roles_center_id"`,
+    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'master' AND table_name = 'centres'
+        ) THEN
+          ALTER TABLE "core"."roles"
+          ADD CONSTRAINT "FK_roles_center_id"
+          FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
     // wire roles_role_id_seq if not already present (migration 1780160000000)
     await queryRunner.query(
       `CREATE SEQUENCE IF NOT EXISTS "core"."roles_role_id_seq" OWNED BY "core"."roles"."role_id"`,
@@ -237,12 +289,48 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" ALTER COLUMN "role_id" SET DEFAULT nextval('"core"."roles_role_id_seq"')`,
     );
-    await queryRunner.query(
-      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_ROLE_NAME" ON "core"."roles" ("role_name")`,
-    );
+    // (role_name uniqueness is now the composite IDX_ROLE_CENTER_ROLE_NAME above)
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_PERMISSION_ID" ON "core"."roles" ("permission_id")`,
     );
+
+    // configuration: one settings row per centre (sync mode, redo test,
+    // auto-close, payment mandatory, working hours).
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."configuration" (
+        "id"                  bigint                NOT NULL,
+        "configuration_id"    integer               NOT NULL,
+        "centre_id"           bigint                NOT NULL,
+        "sync_mode"           character varying(16) NOT NULL DEFAULT 'Manual',
+        "redo_test_enabled"   boolean               NOT NULL DEFAULT true,
+        "auto_close"          boolean               NOT NULL DEFAULT false,
+        "auto_close_time"     character varying(5),
+        "payment_mandatory"   boolean               NOT NULL DEFAULT true,
+        "working_hours_start" character varying(5),
+        "working_hours_end"   character varying(5),
+        "status"              character varying(32) NOT NULL DEFAULT 'Active',
+        "created_by"          character varying,
+        "created_at"          TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"          TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "is_deleted"          boolean               NOT NULL DEFAULT false,
+        CONSTRAINT "PK_configuration_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CONFIGURATION_ID" ON "core"."configuration" ("configuration_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CENTRE_ID" ON "core"."configuration" ("centre_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_configuration_centre_id') THEN
+          ALTER TABLE "core"."configuration"
+            ADD CONSTRAINT "FK_configuration_centre_id"
+            FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
   }
 
   // ─── master schema alterations ────────────────────────────────────────────────
@@ -337,21 +425,34 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_LINE_CENTRE_ID" ON "master"."lines" ("centre_id")`,
     );
+    // lines: per-line IN/OUT folder paths for file-driven processing
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "in_file_path" varchar(512)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "out_file_path" varchar(512)`,
+    );
 
     // admin_pcs: drop legacy line_id column and add centre_id (migration 1780120000000),
     // then drop centre_id and restore line_id via admin_pc_line_mappings (1780170000000 / 1781174000000)
     await queryRunner.query(
       `ALTER TABLE "master"."admin_pcs" DROP CONSTRAINT IF EXISTS "FK_admin_pcs_line_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."UQ_admin_pcs_line_id"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."UQ_ADMIN_PC_LINE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."UQ_admin_pcs_line_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."UQ_ADMIN_PC_LINE_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "line_id"`,
     );
     await queryRunner.query(
       `ALTER TABLE "master"."admin_pcs" DROP CONSTRAINT IF EXISTS "FK_admin_pcs_centre_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_ADMIN_PC_CENTRE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_ADMIN_PC_CENTRE_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "centre_id"`,
     );
@@ -363,14 +464,44 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "out_file_path" character varying(512)`,
     );
 
+    // admin_pcs: add center_id column (center scope implementation)
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ADMIN_PC_CENTER_ID" ON "master"."admin_pcs" ("center_id")`,
+    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 
+          FROM information_schema.table_constraints 
+          WHERE constraint_name = 'FK_ADMIN_PC_CENTER_ID' 
+            AND table_name = 'admin_pcs'
+        ) THEN
+          ALTER TABLE "master"."admin_pcs"
+          ADD CONSTRAINT "FK_ADMIN_PC_CENTER_ID"
+          FOREIGN KEY ("center_id")
+          REFERENCES "master"."centres"("id")
+          ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // cameras: drop unique constraint added by Initalization and keep partial unique index
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" DROP CONSTRAINT IF EXISTS "UQ_b3a5f72708eb14f0b044646653b"`,
     );
-    await queryRunner.query(`
-      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")
-      WHERE "is_deleted" = false
-    `);
+    // cameras.line_id is later migrated to the camera_line_mappings join table
+    // (see migrateAdminPcsAndCameraMultiLine below); only (re)create this index
+    // while the legacy column still exists.
+    if (await queryRunner.hasColumn('master.cameras', 'line_id')) {
+      await queryRunner.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")
+        WHERE "is_deleted" = false
+      `);
+    }
 
     // cameras: drop legacy columns no longer on entity
     await queryRunner.query(
@@ -471,6 +602,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ON "master"."admin_pc_line_mappings" ("line_id")
       WHERE "is_deleted" = false
     `);
+    // Per-line IN/OUT folder paths (configured on the Configuration screen).
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" ADD COLUMN IF NOT EXISTS "in_file_path" character varying(512)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" ADD COLUMN IF NOT EXISTS "out_file_path" character varying(512)`,
+    );
 
     // payments: drop legacy name/customer_phone, add customer_id/payment_mode/type/amount
     // (migrations 1780190000000, 1781162440262, 1781166214357, 1781170000000–1781173000000)
@@ -613,9 +751,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_vehicle_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
-    await queryRunner.query(`ALTER TABLE "master"."charges" DROP COLUMN IF EXISTS "vehicle_id"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" DROP COLUMN IF EXISTS "vehicle_id"`,
+    );
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CHARGE_UNIQUE_COMBO"
         ON "master"."charges" ("centre_id", "vehicle_type", "charge_category_id")
@@ -1000,7 +1144,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."customers" ALTER COLUMN "owner_phone_number" SET NOT NULL`,
     );
     // Phone index now tracks owner_phone_number.
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PHONE"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_CUSTOMER_PHONE"`,
+    );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_CUSTOMER_PHONE" ON "transaction"."customers" ("owner_phone_number")`,
     );
@@ -1008,8 +1154,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     // anpr_captures / rop_verifications / jobs / payment_transactions indexes
     // (idempotent — only created if absent)
     // line_id-based indexes replace the legacy camera_id-based ones (entity-aligned).
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_CAMERA_TIME"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."UQ_ANPR_CAPTURE_CAMERA_PLATE_TIME"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_ANPR_CAPTURE_CAMERA_TIME"`,
+    );
     await queryRunner.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS "UQ_ANPR_CAPTURE_LINE_PLATE_TIME"
       ON "transaction"."anpr_captures" ("line_id", "plate_number", "capture_time")
@@ -1176,23 +1326,51 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "plate_color"`,
     );
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP CONSTRAINT IF EXISTS "FK_jobs_appointment_id"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_JOB_APPOINTMENT_ID"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "appointment_id"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_phone"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_no"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_date"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "test_results"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone_number"`);
-    await queryRunner.query(`ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "plate_number"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`);
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP CONSTRAINT IF EXISTS "FK_jobs_appointment_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_JOB_APPOINTMENT_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "appointment_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_phone"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_no"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "invoice_date"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "test_results"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "driver_phone_number"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."customers" DROP COLUMN IF EXISTS "plate_number"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_STATUS"`,
+    );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_TRANSACTION_CUSTOMER_ID"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_CUSTOMER_ID"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_ANPR_CAPTURE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_CUSTOMER_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_ANPR_CAPTURE_ID"`,
+    );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_ROP_VERIFICATION_ANPR_CAPTURE_ID"`,
     );
@@ -1274,8 +1452,18 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertMaster(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "in_file_path"`);
-    await queryRunner.query(`ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "out_file_path"`);
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "in_file_path"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "out_file_path"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" DROP COLUMN IF EXISTS "in_file_path"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pc_line_mappings" DROP COLUMN IF EXISTS "out_file_path"`,
+    );
 
     // Restore plain (non-partial) unique indexes on code.
     const codeUniques: Array<{ table: string; index: string }> = [
@@ -1295,7 +1483,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     }
 
     await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_CODE"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PT_PAYMENT_TYPE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_PT_PAYMENT_TYPE_ID"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."payment_types"`);
 
     await queryRunner.query(
@@ -1305,7 +1495,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" DROP CONSTRAINT IF EXISTS "FK_vehicles_charge_category_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_VEHICLE_CHARGE_CATEGORY_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_VEHICLE_CHARGE_CATEGORY_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."vehicles" DROP COLUMN IF EXISTS "charge_category_id"`,
     );
@@ -1316,17 +1508,33 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."charges" DROP CONSTRAINT IF EXISTS "FK_charges_charge_category_id"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CATEGORY_ID"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CENTRE_ID"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CHARGE_CHARGE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_CATEGORY_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_UNIQUE_COMBO"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_VEHICLE_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_CENTRE_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CHARGE_CHARGE_ID"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."charges"`);
 
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_CC_CATEGORY_ID"`);
-    await queryRunner.query(`DROP TABLE IF EXISTS "master"."charge_categories"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_CC_CATEGORY_ID"`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "master"."charge_categories"`,
+    );
 
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_PAYMENT_CUSTOMER_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_PAYMENT_CUSTOMER_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."payments" ALTER COLUMN "amount" DROP NOT NULL`,
     );
@@ -1355,9 +1563,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "master"."IDX_ADMIN_PC_LINE_MAPPING_ADMIN_PC_ID"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "master"."admin_pc_line_mappings"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "master"."admin_pc_line_mappings"`,
+    );
 
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "health_ping_interval_seconds"`,
     );
@@ -1397,7 +1609,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "camera_name"`,
     );
-    await queryRunner.query(`DROP INDEX IF EXISTS "master"."IDX_LINE_CENTRE_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_LINE_CENTRE_ID"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."lines" DROP COLUMN IF EXISTS "centre_id"`,
     );
@@ -1418,16 +1632,31 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_PERMISSION_ID"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."configuration" CASCADE`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_ROLE_PERMISSION_ID"`,
+    );
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_ROLE_NAME"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."roles"`);
-    await queryRunner.query(`DROP SEQUENCE IF EXISTS "core"."roles_role_id_seq"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_PERMISSION_PROFILE_NAME"`);
+    await queryRunner.query(
+      `DROP SEQUENCE IF EXISTS "core"."roles_role_id_seq"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_PERMISSION_PROFILE_NAME"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."permissions"`);
 
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_USER_LINE"`);
-    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_LINE_MAPPING_USER_ID"`);
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_LINE"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."UQ_USER_LINE_MAPPING_USER_LINE"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_USER_LINE_MAPPING_USER_ID"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."user_line_mappings"`);
 
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_CENTER_ID"`);
@@ -1454,7 +1683,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   // ─── Payments table + ANPR ingestion table ───────────────────────────────────
   // Creates transaction.payments (replaces the legacy payment_transactions table),
   // links appointments.payment_id, and the opal_ivis.anpr_events ingestion table.
-  private async alignPaymentsAndAnprEvents(queryRunner: QueryRunner): Promise<void> {
+  private async alignPaymentsAndAnprEvents(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
     const [{ paymentsTable }] = await queryRunner.query(
       `SELECT to_regclass('transaction.payments') AS "paymentsTable"`,
     );
@@ -1536,10 +1767,14 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
     // Legacy camera-event store removed — camera reads (FTP + HTTP push) now
     // flow directly into transaction.anpr_captures. Drop the orphaned table.
-    await queryRunner.query(`DROP TABLE IF EXISTS "opal_ivis"."anpr_events" CASCADE`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "opal_ivis"."anpr_events" CASCADE`,
+    );
   }
 
-  private async revertPaymentsAndAnprEvents(queryRunner: QueryRunner): Promise<void> {
+  private async revertPaymentsAndAnprEvents(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
     await queryRunner.query(`DROP TABLE IF EXISTS "opal_ivis"."anpr_events"`);
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP CONSTRAINT IF EXISTS "FK_appointments_payment_id"`,
@@ -1547,6 +1782,123 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_id"`,
     );
-    await queryRunner.query(`DROP TABLE IF EXISTS "transaction"."payments" CASCADE`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "transaction"."payments" CASCADE`,
+    );
+  }
+
+  private async alignAdminPcsAndCameraMultiLine(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    // 1. admin_pcs: add center_id
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" ADD COLUMN IF NOT EXISTS "center_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ADMIN_PC_CENTER_ID" ON "master"."admin_pcs" ("center_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'FK_ADMIN_PC_CENTER_ID'
+        ) THEN
+          ALTER TABLE "master"."admin_pcs"
+            ADD CONSTRAINT "FK_ADMIN_PC_CENTER_ID"
+            FOREIGN KEY ("center_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
+    // 2. camera_line_mappings table
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "master"."camera_line_mappings" (
+        "id"          bigint            NOT NULL,
+        "camera_id"   bigint            NOT NULL,
+        "line_id"     bigint            NOT NULL,
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP         NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP         NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean           NOT NULL DEFAULT false,
+        CONSTRAINT "PK_camera_line_mappings_id" PRIMARY KEY ("id"),
+        CONSTRAINT "FK_camera_line_mappings_camera_id" 
+          FOREIGN KEY ("camera_id") REFERENCES "master"."cameras"("id") ON DELETE CASCADE,
+        CONSTRAINT "FK_camera_line_mappings_line_id" 
+          FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE CASCADE
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_CAMERA_LINE_MAPPING_CAMERA_ID" ON "master"."camera_line_mappings" ("camera_id")`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_MAPPING_LINE" ON "master"."camera_line_mappings" ("line_id") WHERE is_deleted = false`,
+    );
+
+    // 3. Migrate existing data from cameras table if line_id column exists
+    const hasLineIdCol = await queryRunner.hasColumn('master.cameras', 'line_id');
+    if (hasLineIdCol) {
+      await queryRunner.query(`
+        INSERT INTO "master"."camera_line_mappings" ("id", "camera_id", "line_id", "created_by", "created_at", "updated_at", "is_deleted")
+        SELECT 
+          (row_number() over ())::bigint + 2000000000000000000,
+          "id",
+          "line_id",
+          "created_by",
+          "created_at",
+          "updated_at",
+          "is_deleted"
+        FROM "master"."cameras"
+        WHERE "line_id" IS NOT NULL
+      `);
+      // Drop column and constraint
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" DROP CONSTRAINT IF EXISTS "FK_cameras_line_id"`,
+      );
+      await queryRunner.query(
+        `DROP INDEX IF EXISTS "master"."UQ_CAMERA_LINE_ID"`,
+      );
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" DROP COLUMN IF EXISTS "line_id"`,
+      );
+    }
+  }
+
+  private async revertAdminPcsAndCameraMultiLine(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    // Drop mapping table and restore column on cameras if mapping exists
+    const hasMappingsTable = await queryRunner.hasTable('master.camera_line_mappings');
+    if (hasMappingsTable) {
+      await queryRunner.query(
+        `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "line_id" bigint`,
+      );
+      await queryRunner.query(`
+        UPDATE "master"."cameras" c
+        SET "line_id" = (
+          SELECT "line_id" 
+          FROM "master"."camera_line_mappings" m 
+          WHERE m."camera_id" = c."id" AND m."is_deleted" = false
+          LIMIT 1
+        )
+      `);
+      await queryRunner.query(`DROP TABLE IF EXISTS "master"."camera_line_mappings"`);
+      await queryRunner.query(
+        `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")`,
+      );
+      await queryRunner.query(`
+        ALTER TABLE "master"."cameras"
+        ADD CONSTRAINT "FK_cameras_line_id"
+        FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE NO ACTION
+      `);
+    }
+
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP CONSTRAINT IF EXISTS "FK_ADMIN_PC_CENTER_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "master"."IDX_ADMIN_PC_CENTER_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."admin_pcs" DROP COLUMN IF EXISTS "center_id"`,
+    );
   }
 }

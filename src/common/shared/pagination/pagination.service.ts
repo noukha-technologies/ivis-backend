@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { ObjectLiteral, Repository, SelectQueryBuilder } from 'typeorm';
 import { FilterStrategyRegistry } from '../filter/filter-stratergy-registry';
-import { PageableCollection, PaginationOptions, PaginationResponse } from '../../interfaces/pagination.interface';
+import {
+  PageableCollection,
+  PaginationOptions,
+  PaginationResponse,
+} from '../../interfaces/pagination.interface';
 import {
   TypeOrmPaginationOptions,
   TypeOrmPaginationService,
@@ -97,10 +101,10 @@ export class PaginationService {
     }
 
     if (nonPaginated) {
-      const items = (await collection.find(query, projection, {
+      const items = await collection.find(query, projection, {
         lean: true,
         sort,
-      })) as T[];
+      });
 
       return {
         totalItems: items.length,
@@ -112,7 +116,12 @@ export class PaginationService {
     }
 
     const [items, totalItems] = await Promise.all([
-      collection.find(query, projection, { lean: true, sort, skip, limit }) as Promise<T[]>,
+      collection.find(query, projection, {
+        lean: true,
+        sort,
+        skip,
+        limit,
+      }),
       collection.countDocuments(query),
     ]);
 

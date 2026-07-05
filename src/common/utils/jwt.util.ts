@@ -48,7 +48,10 @@ export function signRefreshToken(
   return jwt.sign({ type: 'refresh' }, secret, options);
 }
 
-export function verifyAccessToken(token: string, secret: string): AccessTokenPayload {
+export function verifyAccessToken(
+  token: string,
+  secret: string,
+): AccessTokenPayload {
   try {
     const payload = jwt.verify(token, secret) as JwtPayload;
     assertPayload(payload);
@@ -58,7 +61,10 @@ export function verifyAccessToken(token: string, secret: string): AccessTokenPay
   }
 }
 
-export function verifyRefreshToken(token: string, secret: string): RefreshTokenPayload {
+export function verifyRefreshToken(
+  token: string,
+  secret: string,
+): RefreshTokenPayload {
   try {
     const payload = jwt.verify(token, secret) as JwtPayload;
     if (payload.type !== 'refresh') {
@@ -101,6 +107,9 @@ export function verifyResetToken(
     ) {
       throw new ErrorException('INVALID_RESET_TOKEN');
     }
-    throw new ErrorException('SOMETHING_WENT_WRONG', 'Reset token validation failed');
+    throw new ErrorException(
+      'SOMETHING_WENT_WRONG',
+      'Reset token validation failed',
+    );
   }
 }

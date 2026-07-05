@@ -29,21 +29,28 @@ async function main(): Promise<void> {
   try {
     // dataSource.migrations holds instances; match by the `name` property each class sets.
     const instance = dataSource.migrations.find(
-      (m: MigrationInterface) => (m as MigrationInterface & { name?: string }).name === targetName,
-    ) as (MigrationInterface & { name?: string }) | undefined;
+      (m: MigrationInterface) =>
+        (m as MigrationInterface & { name?: string }).name === targetName,
+    );
 
     if (!instance) {
       const available = dataSource.migrations
-        .map((m: MigrationInterface) => (m as MigrationInterface & { name?: string }).name ?? m.constructor.name)
+        .map(
+          (m: MigrationInterface) =>
+            (m as MigrationInterface & { name?: string }).name ??
+            m.constructor.name,
+        )
         .join('\n  ');
-      console.error(`Migration "${targetName}" not found.\nAvailable:\n  ${available}`);
+      console.error(
+        `Migration "${targetName}" not found.\nAvailable:\n  ${available}`,
+      );
       process.exit(1);
     }
 
     console.log(`[run-migration] Running: ${targetName}`);
     await queryRunner.startTransaction();
     try {
-      await instance.up(queryRunner as QueryRunner);
+      await instance.up(queryRunner);
       await queryRunner.commitTransaction();
       console.log(`[run-migration] ${targetName} completed successfully.`);
     } catch (err) {

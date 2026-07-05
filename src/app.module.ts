@@ -8,25 +8,26 @@ import { AppController } from './app.controller';
 
 import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
-import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 
 import swaggerConfig from './common/swagger/swagger.config';
-import databaseConfig from './modules/database/database.config';
+import { LoggerModule } from './common/logger/logger.module';
+import { MasterScopeModule } from './common/services/master-scope.module';
+import { LoggerMiddleware } from './common/middlewares/logger.middleware';
+import { PaginationModule } from './common/shared/pagination/pagination.module';
 
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AnprModule } from './modules/anpr/anpr.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
-import { LoggerModule } from './common/logger/logger.module';
+import databaseConfig from './modules/database/database.config';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
-import { MasterScopeModule } from './common/services/master-scope.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
-import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { ConfigurationModule } from './modules/configuration/configuration.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
     AppointmentsModule,
     IntegrationsModule,
     AnprModule,
+    ConfigurationModule,
     AuthModule,
     PermissionsModule,
     RolesModule,

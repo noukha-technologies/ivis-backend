@@ -6,8 +6,17 @@ import {
 import { RequestMetadata } from '../../../common/utils/request-metadata.util';
 
 export interface IAuthService {
-  login(request: LoginRequestDto, metadata: RequestMetadata): Promise<LoginResponseDto>;
-  refresh(refreshToken: string, metadata: RequestMetadata): Promise<LoginResponseDto>;
+  login(
+    request: LoginRequestDto,
+    metadata: RequestMetadata,
+  ): Promise<LoginResponseDto>;
+  refresh(
+    refreshToken: string,
+    metadata: RequestMetadata,
+  ): Promise<LoginResponseDto>;
   logout(userContext: UserContext): Promise<void>;
-  buildUserContext(userId: string, accessJti: string): Promise<UserContext | null>;
+  buildUserContext(
+    userId: string,
+    accessJti: string,
+  ): Promise<UserContext | null>;
 }

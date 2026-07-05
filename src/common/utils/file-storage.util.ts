@@ -12,7 +12,10 @@ export function getUploadRoot(): string {
   return process.env.UPLOAD_ROOT ?? path.join(process.cwd(), 'uploads');
 }
 
-function parseBase64Payload(input: string): { buffer: Buffer; extension: string } {
+function parseBase64Payload(input: string): {
+  buffer: Buffer;
+  extension: string;
+} {
   const dataUrlMatch = /^data:([^;]+);base64,(.+)$/i.exec(input.trim());
   if (dataUrlMatch) {
     const mimeType = dataUrlMatch[1].toLowerCase();
@@ -73,7 +76,9 @@ export async function saveBase64File(
     ? sanitizeFilename(path.parse(filenameHint).name)
     : randomBytes(8).toString('hex');
   const extension = filenameHint
-    ? sanitizeFilename(path.extname(filenameHint).replace(/^\./, '') || parsed.extension)
+    ? sanitizeFilename(
+        path.extname(filenameHint).replace(/^\./, '') || parsed.extension,
+      )
     : parsed.extension;
   const filename = `${baseName}.${extension}`;
   const relativePath = path.posix.join(subdirectory, filename);

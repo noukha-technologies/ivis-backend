@@ -28,7 +28,7 @@ export function resolveUserLineIds(dto: CentreLineInput): string[] {
 @ValidatorConstraint({ name: 'userCreateCentreLine', async: false })
 export class UserCreateCentreLineConstraint implements ValidatorConstraintInterface {
   validate(_: unknown, args: ValidationArguments): boolean {
-    return resolveUserLineIds(args.object as CentreLineInput).length > 0;
+    return resolveUserLineIds(args.object).length > 0;
   }
 
   defaultMessage(): string {
@@ -41,7 +41,8 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
   validate(_: unknown, args: ValidationArguments): boolean {
     const dto = args.object as CentreLineInput;
     const hasCentreField = dto.center_id !== undefined;
-    const hasLinesField = dto.line_ids !== undefined || dto.line_id !== undefined;
+    const hasLinesField =
+      dto.line_ids !== undefined || dto.line_id !== undefined;
 
     if (!hasCentreField && !hasLinesField) {
       return true;
@@ -58,13 +59,13 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
       return false;
     }
 
-    const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
+    const centerId =
+      typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
 
-    if (centerId && lineIds.length === 0) {
-      return false;
-    }
-
+    // Structural invariant only: a line can't be assigned without a centre.
+    // The "Centre User must have a line" rule is role-based and enforced in
+    // the service (a DTO validator can't see the role's scope).
     if (!centerId && lineIds.length > 0) {
       return false;
     }
@@ -86,12 +87,9 @@ export class UserCentreLinePairConstraint implements ValidatorConstraintInterfac
       return 'each line_id must be a string';
     }
 
-    const centerId = typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
+    const centerId =
+      typeof dto.center_id === 'string' ? dto.center_id.trim() : '';
     const lineIds = resolveUserLineIds(dto);
-
-    if (centerId && lineIds.length === 0) {
-      return 'At least one line must be selected when centre is assigned';
-    }
 
     if (!centerId && lineIds.length > 0) {
       return 'center_id is required when assigning lines';

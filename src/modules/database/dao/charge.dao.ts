@@ -54,27 +54,54 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
     centreId: string | undefined,
     vehicleType: string,
   ): Promise<Charge | null> {
-    const base = { vehicle_type: vehicleType, status: 'Active', is_enabled: true, is_deleted: false };
+    const base = {
+      vehicle_type: vehicleType,
+      status: 'Active',
+      is_enabled: true,
+      is_deleted: false,
+    };
     if (centreId) {
-      const centreCharge = await this.findOne({ where: { ...base, centre_id: centreId } });
+      const centreCharge = await this.findOne({
+        where: { ...base, centre_id: centreId },
+      });
       if (centreCharge) return centreCharge;
     }
     return this.findOne({ where: { ...base, centre_id: IsNull() } });
   }
 
-  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Charge>> {
+  async findPaginated(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<Charge>> {
     const qb = this.createQueryBuilder('charge')
       .leftJoinAndSelect('charge.centre', 'centre')
       .leftJoinAndSelect('charge.chargeCategory', 'chargeCategory')
       .where('charge.is_deleted = :is_deleted', { is_deleted: false });
 
     const options = buildTypeOrmPaginationOptions<Charge, Charge>(query, {
-      searchFields: ['charge.category', 'charge.vehicle_type', 'charge.status', 'centre.name', 'chargeCategory.vehicle_weight', 'chargeCategory.engine_capacity'],
-      allowedSortFields: ['charge_id', 'category', 'status', 'validate_to', 'created_at', 'updated_at'],
+      searchFields: [
+        'charge.category',
+        'charge.vehicle_type',
+        'charge.status',
+        'centre.name',
+        'chargeCategory.vehicle_weight',
+        'chargeCategory.engine_capacity',
+      ],
+      allowedSortFields: [
+        'charge_id',
+        'category',
+        'status',
+        'validate_to',
+        'created_at',
+        'updated_at',
+      ],
       defaultSort: { created_at: 'DESC' },
     });
 
-    const response = await this.paginationService.paginateQueryBuilder(qb, 'charge', options);
+    const response = await this.paginationService.paginateQueryBuilder(
+      qb,
+      'charge',
+      options,
+    );
     return toPaginatedResult(response);
   }
 

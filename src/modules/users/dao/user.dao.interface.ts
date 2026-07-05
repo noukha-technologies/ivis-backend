@@ -12,6 +12,11 @@ export interface IUserDao {
   findByEmailWithPassword(email: string): Promise<User | null>;
   findByUserId(userId: number): Promise<User | null>;
   findByUserCode(userCode: string): Promise<User | null>;
-  findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<User>>;
+  findByEmailIgnoringDelete(email: string): Promise<User | null>;
+  findByUserCodeIgnoringDelete(userCode: string): Promise<User | null>;
+  findPaginated(
+    query: PaginationQueryDto,
+    centreScope?: { centreId: string },
+  ): Promise<PaginatedResult<User>>;
   getNextUserId(): Promise<number>;
 }

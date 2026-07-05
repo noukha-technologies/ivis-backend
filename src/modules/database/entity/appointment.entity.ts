@@ -32,49 +32,64 @@ export class Appointment implements IAppointmentFields {
   appointment_id!: number;
 
   /* ANPR FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   anpr_capture_id?: string | null;
 
   @ManyToOne(() => AnprCapture, { nullable: true })
   @JoinColumn({ name: 'anpr_capture_id' })
   anprCapture?: AnprCapture;
 
-
   /* Customer FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   customer_id?: string | null;
 
   @ManyToOne(() => Customer, { nullable: true })
   @JoinColumn({ name: 'customer_id' })
   customer?: Customer;
 
-
   /* Master Vehicle Record FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   vehicle_record_id?: string | null;
 
   @ManyToOne(() => VehicleRecord, { nullable: true })
   @JoinColumn({ name: 'vehicle_record_id' })
   vehicleRecord?: VehicleRecord;
 
-
   /* Centre FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   centre_id?: string | null;
 
   @ManyToOne(() => Centre, { nullable: true })
   @JoinColumn({ name: 'centre_id' })
   centre?: Centre;
 
-
   /* Line FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   line_id?: string | null;
 
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
-
 
   @Column({ type: 'varchar', length: 16, default: 'Walk-in' })
   booking_type!: string;
@@ -82,12 +97,16 @@ export class Appointment implements IAppointmentFields {
   @Column({ type: 'timestamp', nullable: false })
   appointment_at!: Date;
 
-  @Column({ type: 'varchar', length: 32, default: 'Scheduled', nullable: false })
+  @Column({
+    type: 'varchar',
+    length: 32,
+    default: 'Scheduled',
+    nullable: false,
+  })
   status!: AppointmentStatus;
 
   @Column({ type: 'varchar', length: 512, nullable: true })
   notes?: string;
-
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

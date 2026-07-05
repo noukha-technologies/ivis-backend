@@ -4,10 +4,14 @@ import {
   IsNotEmpty,
   IsOptional,
   IsString,
-  Matches,
   Min,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreateLineDto {
   @ApiPropertyOptional({
@@ -19,12 +23,18 @@ export class CreateLineDto {
   @IsOptional()
   line_id?: number;
 
-  @ApiProperty({ description: 'Line name (alphabets only)', example: 'Line One' })
+  @ApiProperty({
+    description: 'Line name (letters and numbers allowed)',
+    example: 'Line 1',
+  })
   @IsString({ message: 'name must be a string' })
   @IsNotEmpty({ message: 'name is required' })
   name!: string;
 
-  @ApiProperty({ description: 'Line unique code (alphanumeric)', example: 'LN001' })
+  @ApiProperty({
+    description: 'Line unique code (alphanumeric)',
+    example: 'LN001',
+  })
   @IsString({ message: 'code must be a string' })
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
@@ -43,19 +53,43 @@ export class CreateLineDto {
   @Min(1, { message: 'display order must be at least 1' })
   display_order!: number;
 
-  @ApiPropertyOptional({ description: 'Line details description', example: 'Light vehicle lane' })
+  @ApiPropertyOptional({
+    description: 'Line details description',
+    example: 'Light vehicle lane',
+  })
   @IsOptional()
   @IsString({ message: 'description must be a string' })
   description?: string;
 
-  @ApiPropertyOptional({ description: 'Line status', example: 'Active', enum: ['Active', 'Inactive'] })
+  @ApiPropertyOptional({
+    description: 'Line IN-file folder path',
+    example: '//192.168.10.10/Admin1/Line1/Infolder',
+  })
+  @IsOptional()
+  @IsString({ message: 'in_file_path must be a string' })
+  in_file_path?: string;
+
+  @ApiPropertyOptional({
+    description: 'Line OUT-file folder path',
+    example: '//192.168.10.10/Admin1/Line1/Outfolder',
+  })
+  @IsOptional()
+  @IsString({ message: 'out_file_path must be a string' })
+  out_file_path?: string;
+
+  @ApiPropertyOptional({
+    description: 'Line status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   @IsOptional()
   status?: string;
-
 }
 
 export class UpdateLineDto extends PartialType(
   OmitType(CreateLineDto, ['line_id'] as const),
-) { }
+) {}

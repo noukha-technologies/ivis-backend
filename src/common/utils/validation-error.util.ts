@@ -13,7 +13,9 @@ export function flattenValidationErrors(
   const result: FieldValidationError[] = [];
 
   for (const error of errors) {
-    const field = parentPath ? `${parentPath}.${error.property}` : error.property;
+    const field = parentPath
+      ? `${parentPath}.${error.property}`
+      : error.property;
 
     if (error.constraints) {
       for (const message of Object.values(error.constraints)) {
@@ -29,7 +31,9 @@ export function flattenValidationErrors(
   return result;
 }
 
-export function buildValidationException(errors: ValidationError[]): UnprocessableEntityException {
+export function buildValidationException(
+  errors: ValidationError[],
+): UnprocessableEntityException {
   const fieldErrors = flattenValidationErrors(errors);
 
   return new UnprocessableEntityException({

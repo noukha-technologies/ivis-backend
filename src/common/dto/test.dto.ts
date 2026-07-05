@@ -6,7 +6,12 @@ import {
   Min,
   IsIn,
 } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional, OmitType, PartialType } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  OmitType,
+  PartialType,
+} from '@nestjs/swagger';
 
 export class CreateTestDto {
   @ApiPropertyOptional({
@@ -28,12 +33,17 @@ export class CreateTestDto {
   @IsNotEmpty({ message: 'code is required' })
   code!: string;
 
-  @ApiPropertyOptional({ description: 'Test status', example: 'Active', enum: ['Active', 'Inactive'] })
+  @ApiPropertyOptional({
+    description: 'Test status',
+    example: 'Active',
+    enum: ['Active', 'Inactive'],
+  })
   @IsString({ message: 'status must be a string' })
-  @IsIn(['Active', 'Inactive'], { message: 'status must be either Active or Inactive' })
+  @IsIn(['Active', 'Inactive'], {
+    message: 'status must be either Active or Inactive',
+  })
   @IsOptional()
   status?: string;
-
 }
 
 export class UpdateTestDto extends PartialType(

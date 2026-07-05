@@ -81,7 +81,9 @@ export class JobService {
   async submitJob(id: string): Promise<Job> {
     const job = await this.findOne(id);
     if (!this.isSameOmanDay(new Date(job.created_at), new Date())) {
-      throw new BadRequestException('ROP submission must be on the same day the job was created');
+      throw new BadRequestException(
+        'ROP submission must be on the same day the job was created',
+      );
     }
     await this.ropApi.submitInspection(
       job.vehicleRecord?.plate_number ?? '',
@@ -172,25 +174,37 @@ export class JobService {
    * record exists (by plate), creates the job (Pending), and marks the
    * appointment Converted.
    */
-  async createFromAppointment(appointmentId: string, actor: UserContext): Promise<Job> {
-    this.logger.log(`Converting appointment ${appointmentId} to a job`, JobService.context);
+  async createFromAppointment(
+    appointmentId: string,
+    actor: UserContext,
+  ): Promise<Job> {
+    this.logger.log(
+      `Converting appointment ${appointmentId} to a job`,
+      JobService.context,
+    );
 
     const appt = await this.appointmentDao.findActiveById(appointmentId);
     if (!appt) {
       throw new ResourceNotFoundException('Appointment', appointmentId);
     }
     if (appt.status === AppointmentStatus.CONVERTED) {
-      throw new BadRequestException('Appointment has already been converted to a job');
+      throw new BadRequestException(
+        'Appointment has already been converted to a job',
+      );
     }
     if (!appt.customer_id) {
-      throw new BadRequestException('Enter customer details before converting to a job');
+      throw new BadRequestException(
+        'Enter customer details before converting to a job',
+      );
     }
 
     // Ensure a vehicle record exists for the plate (jobs require one). Plate +
     // vehicle type are read from the appointment's relations (record / ANPR).
     let vehicleRecordId = appt.vehicle_record_id ?? null;
     if (!vehicleRecordId) {
-      const plate = (appt.vehicleRecord?.plate_number ?? appt.anprCapture?.plate_number)?.trim();
+      const plate = (
+        appt.vehicleRecord?.plate_number ?? appt.anprCapture?.plate_number
+      )?.trim();
       if (!plate) {
         throw new BadRequestException('Appointment has no plate number');
       }
@@ -199,9 +213,13 @@ export class JobService {
         record = await this.vehicleRecordDao.save(
           this.vehicleRecordDao.create({
             id: generateSnowflakeId(),
-            vehicle_record_id: await this.vehicleRecordDao.getNextVehicleRecordId(),
+            vehicle_record_id:
+              await this.vehicleRecordDao.getNextVehicleRecordId(),
             plate_number: plate,
-            vehicle_type: appt.vehicleRecord?.vehicle_type ?? appt.anprCapture?.vehicle_type ?? undefined,
+            vehicle_type:
+              appt.vehicleRecord?.vehicle_type ??
+              appt.anprCapture?.vehicle_type ??
+              undefined,
             created_by: getCreatedById(actor),
           }),
         );
@@ -218,7 +236,7 @@ export class JobService {
         centre_id: appt.centre_id ?? undefined,
         line_id: appt.line_id ?? undefined,
         anpr_capture_id: appt.anpr_capture_id ?? undefined,
-      } as CreateJobDto,
+      },
       actor,
     );
 
@@ -248,19 +266,31 @@ export class JobService {
    */
   async resolvePricingForJob(job: Job): Promise<JobPricingResult> {
     const rawVehicleType =
-      job.vehicleRecord?.vehicle_type ?? job.vehicleRecord?.vehicleMaster?.vehicle_type ?? null;
-    const vehicleType = rawVehicleType ? rawVehicleType.trim().toLowerCase() : null;
-    const chargeCategoryId = job.vehicleRecord?.vehicleMaster?.charge_category_id ?? null;
+      job.vehicleRecord?.vehicle_type ??
+      job.vehicleRecord?.vehicleMaster?.vehicle_type ??
+      null;
+    const vehicleType = rawVehicleType
+      ? rawVehicleType.trim().toLowerCase()
+      : null;
+    const chargeCategoryId =
+      job.vehicleRecord?.vehicleMaster?.charge_category_id ?? null;
 
     const nextPaymentId = await this.paymentsDao.getNextPaymentsId();
 
     let charge: Charge | null = null;
     if (vehicleType) {
       charge = chargeCategoryId
-        ? await this.chargeDao.findByCombo(job.centre_id ?? undefined, vehicleType, chargeCategoryId)
+        ? await this.chargeDao.findByCombo(
+            job.centre_id ?? undefined,
+            vehicleType,
+            chargeCategoryId,
+          )
         : null;
       // Fallback: match by vehicle type alone (e.g. walk-ins with no category).
-      charge ??= await this.chargeDao.findByVehicleType(job.centre_id ?? undefined, vehicleType);
+      charge ??= await this.chargeDao.findByVehicleType(
+        job.centre_id ?? undefined,
+        vehicleType,
+      );
     }
 
     if (!charge) {
@@ -281,7 +311,9 @@ export class JobService {
     const grandTotal = Number(charge.grand_total);
     // Advance already collected (from the third-party payment API; 0 until wired).
     const plate = job.vehicleRecord?.plate_number;
-    const paymentInfo = plate ? await this.paymentApi.fetchByPlate(plate) : null;
+    const paymentInfo = plate
+      ? await this.paymentApi.fetchByPlate(plate)
+      : null;
     const advance = paymentInfo?.advance ?? 0;
     return {
       charge_missing: false,
@@ -346,9 +378,15 @@ export class JobService {
 
       const merged = this.jobDao.merge(job, {
         ...updateDto,
-        ...(updateDto.started_at ? { started_at: new Date(updateDto.started_at) } : {}),
-        ...(updateDto.completed_at ? { completed_at: new Date(updateDto.completed_at) } : {}),
-        ...(updateDto.invoice_date ? { invoice_date: new Date(updateDto.invoice_date) } : {}),
+        ...(updateDto.started_at
+          ? { started_at: new Date(updateDto.started_at) }
+          : {}),
+        ...(updateDto.completed_at
+          ? { completed_at: new Date(updateDto.completed_at) }
+          : {}),
+        ...(updateDto.invoice_date
+          ? { invoice_date: new Date(updateDto.invoice_date) }
+          : {}),
       });
 
       const saved = await this.jobDao.save(merged);
@@ -410,14 +448,21 @@ export class JobService {
     }
 
     if (dto.vehicle_record_id) {
-      const vehicleRecord = await this.vehicleRecordDao.findActiveById(dto.vehicle_record_id);
+      const vehicleRecord = await this.vehicleRecordDao.findActiveById(
+        dto.vehicle_record_id,
+      );
       if (!vehicleRecord) {
-        throw new ResourceNotFoundException('VehicleRecord', dto.vehicle_record_id);
+        throw new ResourceNotFoundException(
+          'VehicleRecord',
+          dto.vehicle_record_id,
+        );
       }
     }
 
     if (dto.anpr_capture_id) {
-      const anprCapture = await this.anprCaptureDao.findActiveById(dto.anpr_capture_id);
+      const anprCapture = await this.anprCaptureDao.findActiveById(
+        dto.anpr_capture_id,
+      );
       if (!anprCapture) {
         throw new ResourceNotFoundException('AnprCapture', dto.anpr_capture_id);
       }

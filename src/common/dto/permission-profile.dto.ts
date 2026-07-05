@@ -34,7 +34,9 @@ export class CreatePermissionProfileDto {
   is_active?: boolean;
 }
 
-export class UpdatePermissionProfileDto extends PartialType(CreatePermissionProfileDto) {}
+export class UpdatePermissionProfileDto extends PartialType(
+  CreatePermissionProfileDto,
+) {}
 
 export class PermissionProfileDto {
   @ApiProperty()

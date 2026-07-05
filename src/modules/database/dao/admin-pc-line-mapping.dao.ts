@@ -13,7 +13,9 @@ export class AdminPcLineMappingDao
     super(AdminPcLineMapping, dataSource.createEntityManager());
   }
 
-  async findActiveByAdminPcId(adminPcId: string): Promise<AdminPcLineMapping[]> {
+  async findActiveByAdminPcId(
+    adminPcId: string,
+  ): Promise<AdminPcLineMapping[]> {
     return this.find({
       where: { admin_pc_id: adminPcId, is_deleted: false },
       relations: { line: { centre: true } },
@@ -30,8 +32,14 @@ export class AdminPcLineMappingDao
     });
   }
 
-  async replaceForAdminPc(adminPcId: string, lineIds: string[], createdBy?: string): Promise<void> {
-    const uniqueLineIds = [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+  async replaceForAdminPc(
+    adminPcId: string,
+    lineIds: string[],
+    createdBy?: string,
+  ): Promise<void> {
+    const uniqueLineIds = [
+      ...new Set(lineIds.map((id) => id.trim()).filter(Boolean)),
+    ];
 
     await this.dataSource.transaction(async (manager) => {
       await manager.update(
@@ -59,6 +67,9 @@ export class AdminPcLineMappingDao
   }
 
   async softDeleteByAdminPcId(adminPcId: string): Promise<void> {
-    await this.update({ admin_pc_id: adminPcId, is_deleted: false }, { is_deleted: true });
+    await this.update(
+      { admin_pc_id: adminPcId, is_deleted: false },
+      { is_deleted: true },
+    );
   }
 }

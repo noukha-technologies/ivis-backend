@@ -25,7 +25,11 @@ export class Charge implements IChargeMasterFields {
   @Index('IDX_CHARGE_CHARGE_ID', { unique: true })
   charge_id!: number;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   @Index('IDX_CHARGE_CENTRE_ID')
   centre_id?: string;
 
@@ -37,7 +41,11 @@ export class Charge implements IChargeMasterFields {
   @Column({ type: 'varchar', length: 64, nullable: false, default: '' })
   vehicle_type!: string;
 
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   @Index('IDX_CHARGE_CATEGORY_ID')
   charge_category_id?: string;
 
@@ -48,16 +56,40 @@ export class Charge implements IChargeMasterFields {
   @Column({ type: 'varchar', nullable: true })
   category?: string;
 
-  @Column({ type: 'decimal', precision: 12, scale: 3, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: false,
+    default: 0,
+  })
   center_charges!: number;
 
-  @Column({ type: 'decimal', precision: 12, scale: 3, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: false,
+    default: 0,
+  })
   rop_charges!: number;
 
-  @Column({ type: 'decimal', precision: 5, scale: 2, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 5,
+    scale: 2,
+    nullable: false,
+    default: 0,
+  })
   vat_percent!: number;
 
-  @Column({ type: 'decimal', precision: 12, scale: 3, nullable: false, default: 0 })
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: false,
+    default: 0,
+  })
   grand_total!: number;
 
   @Column({ type: 'date', nullable: false })

@@ -20,7 +20,7 @@ export type TypeOrmPaginationOptions<T, K> = {
 
 @Injectable()
 export class TypeOrmPaginationService {
-  constructor(private readonly filterApplier: TypeOrmFilterApplier) { }
+  constructor(private readonly filterApplier: TypeOrmFilterApplier) {}
 
   async paginate<Entity extends ObjectLiteral, K>(
     repository: Repository<Entity>,
@@ -40,7 +40,7 @@ export class TypeOrmPaginationService {
       filter = [],
       skip = 0,
       limit = 10,
-      sort = { id: 'DESC' } as Record<string, 'ASC' | 'DESC'>,
+      sort = { id: 'DESC' },
       nonPaginated,
       mapper,
       baseWhere = {},

@@ -1,9 +1,14 @@
 import {
-  Body, Controller,
-  Delete, Get,
-  HttpCode, HttpStatus,
-  Param, Patch,
-  Post, Query,
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
@@ -13,17 +18,26 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 import { PaymentsService } from './services/payments.service';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
-import { CreatePaymentsDto, UpdatePaymentsDto } from '../../../common/dto/payments.dto';
+import {
+  CreatePaymentsDto,
+  UpdatePaymentsDto,
+} from '../../../common/dto/payments.dto';
 
 @ApiTags('Transactions / Payment Transactions')
 @Controller('transactions/payments')
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) { }
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create payment transaction (auto-creates job when status is Paid)' })
-  async create(@CurrentUser() actor: UserContext, @Body() createDto: CreatePaymentsDto) {
+  @ApiOperation({
+    summary:
+      'Create payment transaction (auto-creates job when status is Paid)',
+  })
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createDto: CreatePaymentsDto,
+  ) {
     const data = await this.paymentsService.create(createDto, actor);
     return { message: 'Payment transaction created successfully', data };
   }
@@ -34,7 +48,10 @@ export class PaymentsController {
   @ApiQuery({ name: 'limit', required: false, type: Number })
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.paymentsService.findAll(query);
-    return { message: 'Payment transactions retrieved successfully', ...result };
+    return {
+      message: 'Payment transactions retrieved successfully',
+      ...result,
+    };
   }
 
   @Get('job-lookup/:jobId')
@@ -54,7 +71,9 @@ export class PaymentsController {
   }
 
   @Patch(':id')
-  @ApiOperation({ summary: 'Update payment transaction (Paid triggers job if missing)' })
+  @ApiOperation({
+    summary: 'Update payment transaction (Paid triggers job if missing)',
+  })
   async update(
     @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,

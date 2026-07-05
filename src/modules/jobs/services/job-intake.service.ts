@@ -1,14 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, EntityManager, EntityTarget, ObjectLiteral } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  EntityTarget,
+  ObjectLiteral,
+} from 'typeorm';
 
 import { CreateJobIntakeDto } from '../../../common/dto/job.dto';
 import type { UserContext } from '../../../common/dto/auth.dto';
 
-import { PaymentStatusEnum, PaymentTypeEnum } from '../../../common/enums/payment.enums';
+import {
+  PaymentStatusEnum,
+  PaymentTypeEnum,
+} from '../../../common/enums/payment.enums';
 import { JobIntakeResult } from '../../../common/interfaces/job.interface';
 
 import { AppLogger } from '../../../common/logger/app.logger';
-import { DatabaseException, ResourceNotFoundException } from '../../../common/exceptions/custom.exception';
+import {
+  DatabaseException,
+  ResourceNotFoundException,
+} from '../../../common/exceptions/custom.exception';
 
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { saveBase64File } from '../../../common/utils/file-storage.util';
@@ -44,9 +55,12 @@ export class JobIntakeService {
     private readonly customerDao: CustomerDao,
     private readonly paymentsDao: PaymentsDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-  ) { }
+  ) {}
 
-  async createFromIntake(createDto: CreateJobIntakeDto, actor: UserContext): Promise<JobIntakeResult> {
+  async createFromIntake(
+    createDto: CreateJobIntakeDto,
+    actor: UserContext,
+  ): Promise<JobIntakeResult> {
     this.logger.log(
       `Creating job intake for customer: ${createDto.customer_name}`,
       JobIntakeService.context,
@@ -61,7 +75,11 @@ export class JobIntakeService {
     let attachmentPath: string | undefined;
 
     if (createDto.payment.capture_image) {
-      const saved = await saveBase64File(createDto.payment.capture_image, fileSubdirectory, 'capture.jpg');
+      const saved = await saveBase64File(
+        createDto.payment.capture_image,
+        fileSubdirectory,
+        'capture.jpg',
+      );
       captureImagePath = saved.relativePath;
     }
 
@@ -80,7 +98,11 @@ export class JobIntakeService {
 
     try {
       const result = await this.dataSource.transaction(async (manager) => {
-        const customer = await this.upsertCustomer(manager, createDto, createdBy);
+        const customer = await this.upsertCustomer(
+          manager,
+          createDto,
+          createdBy,
+        );
         const vehicleRecord = await this.upsertVehicleRecord(
           manager,
           createDto,
@@ -125,18 +147,15 @@ export class JobIntakeService {
         let job: Job | null = null;
 
         if (isPaid) {
-          job = await this.createJobRecord(
-            manager,
-            {
-              customerId: customer.id,
-              vehicleRecordId: vehicleRecord.id,
-              centreId: createDto.centre_id,
-              lineId: createDto.line_id,
-              adminPcId: createDto.admin_pc_id,
-              cameraId: createDto.camera_id,
-              createdBy,
-            },
-          );
+          job = await this.createJobRecord(manager, {
+            customerId: customer.id,
+            vehicleRecordId: vehicleRecord.id,
+            centreId: createDto.centre_id,
+            lineId: createDto.line_id,
+            adminPcId: createDto.admin_pc_id,
+            cameraId: createDto.camera_id,
+            createdBy,
+          });
           savedPayment.job_id = job.id;
           savedPayment = await manager.save(Payments, savedPayment);
         }
@@ -145,7 +164,8 @@ export class JobIntakeService {
       });
 
       const customer =
-        (await this.customerDao.findActiveById(result.customer.id)) ?? result.customer;
+        (await this.customerDao.findActiveById(result.customer.id)) ??
+        result.customer;
       const vehicleRecord =
         (await this.vehicleRecordDao.findActiveById(result.vehicleRecord.id)) ??
         result.vehicleRecord;
@@ -153,7 +173,7 @@ export class JobIntakeService {
         (await this.paymentsDao.findActiveById(result.savedPayment.id)) ??
         result.savedPayment;
       const job = result.job
-        ? (await this.jobDao.findActiveById(result.job.id)) ?? result.job
+        ? ((await this.jobDao.findActiveById(result.job.id)) ?? result.job)
         : null;
 
       this.logger.log(
@@ -181,7 +201,10 @@ export class JobIntakeService {
   }
 
   private async validateSiteReferences(
-    dto: Pick<CreateJobIntakeDto, 'centre_id' | 'line_id' | 'admin_pc_id' | 'camera_id'>,
+    dto: Pick<
+      CreateJobIntakeDto,
+      'centre_id' | 'line_id' | 'admin_pc_id' | 'camera_id'
+    >,
   ): Promise<void> {
     if (dto.centre_id) {
       const centre = await this.centreDao.findActiveById(dto.centre_id);
@@ -229,7 +252,11 @@ export class JobIntakeService {
       return manager.save(Customer, customer);
     }
 
-    const customerId = await this.getNextNumericId(manager, Customer, 'customer_id');
+    const customerId = await this.getNextNumericId(
+      manager,
+      Customer,
+      'customer_id',
+    );
     const created = manager.create(Customer, {
       id: generateSnowflakeId(),
       customer_id: customerId,
@@ -251,7 +278,8 @@ export class JobIntakeService {
     createdBy: string,
   ): Promise<VehicleRecord> {
     const plateNumber = dto.vehicle_no.trim();
-    let vehicleRecord = await this.vehicleRecordDao.findByPlateNumber(plateNumber);
+    let vehicleRecord =
+      await this.vehicleRecordDao.findByPlateNumber(plateNumber);
 
     if (vehicleRecord) {
       vehicleRecord = manager.merge(VehicleRecord, vehicleRecord, {
@@ -274,7 +302,11 @@ export class JobIntakeService {
     });
 
     const saved = await manager.save(VehicleRecord, created);
-    await manager.update(Customer, { id: customerId }, { vehicle_record_id: saved.id });
+    await manager.update(
+      Customer,
+      { id: customerId },
+      { vehicle_record_id: saved.id },
+    );
     return saved;
   }
 

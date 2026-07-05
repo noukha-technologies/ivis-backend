@@ -20,7 +20,10 @@ import {
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
-import { CreateChargeDto, UpdateChargeDto } from '../../../common/dto/charge.dto';
+import {
+  CreateChargeDto,
+  UpdateChargeDto,
+} from '../../../common/dto/charge.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { ChargeService } from './services/charge.service';
 
@@ -35,7 +38,10 @@ export class ChargeController {
   @ApiResponse({ status: 201, description: 'Charge created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 404, description: 'Centre or vehicle not found.' })
-  @ApiResponse({ status: 409, description: 'Duplicate centre/vehicle/category combination.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Duplicate centre/vehicle/category combination.',
+  })
   async create(
     @CurrentUser() actor: UserContext,
     @Body() dto: CreateChargeDto,
@@ -45,10 +51,17 @@ export class ChargeController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all charges (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all charges (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'category, status' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'category, status',
+  })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiQuery({ name: 'nonPaginated', required: false, type: Boolean })
@@ -73,7 +86,10 @@ export class ChargeController {
   @ApiParam({ name: 'id', type: String, description: 'Charge snowflake ID' })
   @ApiResponse({ status: 200, description: 'Charge updated successfully.' })
   @ApiResponse({ status: 404, description: 'Charge not found.' })
-  @ApiResponse({ status: 409, description: 'Duplicate centre/vehicle/category combination.' })
+  @ApiResponse({
+    status: 409,
+    description: 'Duplicate centre/vehicle/category combination.',
+  })
   async update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() dto: UpdateChargeDto,

@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreateCentreDto, UpdateCentreDto } from '../../../../common/dto/centre.dto';
+import {
+  CreateCentreDto,
+  UpdateCentreDto,
+} from '../../../../common/dto/centre.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -11,6 +14,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
+import { generateCentreCode } from '../../../../common/utils/generate-centre-code.util';
 import { Centre } from '../../../database/entity/centre.entity';
 import { CentreDao } from '../../../database/dao/centre.dao';
 import { ICentreService } from './centre.service.interface';
@@ -24,13 +28,26 @@ export class CentreService implements ICentreService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(createCentreDto: CreateCentreDto, actor: UserContext): Promise<Centre> {
-    this.logger.log(`Creating centre with code: ${createCentreDto.code}`, CentreService.context);
+  async create(
+    createCentreDto: CreateCentreDto,
+    actor: UserContext,
+  ): Promise<Centre> {
+    this.logger.log(
+      `Creating centre: ${createCentreDto.name}`,
+      CentreService.context,
+    );
 
     try {
-      const existingCode = await this.centreDao.findByCode(createCentreDto.code);
-      if (existingCode) {
-        throw new DuplicateResourceException('Centre', 'code', createCentreDto.code);
+      // Duplicate centre names are not allowed (case-insensitive).
+      const existingName = await this.centreDao.findByName(
+        createCentreDto.name,
+      );
+      if (existingName) {
+        throw new DuplicateResourceException(
+          'Centre',
+          'name',
+          createCentreDto.name,
+        );
       }
 
       let centre_id = createCentreDto.centre_id;
@@ -39,20 +56,35 @@ export class CentreService implements ICentreService {
       } else {
         const existingCentreId = await this.centreDao.findByCentreId(centre_id);
         if (existingCentreId) {
-          throw new DuplicateResourceException('Centre', 'centre_id', centre_id);
+          throw new DuplicateResourceException(
+            'Centre',
+            'centre_id',
+            centre_id,
+          );
         }
+      }
+
+      // Code is auto-generated from the sequential centre id (CM001, CM002, …).
+      const code = generateCentreCode(centre_id);
+      const existingCode = await this.centreDao.findByCode(code);
+      if (existingCode) {
+        throw new DuplicateResourceException('Centre', 'code', code);
       }
 
       const centre = this.centreDao.create({
         id: generateSnowflakeId(),
         ...createCentreDto,
         centre_id,
+        code,
         status: createCentreDto.status || 'Active',
         created_by: getCreatedById(actor),
       });
       const savedCentre = await this.centreDao.save(centre);
 
-      this.logger.log(`Centre created with ID: ${savedCentre.id}`, CentreService.context);
+      this.logger.log(
+        `Centre created with ID: ${savedCentre.id}`,
+        CentreService.context,
+      );
       return savedCentre;
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
@@ -68,7 +100,10 @@ export class CentreService implements ICentreService {
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Centre>> {
-    this.logger.log(`Fetching centres — page: ${query.page}, limit: ${query.limit}`, CentreService.context);
+    this.logger.log(
+      `Fetching centres — page: ${query.page}, limit: ${query.limit}`,
+      CentreService.context,
+    );
 
     try {
       return await this.centreDao.findPaginated(query);
@@ -125,20 +160,38 @@ export class CentreService implements ICentreService {
     try {
       const centre = await this.findOne(id);
 
-      if (updateCentreDto.code && updateCentreDto.code !== centre.code) {
-        const existingCode = await this.centreDao.findByCode(updateCentreDto.code);
-        if (existingCode) {
-          throw new DuplicateResourceException('Centre', 'code', updateCentreDto.code);
+      // Prevent renaming to an existing centre name (case-insensitive).
+      if (
+        updateCentreDto.name &&
+        updateCentreDto.name.trim().toLowerCase() !== centre.name.toLowerCase()
+      ) {
+        const existingName = await this.centreDao.findByName(
+          updateCentreDto.name,
+        );
+        if (existingName && existingName.id !== id) {
+          throw new DuplicateResourceException(
+            'Centre',
+            'name',
+            updateCentreDto.name,
+          );
         }
       }
 
-      const mergedCentre = this.centreDao.merge(centre, updateCentreDto);
+      // Code is derived from centre_id (immutable) — never changes on update.
+      const { code: _ignoredCode, ...updateFields } = updateCentreDto;
+      const mergedCentre = this.centreDao.merge(centre, updateFields);
       const savedCentre = await this.centreDao.save(mergedCentre);
 
-      this.logger.log(`Centre updated ID: ${savedCentre.id}`, CentreService.context);
+      this.logger.log(
+        `Centre updated ID: ${savedCentre.id}`,
+        CentreService.context,
+      );
       return savedCentre;
     } catch (error) {
-      if (error instanceof ResourceNotFoundException || error instanceof DuplicateResourceException) {
+      if (
+        error instanceof ResourceNotFoundException ||
+        error instanceof DuplicateResourceException
+      ) {
         throw error;
       }
       this.logger.error(

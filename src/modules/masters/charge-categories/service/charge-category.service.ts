@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
-import { CreateChargeCategoryDto, UpdateChargeCategoryDto } from '../../../../common/dto/charge-category.dto';
+import {
+  CreateChargeCategoryDto,
+  UpdateChargeCategoryDto,
+} from '../../../../common/dto/charge-category.dto';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import { ResourceNotFoundException } from '../../../../common/exceptions/custom.exception';
@@ -19,10 +22,17 @@ export class ChargeCategoryService {
     private readonly logger: AppLogger,
   ) {}
 
-  async create(dto: CreateChargeCategoryDto, actor: UserContext): Promise<ChargeCategory> {
-    this.logger.log(`Creating charge category — ${dto.vehicle_weight} / ${dto.engine_capacity}`, ChargeCategoryService.context);
+  async create(
+    dto: CreateChargeCategoryDto,
+    actor: UserContext,
+  ): Promise<ChargeCategory> {
+    this.logger.log(
+      `Creating charge category — ${dto.vehicle_weight} / ${dto.engine_capacity}`,
+      ChargeCategoryService.context,
+    );
 
-    const categoryId = dto.category_id ?? await this.chargeCategoryDao.getNextCategoryId();
+    const categoryId =
+      dto.category_id ?? (await this.chargeCategoryDao.getNextCategoryId());
 
     const category = this.chargeCategoryDao.create({
       id: generateSnowflakeId(),
@@ -37,7 +47,9 @@ export class ChargeCategoryService {
     return this.chargeCategoryDao.save(category);
   }
 
-  async findAll(query: PaginationQueryDto): Promise<PaginatedResult<ChargeCategory>> {
+  async findAll(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResult<ChargeCategory>> {
     return this.chargeCategoryDao.findPaginated(query);
   }
 
@@ -49,7 +61,10 @@ export class ChargeCategoryService {
     return category;
   }
 
-  async update(id: string, dto: UpdateChargeCategoryDto): Promise<ChargeCategory> {
+  async update(
+    id: string,
+    dto: UpdateChargeCategoryDto,
+  ): Promise<ChargeCategory> {
     const category = await this.findOne(id);
     Object.assign(category, dto);
     return this.chargeCategoryDao.save(category);

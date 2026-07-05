@@ -13,7 +13,10 @@ import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.t
 
 import { IJobFields } from 'src/common/interfaces/job.interface';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
-import type { JobOverallResult, JobStatus } from '../../../common/enums/job.enums';
+import type {
+  JobOverallResult,
+  JobStatus,
+} from '../../../common/enums/job.enums';
 
 import { Line } from './line.entity';
 import { Centre } from './centre.entity';
@@ -41,9 +44,12 @@ export class Job implements IJobFields {
   @Column({ type: 'varchar', length: 32, default: 'Pending', nullable: false })
   status!: JobStatus;
 
-
   /* Appointment FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   appointment_id?: string | null;
 
   @ManyToOne(() => Appointment, { nullable: true })
@@ -51,7 +57,11 @@ export class Job implements IJobFields {
   appointment?: Appointment;
 
   /* Customer FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   customer_id!: string;
 
   @ManyToOne(() => Customer, { nullable: false })
@@ -59,7 +69,11 @@ export class Job implements IJobFields {
   customer!: Customer;
 
   /* VehicleRecord FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: false })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: false,
+  })
   vehicle_record_id!: string;
 
   @ManyToOne(() => VehicleRecord, { nullable: false })
@@ -67,7 +81,11 @@ export class Job implements IJobFields {
   vehicleRecord!: VehicleRecord;
 
   /* Anpr-Capture FKs */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   anpr_capture_id?: string | null;
 
   @ManyToOne(() => AnprCapture, { nullable: true })
@@ -75,7 +93,11 @@ export class Job implements IJobFields {
   anprCapture?: AnprCapture;
 
   /* Centre FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   centre_id?: string | null;
 
   @ManyToOne(() => Centre, { nullable: true })
@@ -83,7 +105,11 @@ export class Job implements IJobFields {
   centre?: Centre;
 
   /* Line FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   line_id?: string | null;
 
   @ManyToOne(() => Line, { nullable: true })
@@ -91,7 +117,11 @@ export class Job implements IJobFields {
   line?: Line;
 
   /* Admin PC FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   admin_pc_id?: string | null;
 
   @ManyToOne(() => AdminPc, { nullable: true })
@@ -99,13 +129,16 @@ export class Job implements IJobFields {
   adminPc?: AdminPc;
 
   /* Camera FK */
-  @Column({ type: 'bigint', transformer: bigintAsStringTransformer, nullable: true })
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
   camera_id?: string | null;
 
   @ManyToOne(() => Camera, { nullable: true })
   @JoinColumn({ name: 'camera_id' })
   camera?: Camera;
-
 
   /** Invoice identifiers (set when the job reaches the Invoice stage). */
   @Column({ type: 'varchar', length: 64, nullable: true })
@@ -121,7 +154,6 @@ export class Job implements IJobFields {
   /** Derived from OUT file — not stored per-test in DB */
   @Column({ type: 'varchar', length: 16, nullable: true })
   overall_result?: JobOverallResult | null;
-
 
   @Column({ type: 'varchar', length: 256, nullable: true })
   infile_name?: string;
@@ -140,7 +172,6 @@ export class Job implements IJobFields {
 
   @Column({ type: 'timestamp', nullable: true })
   completed_at?: Date;
-
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

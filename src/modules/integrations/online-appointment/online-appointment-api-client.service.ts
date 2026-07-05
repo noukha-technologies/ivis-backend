@@ -30,7 +30,9 @@ export class OnlineAppointmentApiClientService {
 
   constructor(private readonly logger: AppLogger) {}
 
-  async findByPlate(plateNumber: string): Promise<OnlineAppointmentResult | null> {
+  async findByPlate(
+    plateNumber: string,
+  ): Promise<OnlineAppointmentResult | null> {
     const baseUrl = process.env.ONLINE_APPOINTMENT_API_URL?.trim();
     if (!baseUrl) {
       // Integration not configured yet → no online bookings; caller → Walk-in.

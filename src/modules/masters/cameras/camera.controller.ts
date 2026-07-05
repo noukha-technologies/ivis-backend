@@ -9,7 +9,7 @@ import {
   Param,
   Patch,
   Post,
-  Query
+  Query,
 } from '@nestjs/common';
 import {
   ApiOperation,
@@ -21,7 +21,10 @@ import {
 
 import type { UserContext } from '../../../common/dto/auth.dto.js';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto.js';
-import { CreateCameraDto, UpdateCameraDto } from '../../../common/dto/camera.dto.js';
+import {
+  CreateCameraDto,
+  UpdateCameraDto,
+} from '../../../common/dto/camera.dto.js';
 
 import { CameraService } from './services/camera.service.js';
 import { AppLogger } from '../../../common/logger/app.logger.js';
@@ -38,7 +41,7 @@ export class CameraController {
     private readonly logger: AppLogger,
     private readonly cameraService: CameraService,
     private readonly cameraHealthCheck: CameraHealthCheckService,
-  ) { }
+  ) {}
 
   // ─── CRUD ────────────────────────────────────────────────────────────────────
 
@@ -48,22 +51,34 @@ export class CameraController {
   @ApiResponse({ status: 201, description: 'Camera created successfully.' })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
   @ApiResponse({ status: 409, description: 'Duplicate code or camera_id.' })
-  async create(@CurrentUser() actor: UserContext, @Body() createCameraDto: CreateCameraDto) {
+  async create(
+    @CurrentUser() actor: UserContext,
+    @Body() createCameraDto: CreateCameraDto,
+  ) {
     const camera = await this.cameraService.create(createCameraDto, actor);
-    void this.cameraHealthCheck.performFullHealthCheck(camera.id).catch((err: unknown) => {
-      this.logger.warn(
-        `Initial health check failed for camera ${camera.id}: ${(err as Error).message}`,
-        CameraController.context,
-      );
-    });
+    void this.cameraHealthCheck
+      .performFullHealthCheck(camera.id)
+      .catch((err: unknown) => {
+        this.logger.warn(
+          `Initial health check failed for camera ${camera.id}: ${(err as Error).message}`,
+          CameraController.context,
+        );
+      });
     return { message: 'Camera created successfully', data: camera };
   }
 
   @Get()
-  @ApiOperation({ summary: 'Retrieve all cameras (paginated, filterable, sortable)' })
+  @ApiOperation({
+    summary: 'Retrieve all cameras (paginated, filterable, sortable)',
+  })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'name, code, type' })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'name, code, type',
+  })
   @ApiQuery({ name: 'sortBy', required: false, type: String })
   @ApiQuery({ name: 'sortOrder', required: false, enum: ['ASC', 'DESC'] })
   @ApiResponse({ status: 200, description: 'Cameras list retrieved.' })
@@ -76,7 +91,9 @@ export class CameraController {
 
   @Get('health/summary')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Health summary for all cameras (cached DB fields)' })
+  @ApiOperation({
+    summary: 'Health summary for all cameras (cached DB fields)',
+  })
   getHealthSummary() {
     return this.cameraHealthCheck.getHealthSummaryForAll();
   }
@@ -136,7 +153,10 @@ export class CameraController {
   @ApiResponse({ status: 200, description: 'Camera updated successfully.' })
   @ApiResponse({ status: 404, description: 'Camera not found.' })
   @ApiResponse({ status: 409, description: 'Duplicate code.' })
-  async update(@Param('id', ParseSnowflakeIdPipe) id: string, @Body() updateCameraDto: UpdateCameraDto) {
+  async update(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Body() updateCameraDto: UpdateCameraDto,
+  ) {
     const camera = await this.cameraService.update(id, updateCameraDto);
     return { message: 'Camera updated successfully', data: camera };
   }

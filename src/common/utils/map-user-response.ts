@@ -28,11 +28,11 @@ export function mapUserToResponse(user: User): UserResponse {
     roleName: user.role?.role_name ?? '',
     role: user.role
       ? {
-        id: user.role.id,
-        role_id: user.role.role_id,
-        role_name: user.role.role_name,
-        permission_id: user.role.permission_id,
-      }
+          id: user.role.id,
+          role_id: user.role.role_id,
+          role_name: user.role.role_name,
+          permission_id: user.role.permission_id,
+        }
       : undefined,
     center_id: user.center_id ?? null,
     center: centre?.name,
@@ -40,11 +40,11 @@ export function mapUserToResponse(user: User): UserResponse {
     line: lines[0]?.name,
     assignedCentre: centre
       ? {
-        id: centre.id,
-        centre_id: centre.centre_id,
-        name: centre.name,
-        code: centre.code,
-      }
+          id: centre.id,
+          centre_id: centre.centre_id,
+          name: centre.name,
+          code: centre.code,
+        }
       : undefined,
     line_ids: line_ids.length > 0 ? line_ids : undefined,
     lines: lines.length > 0 ? lines : undefined,

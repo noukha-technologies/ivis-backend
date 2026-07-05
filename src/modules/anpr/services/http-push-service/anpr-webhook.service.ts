@@ -29,8 +29,10 @@ import type { UserContext } from '../../../../common/dto/auth.dto';
 
 // System actor for camera-originated captures (no authenticated operator).
 const ANPR_SYSTEM_ACTOR = {
-  id: 'anpr-system',
-  email: 'anpr-system@ivis.internal',
+  user: {
+    id: 'anpr-system',
+    email: 'anpr-system@ivis.internal',
+  },
 } as unknown as UserContext;
 
 @Injectable()
@@ -680,7 +682,7 @@ export class AnprWebhookService {
             plate_confidence: eventDto.confidenceScore ?? undefined,
             capture_time: eventDto.captureTime.toISOString(),
             camera_id: camera.id,
-            line_id: camera.line_ids?.[0] || '',
+            line_id: camera.line_ids?.[0] || undefined,
             direction: eventDto.direction ?? undefined,
             country_code:
               eventDto.countryCode != null

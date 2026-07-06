@@ -21,7 +21,7 @@ import { IUserFields } from '../../../common/interfaces/user.interface';
 import { DATABASE_SCHEMAS } from 'src/common/constants/database-schemas';
 
 @Entity({ name: 'users', schema: DATABASE_SCHEMAS.CORE })
-@Index('IDX_USER_CENTER_ID', ['center_id'], { unique: true })
+@Index('IDX_USER_CENTER_ID', ['center_id'])
 @Index('IDX_USER_ROLE_ID', ['role_id'], { unique: true })
 @Index('IDX_USER_USER_CODE', ['user_code'], { unique: true })
 @Index('IDX_USER_USER_ID', ['user_id'], { unique: true })

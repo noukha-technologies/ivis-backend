@@ -38,6 +38,9 @@ import { RequestMetadata } from '../../../common/utils/request-metadata.util';
 import { UsersDao } from '../../database/dao/users.dao';
 import { User } from '../../database/entity/user.entity';
 import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
+import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
+import { OnboardingService } from '../../onboarding/service/onboarding.service';
+import { AppLogger } from '../../../common/logger/app.logger';
 import { IAuthService } from './auth-service.interface';
 
 @Injectable()
@@ -54,6 +57,9 @@ export class AuthService implements IAuthService {
     private readonly userSessionsDao: UserSessionsDao,
     private readonly roleDao: RoleDao,
     private readonly permissionDao: PermissionDao,
+    private readonly onboardingStatusDao: OnboardingStatusDao,
+    private readonly onboardingService: OnboardingService,
+    private readonly logger: AppLogger,
     private readonly configService: ConfigService,
   ) {
     this.accessSecret =
@@ -74,6 +80,21 @@ export class AuthService implements IAuthService {
   }
 
   async login(request: LoginRequestDto): Promise<LoginResponseDto> {
+    // Flag-first: cheap single-row check decides local-only vs central
+    // fallback, never "was the user found locally?" — see Onboarding Sync
+    // plan. Once COMPLETED, the central connection is never touched again.
+    const onboardingStatus = await this.onboardingStatusDao.ensureSingletonRow();
+
+    if (onboardingStatus.status === 'COMPLETED') {
+      return this.loginLocalOnly(request);
+    }
+
+    return this.loginViaCentralFallback(request);
+  }
+
+  private async loginLocalOnly(
+    request: LoginRequestDto,
+  ): Promise<LoginResponseDto> {
     const user = await this.usersDao.findByEmailWithPassword(request.email);
     if (!user?.password) {
       throw new ErrorException('INVALID_USER');
@@ -87,9 +108,75 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_USER');
     }
 
+    return this.buildSuccessResponse(user);
+  }
+
+  private async loginViaCentralFallback(
+    request: LoginRequestDto,
+  ): Promise<LoginResponseDto> {
+    let centralUser;
+    try {
+      centralUser = await this.onboardingService.findCentralUserWithPassword(
+        request.email,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Central DB unreachable during login for ${request.email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error instanceof Error ? error.stack : undefined,
+        'AuthService',
+      );
+      throw new ErrorException('CENTRAL_DB_UNAVAILABLE');
+    }
+
+    if (!centralUser?.password) {
+      throw new ErrorException('INVALID_USER');
+    }
+
+    const passwordMatches = await this.onboardingService.verifyCentralPassword(
+      centralUser,
+      request.password,
+    );
+    if (!passwordMatches) {
+      throw new ErrorException('INVALID_USER');
+    }
+
+    const result = await this.onboardingService.ensureOnboarded(
+      centralUser,
+      request.confirmOnboarding ?? false,
+    );
+
+    switch (result.status) {
+      case 'CONFIRMATION_REQUIRED':
+        return { status: 'CONFIRMATION_REQUIRED', centre: result.centre };
+      case 'IN_PROGRESS':
+        return { status: 'ONBOARDING_IN_PROGRESS' };
+      case 'CENTRE_MISMATCH':
+        throw new ErrorException('CENTRE_MISMATCH');
+      case 'FAILED':
+        throw new ErrorException(
+          'SOMETHING_WENT_WRONG',
+          `Onboarding sync failed: ${result.error}`,
+        );
+      case 'COMPLETED': {
+        // Local DB is now populated — re-run today's normal local flow.
+        const user = await this.usersDao.findByEmailWithPassword(
+          request.email,
+        );
+        if (!user?.password) {
+          throw new ErrorException('INVALID_USER');
+        }
+        return this.buildSuccessResponse(user);
+      }
+    }
+  }
+
+  private async buildSuccessResponse(user: User): Promise<LoginResponseDto> {
     const tokens = await this.issueTokens(user);
     const permissions = await this.resolveUserPermissions(user);
     return {
+      status: 'SUCCESS',
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.accessExpiresAt,
@@ -203,6 +290,7 @@ export class AuthService implements IAuthService {
     const tokens = await this.issueTokens(user, session.id);
     const permissions = await this.resolveUserPermissions(user);
     return {
+      status: 'SUCCESS',
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.accessExpiresAt,

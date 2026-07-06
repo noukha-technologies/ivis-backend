@@ -6,6 +6,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { useContainer } from 'class-validator';
 import { AppModule } from './app.module';
 import { AppLogger } from './common/logger/app.logger';
+import { SchemaBootstrapService } from './modules/database/service/schema-bootstrap.service';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { buildValidationException } from './common/utils/validation-error.util.js';
@@ -80,6 +81,12 @@ async function bootstrap() {
       exposedHeaders: ['X-Total-Count', 'X-Page-Count'],
       maxAge: 3600,
     });
+
+    // Schema bootstrap runs unconditionally, before the server accepts any
+    // HTTP traffic — decoupled from login entirely. A failure here must
+    // abort startup (fail-fast), not leave the app serving against schema
+    // in an unknown state.
+    await app.get(SchemaBootstrapService).run();
 
     const configService = app.get(ConfigService);
 

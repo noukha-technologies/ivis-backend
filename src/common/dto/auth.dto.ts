@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -98,6 +99,25 @@ export class LoginRequestDto {
   @IsNotEmpty()
   @Transform(({ value }) => value?.trim())
   password!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Second step of the Onboarding Sync confirmation handshake — resend the same login request with this set to true after receiving a CONFIRMATION_REQUIRED response to actually run the centre-scoped data sync.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  confirmOnboarding?: boolean;
+}
+
+export class OnboardingCentreInfoDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  code!: string;
 }
 
 export class RefreshTokenRequestDto {
@@ -107,25 +127,50 @@ export class RefreshTokenRequestDto {
   refreshToken!: string;
 }
 
+export const LOGIN_RESPONSE_STATUSES = [
+  'SUCCESS',
+  'CONFIRMATION_REQUIRED',
+  'ONBOARDING_IN_PROGRESS',
+] as const;
+
+export type LoginResponseStatus = (typeof LOGIN_RESPONSE_STATUSES)[number];
+
 export class LoginResponseDto {
-  @ApiProperty()
-  accessToken!: string;
-
-  @ApiProperty()
-  refreshToken!: string;
-
-  @ApiProperty()
-  expiresAt!: Date;
-
-  @ApiProperty()
-  user!: AuthUserDto;
-
   @ApiProperty({
+    enum: LOGIN_RESPONSE_STATUSES,
+    default: 'SUCCESS',
+    description:
+      'Discriminates the login outcome. Everything except a genuine auth ' +
+      'failure returns HTTP 200 — CONFIRMATION_REQUIRED and ' +
+      'ONBOARDING_IN_PROGRESS are not errors, they carry no tokens and the ' +
+      'client must react to this field, not the HTTP status alone.',
+  })
+  status!: LoginResponseStatus;
+
+  @ApiPropertyOptional({
+    description: 'Present only when status is CONFIRMATION_REQUIRED.',
+    type: OnboardingCentreInfoDto,
+  })
+  centre?: OnboardingCentreInfoDto;
+
+  @ApiPropertyOptional()
+  accessToken?: string;
+
+  @ApiPropertyOptional()
+  refreshToken?: string;
+
+  @ApiPropertyOptional()
+  expiresAt?: Date;
+
+  @ApiPropertyOptional()
+  user?: AuthUserDto;
+
+  @ApiPropertyOptional({
     description:
       'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],
   })
-  permissions!: string[];
+  permissions?: string[];
 }
 
 export class BootstrapAdminDto {

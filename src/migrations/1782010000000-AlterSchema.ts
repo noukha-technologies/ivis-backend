@@ -331,6 +331,25 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         END IF;
       END $$;
     `);
+
+    // onboarding_status table (Onboarding Sync feature) — single-row table
+    // tracking this local DB's onboarding lifecycle: PENDING ->
+    // PENDING_CONFIRMATION -> IN_PROGRESS -> COMPLETED/FAILED.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."onboarding_status" (
+        "id"                      bigint                NOT NULL,
+        "centre_id"               bigint,
+        "centre_code"             character varying,
+        "status"                  character varying(32) NOT NULL DEFAULT 'PENDING',
+        "confirmation_expires_at" TIMESTAMP,
+        "schema_initialized_at"   TIMESTAMP,
+        "data_synced_at"          TIMESTAMP,
+        "last_error"              character varying,
+        "created_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_onboarding_status_id" PRIMARY KEY ("id")
+      )
+    `);
   }
 
   // ─── master schema alterations ────────────────────────────────────────────────
@@ -1632,6 +1651,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."onboarding_status" CASCADE`,
+    );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."configuration" CASCADE`,
     );

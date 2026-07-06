@@ -90,6 +90,17 @@ export const ERROR_CODES: Record<string, ErrorDetails> = {
     statusCode: HttpStatus.BAD_REQUEST,
     message: 'Invalid Payload',
   },
+  CENTRE_MISMATCH: {
+    code: '017',
+    statusCode: HttpStatus.FORBIDDEN,
+    message:
+      'This server is already onboarded to a different centre than your account.',
+  },
+  CENTRAL_DB_UNAVAILABLE: {
+    code: '018',
+    statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+    message: 'Unable to reach the central server. Please try again shortly.',
+  },
 };
 
 export const ERROR_CODE_PREFIX = 'US';

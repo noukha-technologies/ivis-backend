@@ -126,6 +126,13 @@ export class LoginResponseDto {
     type: [String],
   })
   permissions!: string[];
+
+  @ApiProperty({
+    description: 'Status of the login flow',
+    example: 'SUCCESS',
+    required: false,
+  })
+  status?: string;
 }
 
 export class BootstrapAdminDto {

@@ -95,6 +95,7 @@ export class AuthService implements IAuthService {
       expiresAt: tokens.accessExpiresAt,
       user: this.toAuthUser(user),
       permissions,
+      status: 'SUCCESS',
     };
   }
 

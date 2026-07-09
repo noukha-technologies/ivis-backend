@@ -205,14 +205,7 @@ export class LoginResponseDto {
       'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],
   })
-  permissions!: string[];
-
-  @ApiProperty({
-    description: 'Status of the login flow',
-    example: 'SUCCESS',
-    required: false,
-  })
-  status?: string;
+  permissions?: string[];
 }
 
 export class BootstrapAdminDto {

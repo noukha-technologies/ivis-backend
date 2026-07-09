@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, IsNull, Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
@@ -27,26 +27,14 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
   async findActiveByIdWithPermission(id: string): Promise<Role | null> {
     return this.findOne({
       where: { id, is_deleted: false },
-      relations: { permission: true, centre: true },
+      relations: { permission: true },
     });
   }
 
+  /** Role names are unique globally now — see role_centre_mappings (M:N centres). */
   async findByRoleName(roleName: string): Promise<Role | null> {
     return this.findOne({
       where: { role_name: roleName.trim(), is_deleted: false },
-    });
-  }
-
-  async findByRoleNameInScope(
-    roleName: string,
-    centreId: string | null,
-  ): Promise<Role | null> {
-    return this.findOne({
-      where: {
-        role_name: roleName.trim(),
-        center_id: centreId ?? IsNull(),
-        is_deleted: false,
-      },
     });
   }
 
@@ -68,14 +56,17 @@ export class RoleDao extends Repository<Role> implements IRoleDao {
   ): Promise<PaginatedResult<Role>> {
     const qb = this.createQueryBuilder('role')
       .leftJoinAndSelect('role.permission', 'permission')
-      .leftJoinAndSelect('role.centre', 'centre')
       .where('role.is_deleted = :isDeleted', { isDeleted: false });
 
     if (centreScope) {
-      // Centre Admin: only their own centre's roles (global roles excluded).
-      qb.andWhere('role.center_id = :scopeCentreId', {
-        scopeCentreId: centreScope.centreId,
-      });
+      // Centre Admin: only roles linked (via role_centre_mappings) to their
+      // own centre — global roles excluded (they have no mapping rows at all).
+      qb.innerJoin(
+        'role.mappings',
+        'rcm',
+        'rcm.centre_id = :scopeCentreId AND rcm.is_deleted = false',
+        { scopeCentreId: centreScope.centreId },
+      );
     }
 
     const options = buildTypeOrmPaginationOptions<Role, Role>(query, {

@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsArray,
+  IsBoolean,
   IsEmail,
   IsNotEmpty,
   IsOptional,
@@ -98,6 +100,59 @@ export class LoginRequestDto {
   @IsNotEmpty()
   @Transform(({ value }) => value?.trim())
   password!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Second step of the Onboarding Sync confirmation handshake — resend the same login request with this set to true after receiving a CONFIRMATION_REQUIRED response to actually run the centre-scoped data sync.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  confirmOnboarding?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'IDs (from CONFIRMATION_REQUIRED.centre.availableSuperAdmins) of the central Super Admin accounts to re-scope into this centre as part of setup. Only meaningful alongside confirmOnboarding=true. Omit or send empty to grant no Super Admin access at setup time.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selectedSuperAdminIds?: string[];
+}
+
+export class OnboardingSuperAdminOptionDto {
+  @ApiProperty({ description: 'Central Super Admin user snowflake ID' })
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  user_name!: string;
+}
+
+export class OnboardingCentreInfoDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty({
+    description:
+      'Whether this centre already has an is_center_admin role centrally — Super Admin selection is only offered when true.',
+  })
+  centreAdminRoleExists!: boolean;
+
+  @ApiProperty({
+    description:
+      'Central Super Admin accounts eligible to be re-scoped into this centre at setup time. Empty if centreAdminRoleExists is false or no Super Admin accounts exist centrally.',
+    type: [OnboardingSuperAdminOptionDto],
+  })
+  availableSuperAdmins!: OnboardingSuperAdminOptionDto[];
 }
 
 export class RefreshTokenRequestDto {
@@ -107,20 +162,45 @@ export class RefreshTokenRequestDto {
   refreshToken!: string;
 }
 
+export const LOGIN_RESPONSE_STATUSES = [
+  'SUCCESS',
+  'CONFIRMATION_REQUIRED',
+  'ONBOARDING_IN_PROGRESS',
+] as const;
+
+export type LoginResponseStatus = (typeof LOGIN_RESPONSE_STATUSES)[number];
+
 export class LoginResponseDto {
-  @ApiProperty()
-  accessToken!: string;
-
-  @ApiProperty()
-  refreshToken!: string;
-
-  @ApiProperty()
-  expiresAt!: Date;
-
-  @ApiProperty()
-  user!: AuthUserDto;
-
   @ApiProperty({
+    enum: LOGIN_RESPONSE_STATUSES,
+    default: 'SUCCESS',
+    description:
+      'Discriminates the login outcome. Everything except a genuine auth ' +
+      'failure returns HTTP 200 — CONFIRMATION_REQUIRED and ' +
+      'ONBOARDING_IN_PROGRESS are not errors, they carry no tokens and the ' +
+      'client must react to this field, not the HTTP status alone.',
+  })
+  status!: LoginResponseStatus;
+
+  @ApiPropertyOptional({
+    description: 'Present only when status is CONFIRMATION_REQUIRED.',
+    type: OnboardingCentreInfoDto,
+  })
+  centre?: OnboardingCentreInfoDto;
+
+  @ApiPropertyOptional()
+  accessToken?: string;
+
+  @ApiPropertyOptional()
+  refreshToken?: string;
+
+  @ApiPropertyOptional()
+  expiresAt?: Date;
+
+  @ApiPropertyOptional()
+  user?: AuthUserDto;
+
+  @ApiPropertyOptional({
     description:
       'Flat permission keys resolved from role → permission.access (guard vocabulary)',
     type: [String],

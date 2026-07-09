@@ -1,7 +1,12 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
+import centralDatabaseConfig, {
+  CentralDatabaseConfig,
+} from './central-database.config';
+import { CENTRAL_DATA_SOURCE } from './central-data-source.token';
 
 import { Job } from './entity/job.entity';
 import { User } from './entity/user.entity';
@@ -26,7 +31,9 @@ import { RopVerification } from './entity/rop-verification.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 import { CameraLineMapping } from './entity/camera-line-mapping.entity';
+import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { Configurations } from './entity/configuration.entity';
+import { OnboardingStatus } from './entity/onboarding-status.entity';
 
 import { JobDao } from './dao/job.dao';
 import { RoleDao } from './dao/role.dao';
@@ -51,12 +58,36 @@ import { RopVerificationDao } from './dao/rop-verification.dao';
 import { UserLineMappingDao } from './dao/user-line-mapping.dao';
 import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
 import { CameraLineMappingDao } from './dao/camera-line-mapping.dao';
+import { RoleCentreMappingDao } from './dao/role-centre-mapping.dao';
 import { ConfigurationDao } from './dao/configuration.dao';
+import { OnboardingStatusDao } from './dao/onboarding-status.dao';
+import { SchemaBootstrapService } from './service/schema-bootstrap.service';
+
+// Entities synced from the Master DB during Onboarding Sync — the 'central'
+// connection is read-only (enforced by the CENTRAL_DB_* Postgres role) and
+// only ever registers this centre-scoped subset, never the full entity list.
+const CENTRAL_SYNC_ENTITIES = [
+  Centre,
+  Line,
+  Camera,
+  CameraLineMapping,
+  AdminPc,
+  AdminPcLineMapping,
+  Charge,
+  ChargeCategory,
+  Configurations,
+  Role,
+  RoleCentreMapping,
+  Permission,
+  User,
+  UserLineMapping,
+];
 
 @Global()
 @Module({
   imports: [
     ConfigModule.forFeature(databaseConfig),
+    ConfigModule.forFeature(centralDatabaseConfig),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -93,13 +124,36 @@ import { ConfigurationDao } from './dao/configuration.dao';
       ChargeCategory,
       PaymentType,
       Configurations,
+      OnboardingStatus,
+      RoleCentreMapping,
     ]),
   ],
   providers: [
+    // Lazy, connect-on-demand DataSource for the Master DB — deliberately NOT
+    // a TypeOrmModule.forRootAsync('central', ...) connection. That form
+    // connects eagerly at Nest bootstrap and, on failure, crashes the WHOLE
+    // app (all modules, all already-onboarded centres) after retrying —
+    // defeating "central DB down should never affect an already-COMPLETED
+    // centre server". Constructing (not initializing) a DataSource here is
+    // free; CentralSyncReaderService connects it lazily on first real use
+    // and surfaces failures as a catchable error (-> CENTRAL_DB_UNAVAILABLE).
+    {
+      provide: CENTRAL_DATA_SOURCE,
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const centralConfig =
+          configService.get<CentralDatabaseConfig>('centralDatabase')!;
+        return new DataSource({
+          ...centralConfig,
+          entities: CENTRAL_SYNC_ENTITIES,
+        });
+      },
+    },
     UsersDao,
     UserLineMappingDao,
     PermissionDao,
     RoleDao,
+    RoleCentreMappingDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -120,13 +174,17 @@ import { ConfigurationDao } from './dao/configuration.dao';
     ChargeCategoryDao,
     PaymentTypeDao,
     ConfigurationDao,
+    OnboardingStatusDao,
+    SchemaBootstrapService,
   ],
   exports: [
     TypeOrmModule,
+    CENTRAL_DATA_SOURCE,
     UsersDao,
     UserLineMappingDao,
     PermissionDao,
     RoleDao,
+    RoleCentreMappingDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -147,6 +205,8 @@ import { ConfigurationDao } from './dao/configuration.dao';
     ChargeCategoryDao,
     PaymentTypeDao,
     ConfigurationDao,
+    OnboardingStatusDao,
+    SchemaBootstrapService,
   ],
 })
 export class DatabaseModule {}

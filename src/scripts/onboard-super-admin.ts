@@ -1,16 +1,25 @@
 /**
- * Onboarding script — run once on a fresh database.
+ * Super Admin machine onboarding script — run once on a fresh database that
+ * is meant to be the CENTRAL node (see ONBOARDING_DB_SYNC_ARCHITECTURE.md,
+ * NODE_ROLE=central). Mirrors onboard.ts's shape exactly, but seeds a
+ * GLOBAL Super Admin instead of a centre-scoped System Admin.
  *
  * Steps:
  *   1. Run all pending TypeORM migrations (creates schemas + tables)
- *   2. Seed a full-access permission profile ("System Admin Access")
- *   3. Seed the "System Admin" role linked to that profile
- *   4. Create the default system admin user (admin@opalivis.in / Admin@123)
+ *   2. Seed a full-access permission profile ("Super Admin Access")
+ *   3. Seed the "Super Admin" role — access_scope: 'global', linked to zero
+ *      centres (Role↔Centre is many-to-many via role_centre_mappings; a
+ *      global role never has mapping rows — see role.entity.ts)
+ *   4. Create the default Super Admin user (center_id: null)
  *
  * Usage:
- *   npm run onboarding
+ *   npm run onboarding:super-admin
  *
  * Safe to re-run — each step checks for existing records before inserting.
+ * Runs against this machine's own local database (AppDataSource /
+ * POSTGRES_* env), same as onboard.ts — NOT the CENTRAL_DB_* connection
+ * (that one is a read-only link *to* a central DB from a centre node; this
+ * script is for bootstrapping the central node itself).
  */
 
 import 'reflect-metadata';
@@ -35,12 +44,25 @@ dotenv.config();
 process.env.RUN_CREATE_SCHEMA = 'true';
 process.env.RUN_ALTER_SCHEMA = 'true';
 
-const ADMIN_EMAIL = 'admin@opalivis.in';
-const ADMIN_PASSWORD = 'Admin@123';
-const ADMIN_USER_CODE = 'SYSADMIN';
-const ADMIN_USER_NAME = 'System Admin';
-const ADMIN_ROLE_NAME = 'System Admin';
-const ADMIN_PERM_NAME = 'System Admin Access';
+function cliArg(name: string): string | undefined {
+  const prefix = `--${name}=`;
+  const match = process.argv.find((arg) => arg.startsWith(prefix));
+  return match?.slice(prefix.length);
+}
+
+const SUPER_ADMIN_EMAIL = (
+  cliArg('email') ||
+  process.env.SEED_SUPER_ADMIN_EMAIL ||
+  'superadmin@opalivis.in'
+)
+  .trim()
+  .toLowerCase();
+const SUPER_ADMIN_PASSWORD =
+  cliArg('password') || process.env.SEED_SUPER_ADMIN_PASSWORD || 'SuperAdmin@123';
+const SUPER_ADMIN_USER_CODE = 'SUPERADMIN';
+const SUPER_ADMIN_USER_NAME = 'Super Admin';
+const SUPER_ADMIN_ROLE_NAME = 'Super Admin';
+const SUPER_ADMIN_PERM_NAME = 'Super Admin Access';
 
 function all(): ModuleCrudFlags {
   return { create: true, edit: true, view: true };
@@ -73,7 +95,7 @@ function buildFullAccessMatrix(): RoleAccessMatrix {
 }
 
 function log(msg: string): void {
-  process.stdout.write(`[onboard] ${msg}\n`);
+  process.stdout.write(`[onboard-super-admin] ${msg}\n`);
 }
 
 async function main(): Promise<void> {
@@ -97,9 +119,9 @@ async function main(): Promise<void> {
     const userRepo = ds.getRepository(User);
 
     /* ── Step 2: Permission profile ─────────────────────────────────── */
-    log(`Seeding permission profile "${ADMIN_PERM_NAME}"...`);
+    log(`Seeding permission profile "${SUPER_ADMIN_PERM_NAME}"...`);
     let perm = await permRepo.findOne({
-      where: { name: ADMIN_PERM_NAME, is_deleted: false },
+      where: { name: SUPER_ADMIN_PERM_NAME, is_deleted: false },
     });
     if (perm) {
       log('  Already exists — refreshing access matrix.');
@@ -108,7 +130,7 @@ async function main(): Promise<void> {
     } else {
       perm = permRepo.create({
         id: generateSnowflakeId(),
-        name: ADMIN_PERM_NAME,
+        name: SUPER_ADMIN_PERM_NAME,
         access: buildFullAccessMatrix(),
         is_active: true,
       });
@@ -116,28 +138,32 @@ async function main(): Promise<void> {
       log(`  Created (id: ${perm.id})`);
     }
 
-    /* ── Step 3: Role ───────────────────────────────────────────────── */
-    log(`Seeding role "${ADMIN_ROLE_NAME}"...`);
+    /* ── Step 3: Role (global scope — linked to zero centres) ──────── */
+    log(`Seeding role "${SUPER_ADMIN_ROLE_NAME}"...`);
     let role = await roleRepo.findOne({
-      where: { role_name: ADMIN_ROLE_NAME, is_deleted: false },
+      where: { role_name: SUPER_ADMIN_ROLE_NAME, is_deleted: false },
     });
     if (role) {
       log('  Already exists — skipping.');
     } else {
+      // Role↔Centre is many-to-many (role_centre_mappings) — a global role
+      // is simply never linked to any centre, no mapping rows to create.
       role = roleRepo.create({
         id: generateSnowflakeId(),
-        role_name: ADMIN_ROLE_NAME,
+        role_name: SUPER_ADMIN_ROLE_NAME,
         permission_id: perm.id,
-        description: 'Full-access system administrator role',
+        description: 'Global Super Admin role (all centres)',
+        access_scope: 'global',
+        is_center_admin: false,
       });
       role = await roleRepo.save(role);
       log(`  Created (id: ${role.id})`);
     }
 
-    /* ── Step 4: Admin user ─────────────────────────────────────────── */
-    log(`Seeding admin user "${ADMIN_EMAIL}"...`);
+    /* ── Step 4: Super Admin user (center_id: null) ─────────────────── */
+    log(`Seeding Super Admin user "${SUPER_ADMIN_EMAIL}"...`);
     const existing = await userRepo.findOne({
-      where: { email: ADMIN_EMAIL, is_deleted: false },
+      where: { email: SUPER_ADMIN_EMAIL, is_deleted: false },
     });
     if (existing) {
       log(`  Already exists (user_id: ${existing.user_id}) — skipping.`);
@@ -152,12 +178,13 @@ async function main(): Promise<void> {
       const user = userRepo.create({
         id: generateSnowflakeId(),
         user_id: nextUserId,
-        user_code: ADMIN_USER_CODE,
-        user_name: ADMIN_USER_NAME,
-        email: ADMIN_EMAIL,
-        password: ADMIN_PASSWORD, // hashed by User @BeforeInsert hook
+        user_code: SUPER_ADMIN_USER_CODE,
+        user_name: SUPER_ADMIN_USER_NAME,
+        email: SUPER_ADMIN_EMAIL,
+        password: SUPER_ADMIN_PASSWORD, // hashed by User @BeforeInsert hook
         role_id: role.id,
-        created_by: 'onboard-script',
+        center_id: null,
+        created_by: 'onboard-super-admin-script',
       });
       const saved = await userRepo.save(user);
       log(`  Created (id: ${saved.id}, user_id: ${saved.user_id})`);
@@ -165,12 +192,13 @@ async function main(): Promise<void> {
 
     /* ── Summary ────────────────────────────────────────────────────── */
     log('');
-    log('Onboarding complete.');
-    log(`  Email:      ${ADMIN_EMAIL}`);
-    log(`  Password:   ${ADMIN_PASSWORD}`);
-    log(`  Role:       ${ADMIN_ROLE_NAME}`);
-    log(`  Permission: ${ADMIN_PERM_NAME}`);
+    log('Super Admin machine onboarding complete.');
+    log(`  Email:      ${SUPER_ADMIN_EMAIL}`);
+    log(`  Password:   ${SUPER_ADMIN_PASSWORD}`);
+    log(`  Role:       ${SUPER_ADMIN_ROLE_NAME} (access_scope: global)`);
+    log(`  Permission: ${SUPER_ADMIN_PERM_NAME}`);
     log('');
+    log('Set NODE_ROLE=central in this machine\'s .env — this DB is now the central node.');
     log('Change the default password after first login.');
   } finally {
     await ds.destroy();
@@ -179,6 +207,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((err: unknown) => {
-  process.stderr.write(`[onboard] Fatal: ${String(err)}\n`);
+  process.stderr.write(`[onboard-super-admin] Fatal: ${String(err)}\n`);
   process.exit(1);
 });

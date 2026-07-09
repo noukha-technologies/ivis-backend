@@ -21,8 +21,8 @@ import { IUserFields } from '../../../common/interfaces/user.interface';
 import { DATABASE_SCHEMAS } from 'src/common/constants/database-schemas';
 
 @Entity({ name: 'users', schema: DATABASE_SCHEMAS.CORE })
-@Index('IDX_USER_CENTER_ID', ['center_id'], { unique: true })
-@Index('IDX_USER_ROLE_ID', ['role_id'], { unique: true })
+@Index('IDX_USER_CENTER_ID', ['center_id'])
+@Index('IDX_USER_ROLE_ID', ['role_id'])
 @Index('IDX_USER_USER_CODE', ['user_code'], { unique: true })
 @Index('IDX_USER_USER_ID', ['user_id'], { unique: true })
 @Index('IDX_USER_EMAIL', ['email'], { unique: true })
@@ -81,6 +81,14 @@ export class User implements IUserFields {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
+
+  // True only for a Super Admin's re-scoped local copy (see Onboarding Sync /
+  // ONBOARDING_DB_SYNC_ARCHITECTURE.md). On login, such a row is re-verified
+  // against the central password when central is reachable (source of truth),
+  // falling back to the local hash when it's not. Never set for organically
+  // created local users or normally-synced Centre Admin rows.
+  @Column({ type: 'boolean', default: false })
+  requires_central_revalidation!: boolean;
 
   @BeforeInsert()
   @BeforeUpdate()

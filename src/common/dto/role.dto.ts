@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 import {
+  IsArray,
   IsBoolean,
   IsIn,
   IsNotEmpty,
@@ -49,11 +50,13 @@ export class CreateRoleDto {
 
   @ApiPropertyOptional({
     description:
-      'Owning centre snowflake id. NULL/omitted → global role. Ignored for centre-scoped actors (forced to their own centre).',
+      'Centre snowflake ids this role is linked to (role↔centre is many-to-many). Required (≥1) when access_scope = "centre"; ignored for global roles. Ignored for centre-scoped actors (forced to their own one centre).',
+    type: [String],
   })
   @IsOptional()
-  @IsString()
-  center_id?: string | null;
+  @IsArray()
+  @IsString({ each: true })
+  center_ids?: string[];
 }
 
 export class UpdateRoleDto extends PartialType(CreateRoleDto) {}
@@ -85,15 +88,16 @@ export class RoleDto {
   })
   is_center_admin!: boolean;
 
-  @ApiPropertyOptional({
-    description: 'Owning centre snowflake id (null → global role)',
+  @ApiProperty({
+    description:
+      'Centres this role is linked to (empty → global role). For a centre-scoped viewer, redacted to at most their own centre — other linked centres are never revealed.',
+    type: 'array',
+    items: {
+      type: 'object',
+      properties: { id: { type: 'string' }, name: { type: 'string' } },
+    },
   })
-  center_id?: string | null;
-
-  @ApiPropertyOptional({
-    description: 'Owning centre name (null → global role)',
-  })
-  center_name?: string | null;
+  centres!: { id: string; name: string }[];
 
   @ApiPropertyOptional()
   created_by?: string;

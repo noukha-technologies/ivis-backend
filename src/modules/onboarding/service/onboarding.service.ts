@@ -22,8 +22,10 @@ import { Configurations } from '../../database/entity/configuration.entity';
 import { Charge } from '../../database/entity/charge.entity';
 import { ChargeCategory } from '../../database/entity/charge-category.entity';
 import { Role } from '../../database/entity/role.entity';
+import { RoleCentreMapping } from '../../database/entity/role-centre-mapping.entity';
 import { Permission } from '../../database/entity/permission.entity';
 import { UserLineMapping } from '../../database/entity/user-line-mapping.entity';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 
 const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes — see plan's Known limitations.
 // If a sync claims IN_PROGRESS but the process crashes/restarts mid-transaction
@@ -33,12 +35,20 @@ const CONFIRMATION_TTL_MS = 10 * 60 * 1000; // 10 minutes — see plan's Known l
 // next login attempt restart the handshake from scratch.
 const STALE_SYNC_MS = 2 * 60 * 1000; // 2 minutes — matches the frontend retry cap.
 
+export type OnboardingCentreInfo = {
+  id: string;
+  name: string;
+  code: string;
+  centreAdminRoleExists: boolean;
+  availableSuperAdmins: { id: string; email: string; user_name: string }[];
+};
+
 export type EnsureOnboardedResult =
   | { status: 'COMPLETED' }
   | { status: 'IN_PROGRESS' }
   | {
       status: 'CONFIRMATION_REQUIRED';
-      centre: { id: string; name: string; code: string };
+      centre: OnboardingCentreInfo;
     }
   | { status: 'CENTRE_MISMATCH' }
   | { status: 'FAILED'; error: string };
@@ -72,9 +82,12 @@ export class OnboardingService {
   async ensureOnboarded(
     centralUser: User,
     confirmOnboarding: boolean,
+    selectedSuperAdminIds?: string[],
   ): Promise<EnsureOnboardedResult> {
     if (!centralUser.center_id) {
-      // Global/system central users don't participate in this flow.
+      // Global-scope (Super Admin) users never reach this method — AuthService
+      // routes them to syncReScopedSuperAdmin instead. A null center_id here
+      // would mean a caller bug, not a normal case.
       return { status: 'FAILED', error: 'User has no centre assignment' };
     }
     const centreId = centralUser.center_id;
@@ -124,14 +137,36 @@ export class OnboardingService {
       return { status: 'IN_PROGRESS' };
     }
 
+    if (status.status === 'FAILED') {
+      // A FAILED row must never masquerade as CONFIRMATION_REQUIRED forever —
+      // the fresh-PENDING claim below only ever matches status 'PENDING', so
+      // a FAILED row would lose that race on every subsequent request and
+      // loop silently. Reset it to PENDING so this request (a retry) gets a
+      // genuine second attempt instead of replaying the same dead end.
+      const lastError = status.last_error;
+      await this.onboardingStatusDao.tryClaim(
+        status.id,
+        ['FAILED'],
+        'PENDING',
+        { centre_id: null, centre_code: null, confirmation_expires_at: null },
+      );
+      status = (await this.onboardingStatusDao.getStatus())!;
+      if (!confirmOnboarding) {
+        return { status: 'FAILED', error: lastError ?? 'Onboarding sync failed' };
+      }
+      // confirmOnboarding=true (a poll/retry already past the confirm step)
+      // — fall through to the fresh-PENDING branch below and retry the sync
+      // immediately instead of forcing another confirm round-trip.
+    }
+
     if (status.status === 'PENDING_CONFIRMATION') {
       if (!confirmOnboarding) {
         return {
           status: 'CONFIRMATION_REQUIRED',
-          centre: await this.resolveCentreInfo(status.centre_id!),
+          centre: await this.buildCentreInfo(status.centre_id!),
         };
       }
-      return this.confirmAndSync(status.id, centreId);
+      return this.confirmAndSync(status.id, centreId, selectedSuperAdminIds);
     }
 
     // status.status === 'PENDING' (fresh, or just reverted from an expiry)
@@ -159,31 +194,59 @@ export class OnboardingService {
       }
       return {
         status: 'CONFIRMATION_REQUIRED',
-        centre: { id: centre.id, name: centre.name, code: centre.code },
+        centre: await this.buildCentreInfo(centreId, centre),
       };
     }
 
     if (confirmOnboarding) {
       // Caller already sent confirmOnboarding=true on this very first hit.
-      return this.confirmAndSync(status.id, centreId);
+      return this.confirmAndSync(status.id, centreId, selectedSuperAdminIds);
     }
 
     return {
       status: 'CONFIRMATION_REQUIRED',
-      centre: { id: centre.id, name: centre.name, code: centre.code },
+      centre: await this.buildCentreInfo(centreId, centre),
     };
   }
 
-  private async resolveCentreInfo(
+  /**
+   * Centre info + Super Admin selection candidates for the confirm screen.
+   * Super Admin is defined purely by access_scope='global' — it is NOT
+   * centre-specific, so every global-scope central user is always offered
+   * as a candidate here regardless of whether this particular centre
+   * already has its own is_center_admin role. centreAdminRoleExists is
+   * still surfaced (advisory only) so the frontend can warn the confirming
+   * admin that a selection may not take effect yet for this centre — it
+   * no longer gates the list itself.
+   */
+  private async buildCentreInfo(
     centreId: string,
-  ): Promise<{ id: string; name: string; code: string }> {
-    const centre = await this.centralReader.findCentreById(centreId);
-    return { id: centreId, name: centre?.name ?? '', code: centre?.code ?? '' };
+    knownCentre?: Centre | null,
+  ): Promise<OnboardingCentreInfo> {
+    const centre =
+      knownCentre ?? (await this.centralReader.findCentreById(centreId));
+    const roles = await this.centralReader.findRolesByCentreId(centreId);
+    const centreAdminRoleExists = roles.some((r) => r.is_center_admin);
+    const availableSuperAdmins = (
+      await this.centralReader.findGlobalScopeUsers()
+    ).map((u) => ({
+      id: u.id,
+      email: u.email,
+      user_name: u.user_name,
+    }));
+    return {
+      id: centreId,
+      name: centre?.name ?? '',
+      code: centre?.code ?? '',
+      centreAdminRoleExists,
+      availableSuperAdmins,
+    };
   }
 
   private async confirmAndSync(
     statusId: string,
     centreId: string,
+    selectedSuperAdminIds?: string[],
   ): Promise<EnsureOnboardedResult> {
     const claimed = await this.onboardingStatusDao.tryClaim(
       statusId,
@@ -197,7 +260,7 @@ export class OnboardingService {
     }
 
     try {
-      await this.syncCentreScopedData(centreId);
+      await this.syncCentreScopedData(centreId, selectedSuperAdminIds);
       await this.onboardingStatusDao.tryClaim(
         statusId,
         ['IN_PROGRESS'],
@@ -224,7 +287,10 @@ export class OnboardingService {
    * normal DAOs (whose Repository instances aren't scoped to this
    * transaction) — required for the "all or nothing" guarantee.
    */
-  private async syncCentreScopedData(centreId: string): Promise<void> {
+  private async syncCentreScopedData(
+    centreId: string,
+    selectedSuperAdminIds?: string[],
+  ): Promise<void> {
     await this.dataSource.transaction(async (manager) => {
       const centre = await this.centralReader.findCentreById(centreId);
       if (!centre) {
@@ -300,6 +366,21 @@ export class OnboardingService {
       );
       await this.upsertRows(manager, Permission, permissions);
       await this.upsertRows(manager, Role, roles);
+      // Role↔Centre is many-to-many — record this centre's link to each
+      // synced role locally (not every OTHER centre that role may also be
+      // linked to; this box only needs to know about its own centre).
+      await this.upsertRows(
+        manager,
+        RoleCentreMapping,
+        roles.map((r) =>
+          manager.create(RoleCentreMapping, {
+            id: generateSnowflakeId(),
+            role_id: r.id,
+            centre_id: centreId,
+            is_deleted: false,
+          }),
+        ),
+      );
       this.logger.log(
         `Onboarding sync (centre ${centreId}): ${roles.length} roles, ${permissions.length} permissions`,
         'OnboardingService',
@@ -317,21 +398,12 @@ export class OnboardingService {
       if (missingRoleIds.length) {
         // On-demand top-up: a user's role isn't always centre-owned — copy
         // it (and its Permission dependency) regardless, before inserting
-        // the user, so its role_id FK always resolves locally.
+        // the user, so its role_id FK always resolves locally. Role has no
+        // direct FK to Centre any more (see RoleCentreMapping), so unlike
+        // Lines below, no foreign-centre top-up is needed here — inserting
+        // a foreign Role locally has zero centre dependency now.
         const topUpRoles = await this.centralReader.findRolesByIds(
           missingRoleIds,
-        );
-
-        // A non-centre-owned role can belong to a DIFFERENT centre (its own
-        // center_id FK) — that centre was never synced (only `centreId` was),
-        // so Role's FK_roles_center_id would violate on insert unless that
-        // owning Centre row is copied too. Same copy-on-demand treatment as
-        // Permission, one level deeper.
-        await this.upsertForeignCentres(
-          manager,
-          topUpRoles.map((r) => r.center_id),
-          centreId,
-          'roles',
         );
 
         const topUpPermissionIds = [
@@ -391,6 +463,110 @@ export class OnboardingService {
         'OnboardingService',
       );
     });
+
+    // Re-scope only the Super Admin(s) explicitly selected by the confirming
+    // Centre Admin during setup (see Part 4, ONBOARDING_DB_SYNC_ARCHITECTURE.md
+    // — replaces the earlier "re-scope everyone automatically" behavior).
+    // Kept OUTSIDE the centre's own sync transaction and best-effort per user:
+    // this must never be able to roll back (or block completion of) the
+    // centre's own onboarding. A Super Admin missing a centre-admin role
+    // centrally is that Super Admin's problem to surface when THEY next log
+    // in (see syncReScopedSuperAdmin's on-demand call site in auth.service.ts),
+    // not something that should ever stop a Centre Admin's own onboarding.
+    const selectedIds = new Set(selectedSuperAdminIds ?? []);
+    if (selectedIds.size) {
+      const globalUsers = (
+        await this.centralReader.findGlobalScopeUsers()
+      ).filter((u) => selectedIds.has(u.id));
+      let reScopedCount = 0;
+      for (const globalUser of globalUsers) {
+        try {
+          await this.syncReScopedSuperAdmin(globalUser, centreId);
+          reScopedCount++;
+        } catch (error) {
+          this.logger.warn(
+            `Onboarding sync (centre ${centreId}): could not re-scope Super Admin ${globalUser.email} — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+            'OnboardingService',
+          );
+        }
+      }
+      this.logger.log(
+        `Onboarding sync (centre ${centreId}): re-scoped ${reScopedCount}/${globalUsers.length} selected Super Admin(s) locally`,
+        'OnboardingService',
+      );
+    }
+  }
+
+  /**
+   * On-demand re-scope: a Super Admin logging in on a centre already onboarded
+   * by someone else (their account didn't exist yet, or wasn't included in
+   * that centre's original sync). Runs its own transaction, independent of
+   * onboarding_status/tryClaim — never touches the centre state machine.
+   */
+  async syncReScopedSuperAdmin(
+    centralUser: User,
+    centreId: string,
+  ): Promise<void> {
+    await this.dataSource.transaction(async (manager) => {
+      await this.reScopeSuperAdminWithinTransaction(
+        manager,
+        centralUser,
+        centreId,
+      );
+    });
+    this.logger.log(
+      `Onboarding: re-scoped Super Admin ${centralUser.email} into centre ${centreId} as centre-admin`,
+      'OnboardingService',
+    );
+  }
+
+  private async reScopeSuperAdminWithinTransaction(
+    manager: EntityManager,
+    centralUser: User,
+    centreId: string,
+  ): Promise<void> {
+    // Role↔Centre is many-to-many (role_centre_mappings) — any is_center_admin
+    // role linked to this centre satisfies re-scoping, including a role
+    // shared across several centres (that's the whole point of the M:N move:
+    // one "Center Admin" role, linked to many centres, instead of a
+    // dedicated duplicate role per centre).
+    const centreAdminRole = await manager
+      .createQueryBuilder(Role, 'role')
+      .innerJoin(
+        'role.mappings',
+        'rcm',
+        'rcm.centre_id = :centreId AND rcm.is_deleted = false',
+        { centreId },
+      )
+      .where('role.is_center_admin = true')
+      .andWhere('role.is_deleted = false')
+      .orderBy('role.role_id', 'ASC') // deterministic if a centre somehow has more than one
+      .getOne();
+    if (!centreAdminRole) {
+      throw new Error(
+        `No centre-admin role found for centre ${centreId} — cannot re-scope Super Admin ${centralUser.email}`,
+      );
+    }
+
+    // Strip any joined relations (e.g. `role`, if centralUser came from a
+    // query that selected them) — only plain columns go through the insert,
+    // same as every other upsertRows() call site in this file.
+    const { role: _role, assignedCentre: _assignedCentre, lineMappings: _lineMappings, ...userColumns } =
+      centralUser as User & {
+        role?: unknown;
+        assignedCentre?: unknown;
+        lineMappings?: unknown;
+      };
+
+    const reScopedUser = {
+      ...userColumns,
+      role_id: centreAdminRole.id,
+      center_id: centreId,
+      requires_central_revalidation: true,
+    } as User;
+    await this.upsertRows(manager, User, [reScopedUser]);
   }
 
   /**

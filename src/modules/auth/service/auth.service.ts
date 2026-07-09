@@ -79,31 +79,34 @@ export class AuthService implements IAuthService {
     this.refreshTokenEncryptKey = hashRefreshTokenKey(encryptKey);
   }
 
+  /**
+   * Unified login decision tree (see ONBOARDING_DB_SYNC_ARCHITECTURE.md §4):
+   * local lookup by email always comes first, regardless of onboarding_status
+   * — central is only ever consulted on a genuine local miss, or to
+   * re-validate a re-scoped Super Admin row. This keeps "once synced, central
+   * is never touched again" true for the common case (existing local users,
+   * including wrong-password attempts), while still letting a Super Admin
+   * log in on any centre server at any time.
+   */
   async login(request: LoginRequestDto): Promise<LoginResponseDto> {
-    // Flag-first: cheap single-row check decides local-only vs central
-    // fallback, never "was the user found locally?" — see Onboarding Sync
-    // plan. Once COMPLETED, the central connection is never touched again.
-    const onboardingStatus = await this.onboardingStatusDao.ensureSingletonRow();
+    const localUser = await this.usersDao.findByEmailWithPassword(
+      request.email,
+    );
 
-    if (onboardingStatus.status === 'COMPLETED') {
-      return this.loginLocalOnly(request);
+    if (localUser?.password) {
+      return localUser.requires_central_revalidation
+        ? this.loginReScopedSuperAdmin(localUser, request.password)
+        : this.loginLocalOnly(localUser, request.password);
     }
 
-    return this.loginViaCentralFallback(request);
+    return this.loginNotFoundLocally(request);
   }
 
   private async loginLocalOnly(
-    request: LoginRequestDto,
+    user: User,
+    password: string,
   ): Promise<LoginResponseDto> {
-    const user = await this.usersDao.findByEmailWithPassword(request.email);
-    if (!user?.password) {
-      throw new ErrorException('INVALID_USER');
-    }
-
-    const passwordMatches = await bcrypt.compare(
-      request.password,
-      user.password,
-    );
+    const passwordMatches = await bcrypt.compare(password, user.password);
     if (!passwordMatches) {
       throw new ErrorException('INVALID_USER');
     }
@@ -111,7 +114,48 @@ export class AuthService implements IAuthService {
     return this.buildSuccessResponse(user);
   }
 
-  private async loginViaCentralFallback(
+  /**
+   * A re-scoped Super Admin row: re-verify against the central password when
+   * central is reachable (source of truth — catches revocation/password
+   * changes), falling back to the local hash when it's not (offline
+   * resilience). Never throws CENTRAL_DB_UNAVAILABLE — a re-scoped row can
+   * already log in locally, so an unreachable central DB degrades to that,
+   * it never blocks the attempt.
+   */
+  private async loginReScopedSuperAdmin(
+    localUser: User,
+    password: string,
+  ): Promise<LoginResponseDto> {
+    let centralUser: User | null = null;
+    try {
+      centralUser = await this.onboardingService.findCentralUserWithPassword(
+        localUser.email,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Central DB unreachable while re-validating Super Admin ${localUser.email} — falling back to local credentials: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        'AuthService',
+      );
+    }
+
+    if (centralUser?.password) {
+      const centralMatches = await this.onboardingService.verifyCentralPassword(
+        centralUser,
+        password,
+      );
+      if (!centralMatches) {
+        throw new ErrorException('INVALID_USER');
+      }
+      return this.buildSuccessResponse(localUser);
+    }
+
+    // Central unreachable, or the account no longer exists there — offline fallback.
+    return this.loginLocalOnly(localUser, password);
+  }
+
+  private async loginNotFoundLocally(
     request: LoginRequestDto,
   ): Promise<LoginResponseDto> {
     let centralUser;
@@ -142,9 +186,14 @@ export class AuthService implements IAuthService {
       throw new ErrorException('INVALID_USER');
     }
 
+    if (isGlobalScope(centralUser.role?.access_scope)) {
+      return this.loginSuperAdmin(centralUser);
+    }
+
     const result = await this.onboardingService.ensureOnboarded(
       centralUser,
       request.confirmOnboarding ?? false,
+      request.selectedSuperAdminIds,
     );
 
     switch (result.status) {
@@ -170,6 +219,56 @@ export class AuthService implements IAuthService {
         return this.buildSuccessResponse(user);
       }
     }
+  }
+
+  /**
+   * Super Admin's first login on this box — never touches onboarding_status'
+   * tryClaim state machine (that's centre-scoped only). On NODE_ROLE=central
+   * this is a real global-scope login (Scenario A — not fully wireable yet,
+   * needs a writable central DataSource as this instance's default
+   * connection). On a centre node, the centre must already be onboarded
+   * (Assumption 3 — no box-identity config exists to bootstrap one from a
+   * centre-less user); once it is, the Super Admin is silently re-scoped to
+   * that centre's own centre-admin role and logged in.
+   */
+  private async loginSuperAdmin(
+    centralUser: User,
+  ): Promise<LoginResponseDto> {
+    if (process.env.NODE_ROLE === 'central') {
+      return this.buildSuccessResponse(centralUser);
+    }
+
+    const status = await this.onboardingStatusDao.ensureSingletonRow();
+    if (status.status !== 'COMPLETED' || !status.centre_id) {
+      throw new ErrorException('CENTRE_NOT_ONBOARDED');
+    }
+
+    try {
+      await this.onboardingService.syncReScopedSuperAdmin(
+        centralUser,
+        status.centre_id,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to re-scope Super Admin ${centralUser.email} into centre ${status.centre_id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error instanceof Error ? error.stack : undefined,
+        'AuthService',
+      );
+      throw new ErrorException(
+        'SOMETHING_WENT_WRONG',
+        'Failed to set up Super Admin access on this centre.',
+      );
+    }
+
+    const localUser = await this.usersDao.findByEmailWithPassword(
+      centralUser.email,
+    );
+    if (!localUser?.password) {
+      throw new ErrorException('SOMETHING_WENT_WRONG');
+    }
+    return this.buildSuccessResponse(localUser);
   }
 
   private async buildSuccessResponse(user: User): Promise<LoginResponseDto> {

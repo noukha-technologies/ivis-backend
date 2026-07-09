@@ -28,6 +28,7 @@ import {
 import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
+import { RoleCentreMappingDao } from '../../database/dao/role-centre-mapping.dao';
 import { Role } from '../../database/entity/role.entity';
 
 @Injectable()
@@ -38,22 +39,24 @@ export class RolesService {
     private readonly roleDao: RoleDao,
     private readonly permissionDao: PermissionDao,
     private readonly centreDao: CentreDao,
+    private readonly roleCentreMappingDao: RoleCentreMappingDao,
     private readonly logger: AppLogger,
   ) {}
 
   /**
-   * Resolve the owning centre + scope for a role being created/updated by the
-   * given actor.
-   * - Centre-scoped actor (Centre Admin) → role is forced to their own centre
-   *   and access_scope 'centre'; they can never create a global (Super Admin) role.
-   * - Global actor (Super Admin) → global role ⇒ center_id NULL; centre role ⇒
-   *   must supply a valid center_id.
+   * Resolve the linked centres + scope for a role being created/updated by
+   * the given actor. Role↔Centre is many-to-many (role_centre_mappings).
+   * - Centre-scoped actor (Centre Admin) → role is forced to their own one
+   *   centre and access_scope 'centre'; they can never create a global
+   *   (Super Admin) role, and never see/use the multi-select.
+   * - Global actor (Super Admin) → global role ⇒ no linked centres; centre
+   *   role ⇒ must supply at least one valid centre id (multi-select).
    */
   private async resolveRoleScope(
     actor: UserContext,
     scope: AccessScope,
-    payloadCentreId?: string | null,
-  ): Promise<{ scope: AccessScope; centreId: string | null }> {
+    payloadCentreIds?: string[],
+  ): Promise<{ scope: AccessScope; centreIds: string[] }> {
     if (!isGlobalScope(actor.user.access_scope)) {
       const actorCentre = actor.user.center_id ?? null;
       if (!actorCentre) {
@@ -66,30 +69,37 @@ export class RolesService {
           'You are not allowed to create a global (Super Admin) role.',
         );
       }
-      return { scope: 'centre', centreId: actorCentre };
+      return { scope: 'centre', centreIds: [actorCentre] };
     }
     // Global actor.
     if (isGlobalScope(scope)) {
-      return { scope: 'global', centreId: null };
+      return { scope: 'global', centreIds: [] };
     }
-    const trimmed = payloadCentreId?.trim();
-    if (!trimmed) {
+    const centreIds = [
+      ...new Set((payloadCentreIds ?? []).map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (!centreIds.length) {
       throw new BadRequestException(
-        'center_id is required for a centre-scoped role.',
+        'At least one centre is required for a centre-scoped role.',
       );
     }
-    const centre = await this.centreDao.findActiveById(trimmed);
-    if (!centre) {
-      throw new ResourceNotFoundException('Centre', trimmed);
+    for (const centreId of centreIds) {
+      const centre = await this.centreDao.findActiveById(centreId);
+      if (!centre) {
+        throw new ResourceNotFoundException('Centre', centreId);
+      }
     }
-    return { scope: 'centre', centreId: centre.id };
+    return { scope: 'centre', centreIds };
   }
 
   /**
-   * A centre-scoped actor may only manage roles that belong to their own centre;
+   * A centre-scoped actor may only manage roles linked to their own centre;
    * global (Super Admin) roles are off-limits. Global actors are unrestricted.
    */
-  private assertActorCanManageRole(actor: UserContext, role: Role): void {
+  private async assertActorCanManageRole(
+    actor: UserContext,
+    role: Role,
+  ): Promise<void> {
     if (isGlobalScope(actor.user.access_scope)) {
       return;
     }
@@ -97,10 +107,16 @@ export class RolesService {
     if (!actorCentre) {
       throw new ForbiddenException('Your account is not assigned to a centre.');
     }
-    if (
-      isGlobalScope(role.access_scope) ||
-      (role.center_id ?? null) !== actorCentre
-    ) {
+    if (isGlobalScope(role.access_scope)) {
+      throw new ForbiddenException(
+        'You can only manage roles in your own centre.',
+      );
+    }
+    const mappings = await this.roleCentreMappingDao.findActiveByRoleId(
+      role.id,
+    );
+    const isMember = mappings.some((m) => m.centre_id === actorCentre);
+    if (!isMember) {
       throw new ForbiddenException(
         'You can only manage roles in your own centre.',
       );
@@ -111,17 +127,14 @@ export class RolesService {
     this.logger.log(`Creating role: ${dto.role_name}`, RolesService.context);
 
     try {
-      const { scope, centreId } = await this.resolveRoleScope(
+      const { scope, centreIds } = await this.resolveRoleScope(
         actor,
         dto.access_scope ?? DEFAULT_ACCESS_SCOPE,
-        dto.center_id,
+        dto.center_ids,
       );
 
-      // Role names are unique within their owning centre (or among global roles).
-      const existing = await this.roleDao.findByRoleNameInScope(
-        dto.role_name,
-        centreId,
-      );
+      // Role names are unique globally now — create once, link many centres.
+      const existing = await this.roleDao.findByRoleName(dto.role_name);
       if (existing) {
         throw new DuplicateResourceException(
           'Role',
@@ -148,20 +161,25 @@ export class RolesService {
         );
       }
 
+      const createdBy = getCreatedById(actor);
       const role = this.roleDao.create({
         id: generateSnowflakeId(),
         role_name: dto.role_name.trim(),
         permission_id: permission.id,
         description: dto.description?.trim(),
         access_scope: scope,
-        center_id: centreId,
         // Admin rank only applies to centre scope; global roles are never a "centre admin".
         is_center_admin:
           scope === 'centre' ? (dto.is_center_admin ?? false) : false,
-        created_by: getCreatedById(actor),
+        created_by: createdBy,
       });
       const saved = await this.roleDao.save(role);
-      return this.findOne(saved.id);
+      await this.roleCentreMappingDao.syncForRole(
+        saved.id,
+        centreIds,
+        createdBy,
+      );
+      return this.findOne(saved.id, actor);
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -184,31 +202,39 @@ export class RolesService {
     query: PaginationQueryDto,
     actor: UserContext,
   ): Promise<PaginatedResult<RoleDto>> {
-    // Super Admin sees all roles; a Centre Admin sees only their own centre's roles.
+    // Super Admin sees all roles; a Centre Admin sees only roles linked to
+    // their own centre (via role_centre_mappings).
     const centreScope = isGlobalScope(actor.user.access_scope)
       ? undefined
       : { centreId: actor.user.center_id ?? '' };
     const result = await this.roleDao.findPaginated(query, centreScope);
+
+    const mappingsByRole = await this.loadMappingsByRoleId(
+      result.data.map((row) => row.id),
+    );
     return {
       ...result,
-      data: result.data.map((row) => this.toDto(row)),
+      data: result.data.map((row) =>
+        this.toDto(row, mappingsByRole.get(row.id) ?? [], actor),
+      ),
     };
   }
 
-  async findOne(id: string): Promise<RoleDto> {
+  async findOne(id: string, actor?: UserContext): Promise<RoleDto> {
     const row = await this.roleDao.findActiveByIdWithPermission(id);
     if (!row) {
       throw new ResourceNotFoundException('Role', id);
     }
-    return this.toDto(row);
+    const mappings = await this.roleCentreMappingDao.findActiveByRoleId(id);
+    return this.toDto(row, mappings, actor);
   }
 
-  async findByRoleName(roleName: string): Promise<RoleDto> {
+  async findByRoleName(roleName: string, actor?: UserContext): Promise<RoleDto> {
     const row = await this.roleDao.findByRoleName(roleName);
     if (!row) {
       throw new ResourceNotFoundException('Role', roleName);
     }
-    return this.findOne(row.id);
+    return this.findOne(row.id, actor);
   }
 
   async update(
@@ -222,7 +248,7 @@ export class RolesService {
     }
 
     // Centre Admins can only edit their own centre's roles (never global roles).
-    this.assertActorCanManageRole(actor, row);
+    await this.assertActorCanManageRole(actor, row);
     if (
       !isGlobalScope(actor.user.access_scope) &&
       isGlobalScope(dto.access_scope)
@@ -232,38 +258,39 @@ export class RolesService {
       );
     }
 
-    // Resolve the owning centre of the resulting role. Only a global actor
-    // (Super Admin) can set/change it; a centre actor stays locked to their centre.
+    // Resolve the linked centres of the resulting role. Only a global actor
+    // (Super Admin) can set/change them; a centre actor stays locked to
+    // their one centre.
     const effectiveScope = dto.access_scope ?? row.access_scope;
-    let nextCentreId: string | null = row.center_id ?? null;
+    const existingMappings = await this.roleCentreMappingDao.findActiveByRoleId(
+      id,
+    );
+    let nextCentreIds = existingMappings.map((m) => m.centre_id);
+
     if (isGlobalScope(actor.user.access_scope)) {
       if (isGlobalScope(effectiveScope)) {
-        nextCentreId = null;
-      } else if (dto.center_id !== undefined) {
-        const trimmed = dto.center_id?.trim();
-        if (trimmed) {
-          const centre = await this.centreDao.findActiveById(trimmed);
+        nextCentreIds = [];
+      } else if (dto.center_ids !== undefined) {
+        nextCentreIds = [
+          ...new Set(dto.center_ids.map((cid) => cid.trim()).filter(Boolean)),
+        ];
+        for (const centreId of nextCentreIds) {
+          const centre = await this.centreDao.findActiveById(centreId);
           if (!centre) {
-            throw new ResourceNotFoundException('Centre', trimmed);
+            throw new ResourceNotFoundException('Centre', centreId);
           }
-          nextCentreId = centre.id;
-        } else {
-          nextCentreId = null;
         }
       }
-      if (!isGlobalScope(effectiveScope) && !nextCentreId) {
+      if (!isGlobalScope(effectiveScope) && nextCentreIds.length === 0) {
         throw new BadRequestException(
-          'center_id is required for a centre-scoped role.',
+          'At least one centre is required for a centre-scoped role.',
         );
       }
     }
 
     if (dto.role_name && dto.role_name.trim() !== row.role_name) {
-      // Uniqueness is per owning centre (the resulting centre).
-      const duplicate = await this.roleDao.findByRoleNameInScope(
-        dto.role_name,
-        nextCentreId,
-      );
+      // Uniqueness is global now.
+      const duplicate = await this.roleDao.findByRoleName(dto.role_name);
       if (duplicate && duplicate.id !== id) {
         throw new DuplicateResourceException(
           'Role',
@@ -312,10 +339,14 @@ export class RolesService {
         ? { access_scope: dto.access_scope }
         : {}),
       is_center_admin: nextIsCenterAdmin,
-      center_id: nextCentreId,
     });
     await this.roleDao.save(merged);
-    return this.findOne(id);
+    await this.roleCentreMappingDao.syncForRole(
+      id,
+      nextCentreIds,
+      getCreatedById(actor),
+    );
+    return this.findOne(id, actor);
   }
 
   async remove(id: string, actor: UserContext): Promise<void> {
@@ -325,7 +356,7 @@ export class RolesService {
     }
 
     // Centre Admins can only delete their own centre's roles (never global roles).
-    this.assertActorCanManageRole(actor, entity);
+    await this.assertActorCanManageRole(actor, entity);
 
     const userCount = await this.roleDao.countActiveUsersByRoleId(id);
     if (userCount > 0) {
@@ -337,9 +368,46 @@ export class RolesService {
 
     entity.is_deleted = true;
     await this.roleDao.save(entity);
+    await this.roleCentreMappingDao.softDeleteByRoleId(id);
   }
 
-  private toDto(row: Role): RoleDto {
+  private async loadMappingsByRoleId(
+    roleIds: string[],
+  ): Promise<Map<string, { id: string; centre_id: string; centre?: { name: string } }[]>> {
+    const mappings = await this.roleCentreMappingDao.findActiveByRoleIds(
+      roleIds,
+    );
+    const byRole = new Map<
+      string,
+      { id: string; centre_id: string; centre?: { name: string } }[]
+    >();
+    for (const mapping of mappings) {
+      const list = byRole.get(mapping.role_id) ?? [];
+      list.push(mapping);
+      byRole.set(mapping.role_id, list);
+    }
+    return byRole;
+  }
+
+  /**
+   * Builds the response DTO. Centre-scoped viewers must never see other
+   * centres a shared role happens to be linked to — only their own (if
+   * present) is included. Global viewers (or internal/no-actor calls) see
+   * every linked centre.
+   */
+  private toDto(
+    row: Role,
+    mappings: { id: string; centre_id: string; centre?: { name: string } }[],
+    actor?: UserContext,
+  ): RoleDto {
+    const actorCentre =
+      actor && !isGlobalScope(actor.user.access_scope)
+        ? actor.user.center_id ?? null
+        : null;
+    const visibleMappings = actorCentre
+      ? mappings.filter((m) => m.centre_id === actorCentre)
+      : mappings;
+
     return {
       id: row.id,
       role_id: row.role_id,
@@ -348,8 +416,10 @@ export class RolesService {
       description: row.description,
       access_scope: row.access_scope,
       is_center_admin: row.is_center_admin,
-      center_id: row.center_id ?? null,
-      center_name: row.centre?.name ?? null,
+      centres: visibleMappings.map((m) => ({
+        id: m.centre_id,
+        name: m.centre?.name ?? '',
+      })),
       created_by: row.created_by,
       created_at: row.created_at,
       updated_at: row.updated_at,

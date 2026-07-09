@@ -70,8 +70,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Get role by name' })
   @ApiParam({ name: 'roleName', type: String })
   @ApiBearerAuth('jwt')
-  findByRoleName(@Param('roleName') roleName: string) {
-    return this.rolesService.findByRoleName(roleName).then((data) => ({
+  findByRoleName(
+    @CurrentUser() actor: UserContext,
+    @Param('roleName') roleName: string,
+  ) {
+    return this.rolesService.findByRoleName(roleName, actor).then((data) => ({
       message: 'Role retrieved successfully',
       data,
     }));
@@ -83,8 +86,11 @@ export class RolesController {
   @ApiOperation({ summary: 'Get role by id' })
   @ApiParam({ name: 'id', type: String })
   @ApiBearerAuth('jwt')
-  findOne(@Param('id', ParseSnowflakeIdPipe) id: string) {
-    return this.rolesService.findOne(id).then((data) => ({
+  findOne(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+  ) {
+    return this.rolesService.findOne(id, actor).then((data) => ({
       message: 'Role retrieved successfully',
       data,
     }));

@@ -5,11 +5,8 @@ import { Role } from '../../database/entity/role.entity';
 export interface IRoleDao {
   findActiveById(id: string): Promise<Role | null>;
   findActiveByIdWithPermission(id: string): Promise<Role | null>;
+  /** Role names are unique globally now — see role_centre_mappings (M:N centres). */
   findByRoleName(roleName: string): Promise<Role | null>;
-  findByRoleNameInScope(
-    roleName: string,
-    centreId: string | null,
-  ): Promise<Role | null>;
   findByPermissionId(permissionId: string): Promise<Role | null>;
   countActiveUsersByRoleId(roleId: string): Promise<number>;
   findPaginated(

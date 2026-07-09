@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsNotEmpty,
@@ -107,6 +108,27 @@ export class LoginRequestDto {
   @IsOptional()
   @IsBoolean()
   confirmOnboarding?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'IDs (from CONFIRMATION_REQUIRED.centre.availableSuperAdmins) of the central Super Admin accounts to re-scope into this centre as part of setup. Only meaningful alongside confirmOnboarding=true. Omit or send empty to grant no Super Admin access at setup time.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  selectedSuperAdminIds?: string[];
+}
+
+export class OnboardingSuperAdminOptionDto {
+  @ApiProperty({ description: 'Central Super Admin user snowflake ID' })
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  user_name!: string;
 }
 
 export class OnboardingCentreInfoDto {
@@ -118,6 +140,19 @@ export class OnboardingCentreInfoDto {
 
   @ApiProperty()
   code!: string;
+
+  @ApiProperty({
+    description:
+      'Whether this centre already has an is_center_admin role centrally — Super Admin selection is only offered when true.',
+  })
+  centreAdminRoleExists!: boolean;
+
+  @ApiProperty({
+    description:
+      'Central Super Admin accounts eligible to be re-scoped into this centre at setup time. Empty if centreAdminRoleExists is false or no Super Admin accounts exist centrally.',
+    type: [OnboardingSuperAdminOptionDto],
+  })
+  availableSuperAdmins!: OnboardingSuperAdminOptionDto[];
 }
 
 export class RefreshTokenRequestDto {

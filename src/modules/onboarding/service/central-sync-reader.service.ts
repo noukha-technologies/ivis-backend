@@ -12,6 +12,7 @@ import { Configurations } from '../../database/entity/configuration.entity';
 import { Charge } from '../../database/entity/charge.entity';
 import { ChargeCategory } from '../../database/entity/charge-category.entity';
 import { Role } from '../../database/entity/role.entity';
+import { RoleCentreMapping } from '../../database/entity/role-centre-mapping.entity';
 import { Permission } from '../../database/entity/permission.entity';
 import { User } from '../../database/entity/user.entity';
 import { UserLineMapping } from '../../database/entity/user-line-mapping.entity';
@@ -49,10 +50,24 @@ export class CentralSyncReaderService {
     const repo = await this.repo(User);
     return repo
       .createQueryBuilder('user')
+      .leftJoinAndSelect('user.role', 'role')
       .addSelect('user.password')
       .where('user.email = :email', { email: email.trim().toLowerCase() })
       .andWhere('user.is_deleted = false')
       .getOne();
+  }
+
+  /** Every centrally-authored Super Admin (global-scope) user, re-scoped into
+   *  a centre's local DB during that centre's onboarding sync. */
+  async findGlobalScopeUsers(): Promise<User[]> {
+    const repo = await this.repo(User);
+    return repo
+      .createQueryBuilder('user')
+      .innerJoin('user.role', 'role')
+      .addSelect('user.password')
+      .where("role.access_scope = 'global'")
+      .andWhere('user.is_deleted = false')
+      .getMany();
   }
 
   async findCentreById(centreId: string): Promise<Centre | null> {
@@ -117,15 +132,33 @@ export class CentralSyncReaderService {
     return repo.find({ where: { id: In(ids) } });
   }
 
+  /** Roles linked (via role_centre_mappings) to this centre — Role↔Centre is many-to-many. */
   async findRolesByCentreId(centreId: string): Promise<Role[]> {
     const repo = await this.repo(Role);
-    return repo.find({ where: { center_id: centreId } });
+    return repo
+      .createQueryBuilder('role')
+      .innerJoin(
+        'role.mappings',
+        'rcm',
+        'rcm.centre_id = :centreId AND rcm.is_deleted = false',
+        { centreId },
+      )
+      .getMany();
   }
 
   async findRolesByIds(ids: string[]): Promise<Role[]> {
     if (!ids.length) return [];
     const repo = await this.repo(Role);
     return repo.find({ where: { id: In(ids) } });
+  }
+
+  /** Every active centre a given set of roles is linked to (Role↔Centre is many-to-many). */
+  async findRoleCentreMappingsByRoleIds(
+    roleIds: string[],
+  ): Promise<RoleCentreMapping[]> {
+    if (!roleIds.length) return [];
+    const repo = await this.repo(RoleCentreMapping);
+    return repo.find({ where: { role_id: In(roleIds), is_deleted: false } });
   }
 
   async findPermissionsByIds(ids: string[]): Promise<Permission[]> {

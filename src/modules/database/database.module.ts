@@ -31,6 +31,7 @@ import { RopVerification } from './entity/rop-verification.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 import { CameraLineMapping } from './entity/camera-line-mapping.entity';
+import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { Configurations } from './entity/configuration.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
 
@@ -57,6 +58,7 @@ import { RopVerificationDao } from './dao/rop-verification.dao';
 import { UserLineMappingDao } from './dao/user-line-mapping.dao';
 import { AdminPcLineMappingDao } from './dao/admin-pc-line-mapping.dao';
 import { CameraLineMappingDao } from './dao/camera-line-mapping.dao';
+import { RoleCentreMappingDao } from './dao/role-centre-mapping.dao';
 import { ConfigurationDao } from './dao/configuration.dao';
 import { OnboardingStatusDao } from './dao/onboarding-status.dao';
 import { SchemaBootstrapService } from './service/schema-bootstrap.service';
@@ -75,6 +77,7 @@ const CENTRAL_SYNC_ENTITIES = [
   ChargeCategory,
   Configurations,
   Role,
+  RoleCentreMapping,
   Permission,
   User,
   UserLineMapping,
@@ -122,6 +125,7 @@ const CENTRAL_SYNC_ENTITIES = [
       PaymentType,
       Configurations,
       OnboardingStatus,
+      RoleCentreMapping,
     ]),
   ],
   providers: [
@@ -149,6 +153,7 @@ const CENTRAL_SYNC_ENTITIES = [
     UserLineMappingDao,
     PermissionDao,
     RoleDao,
+    RoleCentreMappingDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,
@@ -179,6 +184,7 @@ const CENTRAL_SYNC_ENTITIES = [
     UserLineMappingDao,
     PermissionDao,
     RoleDao,
+    RoleCentreMappingDao,
     UserSessionsDao,
     VehicleDao,
     TestDao,

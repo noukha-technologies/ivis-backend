@@ -22,6 +22,7 @@ import { Configurations } from './entity/configuration.entity';
 import { RopVerification } from './entity/rop-verification.entity';
 import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
+import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
 
 // Single source of truth for "every entity in the app" — shared by the
@@ -55,6 +56,7 @@ export const APP_ENTITIES = [
   PaymentType,
   Configurations,
   OnboardingStatus,
+  RoleCentreMapping,
 ];
 
 export const APP_MIGRATIONS_GLOB = [__dirname + '/../../migrations/*{.ts,.js}'];

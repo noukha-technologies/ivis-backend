@@ -148,6 +148,14 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "IDX_USER_CENTER_ID" ON "core"."users" ("center_id")`,
     );
 
+    // Re-scoped Super Admin login (see ONBOARDING_DB_SYNC_ARCHITECTURE.md):
+    // marks a locally-copied Super Admin row so login re-verifies it against
+    // the central password when reachable, falling back to the local hash
+    // when central is down. Never set on organic/normally-synced local users.
+    await queryRunner.query(
+      `ALTER TABLE "core"."users" ADD COLUMN IF NOT EXISTS "requires_central_revalidation" boolean NOT NULL DEFAULT false`,
+    );
+
     // user_sessions: add created_by (migration 1779720300000)
     await queryRunner.query(
       `ALTER TABLE "core"."user_sessions" ADD COLUMN IF NOT EXISTS "created_by" character varying`,
@@ -289,9 +297,97 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "core"."roles" ALTER COLUMN "role_id" SET DEFAULT nextval('"core"."roles_role_id_seq"')`,
     );
-    // (role_name uniqueness is now the composite IDX_ROLE_CENTER_ROLE_NAME above)
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_PERMISSION_ID" ON "core"."roles" ("permission_id")`,
+    );
+
+    // role_centre_mappings: Role↔Centre becomes many-to-many — one role (e.g.
+    // "Center Admin") can now be linked to several centres instead of every
+    // centre needing its own duplicate role. Mirrors user_line_mappings.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."role_centre_mappings" (
+        "id"          bigint    NOT NULL,
+        "role_id"     bigint    NOT NULL,
+        "centre_id"   bigint    NOT NULL,
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean   NOT NULL DEFAULT false,
+        CONSTRAINT "PK_role_centre_mappings_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ROLE_CENTRE_MAPPING_ROLE_ID" ON "core"."role_centre_mappings" ("role_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_ROLE_CENTRE_MAPPING_CENTRE_ID" ON "core"."role_centre_mappings" ("centre_id")`,
+    );
+    await queryRunner.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS "UQ_ROLE_CENTRE_MAPPING_ROLE_CENTRE"
+      ON "core"."role_centre_mappings" ("role_id", "centre_id")
+      WHERE "is_deleted" = false
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "core"."role_centre_mappings" DROP CONSTRAINT IF EXISTS "FK_role_centre_mappings_role_id"`,
+    );
+    await queryRunner.query(`
+      ALTER TABLE "core"."role_centre_mappings"
+      ADD CONSTRAINT "FK_role_centre_mappings_role_id"
+      FOREIGN KEY ("role_id") REFERENCES "core"."roles"("id") ON DELETE CASCADE
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "core"."role_centre_mappings" DROP CONSTRAINT IF EXISTS "FK_role_centre_mappings_centre_id"`,
+    );
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.tables
+          WHERE table_schema = 'master' AND table_name = 'centres'
+        ) THEN
+          ALTER TABLE "core"."role_centre_mappings"
+          ADD CONSTRAINT "FK_role_centre_mappings_centre_id"
+          FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // Backfill: one mapping row per role that still has a (pre-M:N) center_id.
+    // One-time bootstrap IDs — no app process available at migration time to
+    // call the real snowflake generator, so a random 60-bit positive bigint
+    // is used instead (collision-safe for the small, one-time backfill set;
+    // never re-used as a real ID-generation strategy elsewhere).
+    await queryRunner.query(`
+      INSERT INTO "core"."role_centre_mappings"
+        ("id", "role_id", "centre_id", "created_by", "is_deleted")
+      SELECT
+        ('x' || substr(md5(random()::text || clock_timestamp()::text), 1, 15))::bit(60)::bigint,
+        "id",
+        "center_id",
+        "created_by",
+        false
+      FROM "core"."roles"
+      WHERE "center_id" IS NOT NULL
+      ON CONFLICT DO NOTHING
+    `);
+
+    // Drop the old single-centre scalar now that role_centre_mappings is the
+    // source of truth — one source of truth, no stale field left behind.
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTER_ROLE_NAME"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTER_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "FK_roles_center_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."roles" DROP COLUMN IF EXISTS "center_id"`,
+    );
+    // Role names are now unique globally — create one role once, link many centres.
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_ROLE_ROLE_NAME" ON "core"."roles" ("role_name")`,
     );
 
     // configuration: one settings row per centre (sync mode, redo test,
@@ -1658,6 +1754,18 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `DROP TABLE IF EXISTS "core"."configuration" CASCADE`,
     );
     await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."UQ_ROLE_CENTRE_MAPPING_ROLE_CENTRE"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTRE_MAPPING_CENTRE_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTRE_MAPPING_ROLE_ID"`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."role_centre_mappings"`,
+    );
+    await queryRunner.query(
       `DROP INDEX IF EXISTS "core"."IDX_ROLE_PERMISSION_ID"`,
     );
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_ROLE_NAME"`);
@@ -1685,6 +1793,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_ROLE_ID"`);
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_USER_CODE"`);
+    await queryRunner.query(
+      `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "requires_central_revalidation"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "role_id"`,
     );

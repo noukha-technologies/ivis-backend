@@ -101,6 +101,11 @@ export const ERROR_CODES: Record<string, ErrorDetails> = {
     statusCode: HttpStatus.SERVICE_UNAVAILABLE,
     message: 'Unable to reach the central server. Please try again shortly.',
   },
+  CENTRE_NOT_ONBOARDED: {
+    code: '019',
+    statusCode: HttpStatus.FORBIDDEN,
+    message: 'This centre hasn\'t been set up yet — a Centre Admin must log in first.',
+  },
 };
 
 export const ERROR_CODE_PREFIX = 'US';

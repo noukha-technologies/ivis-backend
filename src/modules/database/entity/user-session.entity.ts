@@ -55,6 +55,10 @@ export class UserSession {
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
 
+  /** Set only when this session was minted via Super Admin impersonation — the acting Super Admin's user id. */
+  @Column({ type: 'varchar', nullable: true })
+  impersonated_by?: string;
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;
 

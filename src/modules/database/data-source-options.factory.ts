@@ -24,6 +24,7 @@ import { UserLineMapping } from './entity/user-line-mapping.entity';
 import { AdminPcLineMapping } from './entity/admin-pc-line-mapping.entity';
 import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
+import { SyncState } from './entity/sync-state.entity';
 
 // Single source of truth for "every entity in the app" — shared by the
 // migration CLI's AppDataSource and anything else that needs an explicit
@@ -57,6 +58,7 @@ export const APP_ENTITIES = [
   Configurations,
   OnboardingStatus,
   RoleCentreMapping,
+  SyncState,
 ];
 
 export const APP_MIGRATIONS_GLOB = [__dirname + '/../../migrations/*{.ts,.js}'];

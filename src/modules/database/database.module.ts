@@ -34,6 +34,7 @@ import { CameraLineMapping } from './entity/camera-line-mapping.entity';
 import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { Configurations } from './entity/configuration.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
+import { SyncState } from './entity/sync-state.entity';
 
 import { JobDao } from './dao/job.dao';
 import { RoleDao } from './dao/role.dao';
@@ -61,6 +62,7 @@ import { CameraLineMappingDao } from './dao/camera-line-mapping.dao';
 import { RoleCentreMappingDao } from './dao/role-centre-mapping.dao';
 import { ConfigurationDao } from './dao/configuration.dao';
 import { OnboardingStatusDao } from './dao/onboarding-status.dao';
+import { SyncStateDao } from './dao/sync-state.dao';
 import { SchemaBootstrapService } from './service/schema-bootstrap.service';
 
 // Entities synced from the Master DB during Onboarding Sync — the 'central'
@@ -81,6 +83,13 @@ const CENTRAL_SYNC_ENTITIES = [
   Permission,
   User,
   UserLineMapping,
+  // Global masters — pulled in full every Database Sync run (see
+  // DATABASE_SYNC_PLAN.md §7 point 7); not centre-scoped, but still need to
+  // be registered on the central connection or CentralSyncReaderService's
+  // findAll*UpdatedSince queries throw EntityMetadataNotFoundError.
+  PaymentType,
+  Test,
+  Vehicle,
 ];
 
 @Global()
@@ -126,6 +135,7 @@ const CENTRAL_SYNC_ENTITIES = [
       Configurations,
       OnboardingStatus,
       RoleCentreMapping,
+      SyncState,
     ]),
   ],
   providers: [
@@ -175,6 +185,7 @@ const CENTRAL_SYNC_ENTITIES = [
     PaymentTypeDao,
     ConfigurationDao,
     OnboardingStatusDao,
+    SyncStateDao,
     SchemaBootstrapService,
   ],
   exports: [
@@ -206,6 +217,7 @@ const CENTRAL_SYNC_ENTITIES = [
     PaymentTypeDao,
     ConfigurationDao,
     OnboardingStatusDao,
+    SyncStateDao,
     SchemaBootstrapService,
   ],
 })

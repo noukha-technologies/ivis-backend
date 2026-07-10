@@ -83,9 +83,9 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
     edit: [],
   },
   configuration: {
-    view: [PermissionKeys.CONFIGURATION_VIEW],
-    create: [PermissionKeys.CONFIGURATION_UPSERT],
-    edit: [PermissionKeys.CONFIGURATION_UPSERT],
+    view: [PermissionKeys.CONFIGURATION_VIEW, PermissionKeys.SYNC_VIEW],
+    create: [PermissionKeys.CONFIGURATION_UPSERT, PermissionKeys.SYNC_TRIGGER],
+    edit: [PermissionKeys.CONFIGURATION_UPSERT, PermissionKeys.SYNC_TRIGGER],
   },
 
   // ── Submodule modules ────────────────────────────────────────────────────────

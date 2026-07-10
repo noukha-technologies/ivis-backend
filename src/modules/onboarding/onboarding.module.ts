@@ -7,6 +7,9 @@ import { CentralSyncReaderService } from './service/central-sync-reader.service'
 // by DatabaseModule (@Global()), same as every other DAO.
 @Module({
   providers: [OnboardingService, CentralSyncReaderService],
-  exports: [OnboardingService],
+  // CentralSyncReaderService is also exported — Database Sync's pull phase
+  // (modules/sync/**) reuses this same read-only reader/connection rather
+  // than duplicating a second one.
+  exports: [OnboardingService, CentralSyncReaderService],
 })
 export class OnboardingModule {}

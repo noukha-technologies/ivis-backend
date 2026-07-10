@@ -271,8 +271,11 @@ export class AuthService implements IAuthService {
     return this.buildSuccessResponse(localUser);
   }
 
-  private async buildSuccessResponse(user: User): Promise<LoginResponseDto> {
-    const tokens = await this.issueTokens(user);
+  private async buildSuccessResponse(
+    user: User,
+    impersonatedBy?: string,
+  ): Promise<LoginResponseDto> {
+    const tokens = await this.issueTokens(user, undefined, impersonatedBy);
     const permissions = await this.resolveUserPermissions(user);
     return {
       status: 'SUCCESS',
@@ -282,6 +285,49 @@ export class AuthService implements IAuthService {
       user: this.toAuthUser(user),
       permissions,
     };
+  }
+
+  /**
+   * Super Admin: log in as a Centre Admin (see DATABASE_SYNC_PLAN.md Part 7,
+   * "Login as Centre Admin"). Issues a real session for the target user
+   * directly — no password check, since credential replay is impossible with
+   * bcrypt-hashed passwords anyway. Restricted to centre-scoped, is_center_admin
+   * targets only: never another Super Admin, never a plain operational user.
+   */
+  async impersonate(
+    actor: UserContext,
+    targetUserId: string,
+  ): Promise<LoginResponseDto> {
+    if (!isGlobalScope(actor.user.access_scope)) {
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'Only a Super Admin can log in as another user.',
+      );
+    }
+    if (targetUserId === actor.user.id) {
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'You are already logged in as yourself.',
+      );
+    }
+
+    const target = await this.usersDao.findActiveById(targetUserId);
+    if (
+      !target ||
+      target.role?.access_scope !== 'centre' ||
+      !target.role?.is_center_admin
+    ) {
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'You can only log in as a Centre Admin.',
+      );
+    }
+
+    this.logger.log(
+      `Impersonation: ${actor.user.email} logged in as ${target.email} (centre ${target.center_id ?? 'unknown'})`,
+      'AuthService',
+    );
+    return this.buildSuccessResponse(target, actor.user.id);
   }
 
   /**
@@ -456,6 +502,7 @@ export class AuthService implements IAuthService {
   private async issueTokens(
     user: User,
     sessionId?: string,
+    impersonatedBy?: string,
   ): Promise<TokenPair> {
     const accessJti = randomUUID();
     const refreshJti = randomUUID();
@@ -485,6 +532,7 @@ export class AuthService implements IAuthService {
       isActive: true,
       expiredAt: refreshExpiresAt,
       lastRefreshedAt: new Date(),
+      impersonatedBy,
     });
 
     return {

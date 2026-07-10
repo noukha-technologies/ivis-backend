@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { DataSource, In, ObjectLiteral } from 'typeorm';
+import { DataSource, In, MoreThan, ObjectLiteral } from 'typeorm';
 
 import { CENTRAL_DATA_SOURCE } from '../../database/central-data-source.token';
 import { Centre } from '../../database/entity/centre.entity';
@@ -16,6 +16,9 @@ import { RoleCentreMapping } from '../../database/entity/role-centre-mapping.ent
 import { Permission } from '../../database/entity/permission.entity';
 import { User } from '../../database/entity/user.entity';
 import { UserLineMapping } from '../../database/entity/user-line-mapping.entity';
+import { PaymentType } from '../../database/entity/payment-type.entity';
+import { Test } from '../../database/entity/test.entity';
+import { Vehicle } from '../../database/entity/vehicle.entity';
 
 /**
  * Thin read-only reader over the 'central' (Master DB) connection — one
@@ -184,5 +187,179 @@ export class CentralSyncReaderService {
     if (!userIds.length) return [];
     const repo = await this.repo(UserLineMapping);
     return repo.find({ where: { user_id: In(userIds) } });
+  }
+
+  // ─── Database Sync (ongoing) — incremental pull methods ──────────────────
+  // WHERE updated_at > cursor, reusing the same centre-scoping already built
+  // above for Onboarding Sync. See DATABASE_SYNC_PLAN.md §2 for the bucket
+  // classification these correspond to.
+
+  /** Bucket A — this centre's own Centre row, if it changed. */
+  async findCentreUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<Centre[]> {
+    const repo = await this.repo(Centre);
+    return repo.find({ where: { id: centreId, updated_at: MoreThan(cursor) } });
+  }
+
+  /** Bucket A — roles linked to this centre (role_centre_mappings), changed since cursor. */
+  async findRolesByCentreIdUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<Role[]> {
+    const repo = await this.repo(Role);
+    return repo
+      .createQueryBuilder('role')
+      .innerJoin(
+        'role.mappings',
+        'rcm',
+        'rcm.centre_id = :centreId AND rcm.is_deleted = false',
+        { centreId },
+      )
+      .andWhere('role.updated_at > :cursor', { cursor })
+      .getMany();
+  }
+
+  /** Bucket A — role_centre_mappings involving this centre, changed since cursor. */
+  async findRoleCentreMappingsByCentreIdUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<RoleCentreMapping[]> {
+    const repo = await this.repo(RoleCentreMapping);
+    return repo.find({
+      where: { centre_id: centreId, updated_at: MoreThan(cursor) },
+    });
+  }
+
+  /** Bucket A — global tables, pulled in full every run (no centre scoping). */
+  async findAllPermissionsUpdatedSince(cursor: Date): Promise<Permission[]> {
+    const repo = await this.repo(Permission);
+    return repo.find({ where: { updated_at: MoreThan(cursor) } });
+  }
+
+  async findAllPaymentTypesUpdatedSince(cursor: Date): Promise<PaymentType[]> {
+    const repo = await this.repo(PaymentType);
+    return repo.find({ where: { updated_at: MoreThan(cursor) } });
+  }
+
+  async findAllTestsUpdatedSince(cursor: Date): Promise<Test[]> {
+    const repo = await this.repo(Test);
+    return repo.find({ where: { updated_at: MoreThan(cursor) } });
+  }
+
+  async findAllVehiclesUpdatedSince(cursor: Date): Promise<Vehicle[]> {
+    const repo = await this.repo(Vehicle);
+    return repo.find({ where: { updated_at: MoreThan(cursor) } });
+  }
+
+  // ─── Bucket C pull side (centre-scoped, most-recent-wins on write) ──────
+
+  async findLinesByCentreIdUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<Line[]> {
+    const repo = await this.repo(Line);
+    return repo.find({
+      where: { centre_id: centreId, updated_at: MoreThan(cursor) },
+    });
+  }
+
+  async findCamerasByLineIdsUpdatedSince(
+    lineIds: string[],
+    cursor: Date,
+  ): Promise<Camera[]> {
+    if (!lineIds.length) return [];
+    const repo = await this.repo(Camera);
+    return repo
+      .createQueryBuilder('camera')
+      .innerJoin(
+        'camera.lineMappings',
+        'mapping',
+        'mapping.line_id IN (:...lineIds) AND mapping.is_deleted = false',
+        { lineIds },
+      )
+      .andWhere('camera.updated_at > :cursor', { cursor })
+      .getMany();
+  }
+
+  async findCameraLineMappingsByLineIdsUpdatedSince(
+    lineIds: string[],
+    cursor: Date,
+  ): Promise<CameraLineMapping[]> {
+    if (!lineIds.length) return [];
+    const repo = await this.repo(CameraLineMapping);
+    return repo.find({
+      where: { line_id: In(lineIds), updated_at: MoreThan(cursor) },
+    });
+  }
+
+  async findAdminPcsByLineIdsUpdatedSince(
+    lineIds: string[],
+    cursor: Date,
+  ): Promise<AdminPc[]> {
+    if (!lineIds.length) return [];
+    const repo = await this.repo(AdminPc);
+    return repo
+      .createQueryBuilder('adminPc')
+      .innerJoin(
+        'adminPc.lineMappings',
+        'mapping',
+        'mapping.line_id IN (:...lineIds) AND mapping.is_deleted = false',
+        { lineIds },
+      )
+      .andWhere('adminPc.updated_at > :cursor', { cursor })
+      .getMany();
+  }
+
+  async findAdminPcLineMappingsByLineIdsUpdatedSince(
+    lineIds: string[],
+    cursor: Date,
+  ): Promise<AdminPcLineMapping[]> {
+    if (!lineIds.length) return [];
+    const repo = await this.repo(AdminPcLineMapping);
+    return repo.find({
+      where: { line_id: In(lineIds), updated_at: MoreThan(cursor) },
+    });
+  }
+
+  async findChargesByCentreIdUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<Charge[]> {
+    const repo = await this.repo(Charge);
+    return repo.find({
+      where: { centre_id: centreId, updated_at: MoreThan(cursor) },
+    });
+  }
+
+  async findChargeCategoriesUpdatedSince(cursor: Date): Promise<ChargeCategory[]> {
+    const repo = await this.repo(ChargeCategory);
+    return repo.find({ where: { updated_at: MoreThan(cursor) } });
+  }
+
+  /** Excludes global-scope users — those are handled by the Super Admin re-scope flow (Part 3), not this generic centre pull. */
+  async findUsersByCentreIdUpdatedSince(
+    centreId: string,
+    cursor: Date,
+  ): Promise<User[]> {
+    const repo = await this.repo(User);
+    return repo
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.center_id = :centreId', { centreId })
+      .andWhere('user.updated_at > :cursor', { cursor })
+      .getMany();
+  }
+
+  async findUserLineMappingsByUserIdsUpdatedSince(
+    userIds: string[],
+    cursor: Date,
+  ): Promise<UserLineMapping[]> {
+    if (!userIds.length) return [];
+    const repo = await this.repo(UserLineMapping);
+    return repo.find({
+      where: { user_id: In(userIds), updated_at: MoreThan(cursor) },
+    });
   }
 }

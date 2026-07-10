@@ -12,11 +12,15 @@ export interface UserLineSummary {
   code: string;
 }
 
+import type { AccessScope } from '../constants/access-scope';
+
 export interface UserRoleSummary {
   id: string;
   role_id?: number;
   role_name: string;
   permission_id?: string;
+  access_scope?: AccessScope;
+  is_center_admin?: boolean;
 }
 
 export interface UserResponseInterface {

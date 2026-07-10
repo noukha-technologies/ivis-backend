@@ -9,6 +9,8 @@ export interface UpsertUserSessionData {
   isActive: boolean;
   expiredAt: Date;
   lastRefreshedAt?: Date;
+  /** Set only when this session was minted via Super Admin impersonation. */
+  impersonatedBy?: string;
 }
 
 export interface IUserSessionDao {

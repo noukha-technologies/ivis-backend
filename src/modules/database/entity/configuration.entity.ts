@@ -38,9 +38,16 @@ export class Configurations implements IConfigurationFields {
   @JoinColumn({ name: 'centre_id' })
   centre!: Centre;
 
-  /** 'Manual' → show the Sync button; 'Automatic' → hide and sync continuously. */
+  /** 'Manual' → show the Sync Now button; 'Automatic' → run on the twice-daily schedule below. */
   @Column({ type: 'varchar', length: 16, default: 'Manual', nullable: false })
   sync_mode!: string;
+
+  /** Automatic-mode Database Sync clock times (Oman time, 'HH:mm') — only meaningful when sync_mode = 'Automatic'. */
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  sync_time_morning?: string;
+
+  @Column({ type: 'varchar', length: 5, nullable: true })
+  sync_time_evening?: string;
 
   @Column({ type: 'boolean', default: true })
   redo_test_enabled!: boolean;

@@ -32,6 +32,8 @@ export function mapUserToResponse(user: User): UserResponse {
           role_id: user.role.role_id,
           role_name: user.role.role_name,
           permission_id: user.role.permission_id,
+          access_scope: user.role.access_scope,
+          is_center_admin: user.role.is_center_admin,
         }
       : undefined,
     center_id: user.center_id ?? null,

@@ -37,6 +37,7 @@ export class UserSessionsDao
       id: generateSnowflakeId(),
       user_id: input.userId,
       created_by: input.userId,
+      impersonated_by: input.impersonatedBy,
       access_token_jti: input.accessTokenJti,
       refresh_token_jti: input.refreshTokenJti,
       refresh_token: input.refreshToken,

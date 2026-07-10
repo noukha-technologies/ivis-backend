@@ -161,6 +161,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "core"."user_sessions" ADD COLUMN IF NOT EXISTS "created_by" character varying`,
     );
 
+    // user_sessions: impersonated_by — set only on sessions minted via Super
+    // Admin impersonation (see Part 7, "Login as Centre Admin"); holds the
+    // acting Super Admin's user id, null on every normal login/refresh.
+    await queryRunner.query(
+      `ALTER TABLE "core"."user_sessions" ADD COLUMN IF NOT EXISTS "impersonated_by" character varying`,
+    );
+
     // user_line_mappings table (migration 1780100000000) — created here if absent
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "core"."user_line_mappings" (
@@ -398,6 +405,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "configuration_id"    integer               NOT NULL,
         "centre_id"           bigint                NOT NULL,
         "sync_mode"           character varying(16) NOT NULL DEFAULT 'Manual',
+        "sync_time_morning"   character varying(5),
+        "sync_time_evening"   character varying(5),
         "redo_test_enabled"   boolean               NOT NULL DEFAULT true,
         "auto_close"          boolean               NOT NULL DEFAULT false,
         "auto_close_time"     character varying(5),
@@ -412,6 +421,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         CONSTRAINT "PK_configuration_id" PRIMARY KEY ("id")
       )
     `);
+    // Database Sync (ongoing) — Automatic mode's twice-daily run times, per
+    // centre. Added after the table already existed on some DBs, so also
+    // guarded here for those (the CREATE TABLE above only helps fresh DBs).
+    await queryRunner.query(
+      `ALTER TABLE "core"."configuration" ADD COLUMN IF NOT EXISTS "sync_time_morning" character varying(5)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."configuration" ADD COLUMN IF NOT EXISTS "sync_time_evening" character varying(5)`,
+    );
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CONFIGURATION_ID" ON "core"."configuration" ("configuration_id")`,
     );
@@ -444,6 +462,22 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "created_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
         "updated_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
         CONSTRAINT "PK_onboarding_status_id" PRIMARY KEY ("id")
+      )
+    `);
+
+    // sync_state table (Database Sync feature — ongoing, bidirectional,
+    // separate system from Onboarding Sync above) — single-row table
+    // tracking this local DB's pull/push cursors.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."sync_state" (
+        "id"               bigint                NOT NULL,
+        "last_pulled_at"   TIMESTAMP,
+        "last_pushed_at"   TIMESTAMP,
+        "last_sync_status" character varying(16),
+        "last_error"       character varying,
+        "created_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_sync_state_id" PRIMARY KEY ("id")
       )
     `);
   }
@@ -1748,6 +1782,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."sync_state" CASCADE`,
+    );
+    await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."onboarding_status" CASCADE`,
     );
     await queryRunner.query(
@@ -1795,6 +1832,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_USER_USER_CODE"`);
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "requires_central_revalidation"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."user_sessions" DROP COLUMN IF EXISTS "impersonated_by"`,
     );
     await queryRunner.query(
       `ALTER TABLE "core"."users" DROP COLUMN IF EXISTS "role_id"`,

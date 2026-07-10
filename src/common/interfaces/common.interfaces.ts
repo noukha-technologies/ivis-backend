@@ -22,8 +22,11 @@ export interface IConfigurationFields {
   id: string;
   configuration_id: number;
   centre_id: string;
-  /** 'Manual' → show the Sync button; 'Automatic' → hide and sync continuously. */
+  /** 'Manual' → show the Sync Now button; 'Automatic' → run on the twice-daily schedule below. */
   sync_mode: string;
+  /** Automatic-mode Database Sync clock times (Oman time, 'HH:mm'). */
+  sync_time_morning?: string;
+  sync_time_evening?: string;
   redo_test_enabled: boolean;
   auto_close: boolean;
   /** Time-of-day (Oman) to auto-close jobs from available OUT files, 'HH:mm'. */

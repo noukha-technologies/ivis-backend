@@ -1,4 +1,11 @@
-import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiBody,
@@ -8,6 +15,8 @@ import {
 } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionKeys } from '../../common/constants/permissions';
 import {
   BootstrapAdminDto,
   BootstrapAdminResponseDto,
@@ -65,5 +74,18 @@ export class AuthController {
   async logout(@CurrentUser() user: UserContext): Promise<{ message: string }> {
     await this.authService.logout(user);
     return { message: 'Logged out successfully' };
+  }
+
+  @Post('impersonate/:userId')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth('Bearer')
+  @Permissions(PermissionKeys.USER_IMPERSONATE)
+  @ApiOperation({ summary: 'Super Admin: log in as a Centre Admin' })
+  @ApiOkResponse({ type: LoginResponseDto })
+  async impersonate(
+    @CurrentUser() actor: UserContext,
+    @Param('userId') userId: string,
+  ): Promise<LoginResponseDto> {
+    return await this.authService.impersonate(actor, userId);
   }
 }

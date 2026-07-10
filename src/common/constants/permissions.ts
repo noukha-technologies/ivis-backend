@@ -7,6 +7,7 @@ export const PermissionKeys = {
   USER_CREATE: 'USER_CREATE',
   USER_EDIT: 'USER_EDIT',
   USER_DELETE: 'USER_DELETE',
+  USER_IMPERSONATE: 'USER_IMPERSONATE',
 
   // Roles
   ROLES_CREATE: 'ROLES_CREATE',
@@ -74,6 +75,10 @@ export const PermissionKeys = {
   CONFIGURATION_VIEW: 'CONFIGURATION_VIEW',
   CONFIGURATION_UPSERT: 'CONFIGURATION_UPSERT',
   FILE_PROCESSING_VIEW: 'FILE_PROCESSING_VIEW',
+
+  // Database Sync (ongoing, bidirectional — see DATABASE_SYNC_PLAN.md)
+  SYNC_VIEW: 'SYNC_VIEW',
+  SYNC_TRIGGER: 'SYNC_TRIGGER',
 } as const;
 
 export type PermissionKey =
@@ -87,6 +92,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.USER_CREATE]: 'Create users',
   [PermissionKeys.USER_EDIT]: 'Edit users',
   [PermissionKeys.USER_DELETE]: 'Delete users',
+  [PermissionKeys.USER_IMPERSONATE]: 'Log in as a Centre Admin',
 
   [PermissionKeys.ROLES_CREATE]: 'Create roles',
   [PermissionKeys.ROLES_VIEW]: 'View roles',
@@ -144,6 +150,9 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.CONFIGURATION_UPSERT]:
     'Create or update centre configuration',
   [PermissionKeys.FILE_PROCESSING_VIEW]: 'View and manage file processing',
+
+  [PermissionKeys.SYNC_VIEW]: 'View Database Sync status',
+  [PermissionKeys.SYNC_TRIGGER]: 'Manually trigger Database Sync',
 };
 
 /** DB seed rows derived from PermissionKeys + PERMISSION_DESCRIPTIONS */

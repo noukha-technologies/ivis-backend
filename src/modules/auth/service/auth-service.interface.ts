@@ -19,4 +19,8 @@ export interface IAuthService {
     userId: string,
     accessJti: string,
   ): Promise<UserContext | null>;
+  impersonate(
+    actor: UserContext,
+    targetUserId: string,
+  ): Promise<LoginResponseDto>;
 }

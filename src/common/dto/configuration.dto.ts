@@ -44,6 +44,24 @@ export class CreateConfigurationDto {
   })
   sync_mode?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Database Sync morning run time (Oman), HH:mm — only meaningful when sync_mode = Automatic',
+    example: '06:00',
+  })
+  @IsOptional()
+  @Matches(HHMM, { message: 'sync_time_morning must be HH:mm' })
+  sync_time_morning?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Database Sync evening run time (Oman), HH:mm — only meaningful when sync_mode = Automatic',
+    example: '18:00',
+  })
+  @IsOptional()
+  @Matches(HHMM, { message: 'sync_time_evening must be HH:mm' })
+  sync_time_evening?: string;
+
   @ApiPropertyOptional({ description: 'Enable Redo Test', default: true })
   @IsOptional()
   @IsBoolean()

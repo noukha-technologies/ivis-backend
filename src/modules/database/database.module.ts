@@ -1,12 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { DataSource } from 'typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
-import centralDatabaseConfig, {
-  CentralDatabaseConfig,
-} from './central-database.config';
-import { CENTRAL_DATA_SOURCE } from './central-data-source.token';
 
 import { Job } from './entity/job.entity';
 import { User } from './entity/user.entity';
@@ -34,7 +29,8 @@ import { CameraLineMapping } from './entity/camera-line-mapping.entity';
 import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { Configurations } from './entity/configuration.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
-import { SyncState } from './entity/sync-state.entity';
+import { SyncRunLog } from './entity/sync-run-log.entity';
+import { CentreApiKey } from './entity/centre-api-key.entity';
 
 import { JobDao } from './dao/job.dao';
 import { RoleDao } from './dao/role.dao';
@@ -62,41 +58,14 @@ import { CameraLineMappingDao } from './dao/camera-line-mapping.dao';
 import { RoleCentreMappingDao } from './dao/role-centre-mapping.dao';
 import { ConfigurationDao } from './dao/configuration.dao';
 import { OnboardingStatusDao } from './dao/onboarding-status.dao';
-import { SyncStateDao } from './dao/sync-state.dao';
+import { SyncRunLogDao } from './dao/sync-run-log.dao';
+import { CentreApiKeyDao } from './dao/centre-api-key.dao';
 import { SchemaBootstrapService } from './service/schema-bootstrap.service';
-
-// Entities synced from the Master DB during Onboarding Sync — the 'central'
-// connection is read-only (enforced by the CENTRAL_DB_* Postgres role) and
-// only ever registers this centre-scoped subset, never the full entity list.
-const CENTRAL_SYNC_ENTITIES = [
-  Centre,
-  Line,
-  Camera,
-  CameraLineMapping,
-  AdminPc,
-  AdminPcLineMapping,
-  Charge,
-  ChargeCategory,
-  Configurations,
-  Role,
-  RoleCentreMapping,
-  Permission,
-  User,
-  UserLineMapping,
-  // Global masters — pulled in full every Database Sync run (see
-  // DATABASE_SYNC_PLAN.md §7 point 7); not centre-scoped, but still need to
-  // be registered on the central connection or CentralSyncReaderService's
-  // findAll*UpdatedSince queries throw EntityMetadataNotFoundError.
-  PaymentType,
-  Test,
-  Vehicle,
-];
 
 @Global()
 @Module({
   imports: [
     ConfigModule.forFeature(databaseConfig),
-    ConfigModule.forFeature(centralDatabaseConfig),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -135,30 +104,11 @@ const CENTRAL_SYNC_ENTITIES = [
       Configurations,
       OnboardingStatus,
       RoleCentreMapping,
-      SyncState,
+      SyncRunLog,
+      CentreApiKey,
     ]),
   ],
   providers: [
-    // Lazy, connect-on-demand DataSource for the Master DB — deliberately NOT
-    // a TypeOrmModule.forRootAsync('central', ...) connection. That form
-    // connects eagerly at Nest bootstrap and, on failure, crashes the WHOLE
-    // app (all modules, all already-onboarded centres) after retrying —
-    // defeating "central DB down should never affect an already-COMPLETED
-    // centre server". Constructing (not initializing) a DataSource here is
-    // free; CentralSyncReaderService connects it lazily on first real use
-    // and surfaces failures as a catchable error (-> CENTRAL_DB_UNAVAILABLE).
-    {
-      provide: CENTRAL_DATA_SOURCE,
-      inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const centralConfig =
-          configService.get<CentralDatabaseConfig>('centralDatabase')!;
-        return new DataSource({
-          ...centralConfig,
-          entities: CENTRAL_SYNC_ENTITIES,
-        });
-      },
-    },
     UsersDao,
     UserLineMappingDao,
     PermissionDao,
@@ -185,12 +135,12 @@ const CENTRAL_SYNC_ENTITIES = [
     PaymentTypeDao,
     ConfigurationDao,
     OnboardingStatusDao,
-    SyncStateDao,
+    SyncRunLogDao,
+    CentreApiKeyDao,
     SchemaBootstrapService,
   ],
   exports: [
     TypeOrmModule,
-    CENTRAL_DATA_SOURCE,
     UsersDao,
     UserLineMappingDao,
     PermissionDao,
@@ -217,7 +167,8 @@ const CENTRAL_SYNC_ENTITIES = [
     PaymentTypeDao,
     ConfigurationDao,
     OnboardingStatusDao,
-    SyncStateDao,
+    SyncRunLogDao,
+    CentreApiKeyDao,
     SchemaBootstrapService,
   ],
 })

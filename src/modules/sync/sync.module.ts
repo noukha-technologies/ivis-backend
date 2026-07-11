@@ -1,25 +1,18 @@
 import { Module } from '@nestjs/common';
-import { OnboardingModule } from '../onboarding/onboarding.module';
-import { SyncController } from './sync.controller';
-import { DatabaseSyncService } from './service/database-sync.service';
-import { DatabaseSyncSchedulerService } from './service/database-sync-scheduler.service';
-import { CentralSyncWriterService } from './service/central-sync-writer.service';
 
-// Database Sync (ongoing, bidirectional) — separate system from Onboarding
-// Sync (modules/onboarding/**, untouched by this module). Reuses
-// OnboardingModule's CentralSyncReaderService for the pull phase's
-// read-only queries; owns its own writable central connection
-// (CentralSyncWriterService) for the push phase. SyncStateDao,
-// OnboardingStatusDao, ConfigurationDao are registered by DatabaseModule
-// (@Global()), same as every other DAO.
+import { SyncController } from './sync.controller';
+import { SyncCentralService } from './service/sync-central.service';
+import { DatabaseSyncService } from './service/database-sync.service';
+import { CentralSyncHttpClientService } from './service/central-sync-http-client.service';
+import { ApiKeyGuard } from './guards/api-key.guard';
+import { SyncGateway } from './sync.gateway';
+
+// HTTPS-only Database Sync (see Database_sync_arch_replan.md). No
+// OnboardingModule import — every provider here depends only on the local
+// DataSource + DAOs (all @Global() from DatabaseModule) and plain HTTP
+// (CentralSyncHttpClientService), not on anything Onboarding-specific.
 @Module({
-  imports: [OnboardingModule],
   controllers: [SyncController],
-  providers: [
-    DatabaseSyncService,
-    DatabaseSyncSchedulerService,
-    CentralSyncWriterService,
-  ],
-  exports: [DatabaseSyncService],
+  providers: [SyncCentralService, DatabaseSyncService, CentralSyncHttpClientService, ApiKeyGuard, SyncGateway],
 })
 export class SyncModule {}

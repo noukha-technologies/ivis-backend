@@ -1,0 +1,380 @@
+import { DataSource, EntityTarget, ObjectLiteral } from 'typeorm';
+
+import { Centre } from '../database/entity/centre.entity';
+import { Role } from '../database/entity/role.entity';
+import { Permission } from '../database/entity/permission.entity';
+import { RoleCentreMapping } from '../database/entity/role-centre-mapping.entity';
+import { PaymentType } from '../database/entity/payment-type.entity';
+import { Test } from '../database/entity/test.entity';
+import { Vehicle } from '../database/entity/vehicle.entity';
+import { Line } from '../database/entity/line.entity';
+import { Camera } from '../database/entity/camera.entity';
+import { CameraLineMapping } from '../database/entity/camera-line-mapping.entity';
+import { AdminPc } from '../database/entity/admin-pc.entity';
+import { AdminPcLineMapping } from '../database/entity/admin-pc-line-mapping.entity';
+import { Charge } from '../database/entity/charge.entity';
+import { ChargeCategory } from '../database/entity/charge-category.entity';
+import { User } from '../database/entity/user.entity';
+import { UserLineMapping } from '../database/entity/user-line-mapping.entity';
+import { Customer } from '../database/entity/customer.entity';
+import { VehicleRecord } from '../database/entity/vehicle-record.entity';
+import { AnprCapture } from '../database/entity/anpr-capture.entity';
+import { RopVerification } from '../database/entity/rop-verification.entity';
+import { Appointment } from '../database/entity/appointment.entity';
+import { Job } from '../database/entity/job.entity';
+import { Payments } from '../database/entity/payments.entity';
+
+export const SYNC_DIRECTION_VALUES = ['READ_ONLY', 'WRITE_ONLY', 'BIDIRECTIONAL', 'NOT_SYNCED'] as const;
+export type SyncDirection = (typeof SYNC_DIRECTION_VALUES)[number];
+
+export const CHUNK_SIZE = 500;
+
+/**
+ * Bridges an entity key to a real TypeORM class + the actual chunked-fetch
+ * logic — see Database_sync_arch_replan.md §3a/§6. `direction` replaces the
+ * old sync_entity_config DB table entirely: this is now a plain, hardcoded,
+ * backend-only decision (no admin UI, no per-row config), per the confirmed
+ * design decision to keep entity classification out of the database.
+ *
+ * `pull` runs on the CENTRAL node (this node owns the data) — returns up to
+ * CHUNK_SIZE rows for one centre, strictly newer than the cursor, ordered by
+ * updated_at so cursor-based pagination is stable.
+ *
+ * `pushWhere` runs on the CENTRAL node too, but describes how to match rows
+ * a centre is pushing UP — used only to decide the upsert's conflict/scope,
+ * not to fetch (the centre sends the rows; central just needs to know which
+ * of its own local rows it's allowed to touch for this entity/centre).
+ */
+export interface SyncEntityDefinition {
+  entityKey: string;
+  entityClass: EntityTarget<ObjectLiteral>;
+  direction: SyncDirection;
+  /** true = most-recent-updated_at-wins (bucket C); false = blind overwrite (bucket A) or no-conflict (bucket B). */
+  conditional: boolean;
+  /** Central-side: fetch up to CHUNK_SIZE rows for this centre, updated after cursor. Present for READ_ONLY/BIDIRECTIONAL only. */
+  pull?: (dataSource: DataSource, centreId: string, cursor: Date) => Promise<ObjectLiteral[]>;
+  /**
+   * Centre-side: fetch up to CHUNK_SIZE local rows updated after cursor, to
+   * push up. No centre filter needed — a centre's own local DB only ever
+   * holds that one centre's rows for every WRITE_ONLY/BIDIRECTIONAL entity
+   * (this is a single-tenant local box, unlike central). Present for
+   * WRITE_ONLY/BIDIRECTIONAL only.
+   */
+  pushLocal?: (dataSource: DataSource, cursor: Date) => Promise<ObjectLiteral[]>;
+  /** Non-PK conflict target for upsert (e.g. RoleCentreMapping's (role_id, centre_id) partial unique index). */
+  conflictColumns?: string[];
+  conflictIndexPredicate?: string;
+}
+
+async function pullSimple<T extends ObjectLiteral>(
+  dataSource: DataSource,
+  entity: EntityTarget<T>,
+  centreColumn: string,
+  centreId: string,
+  cursor: Date,
+): Promise<T[]> {
+  return dataSource
+    .getRepository(entity)
+    .createQueryBuilder('e')
+    .where(`e.${centreColumn} = :centreId`, { centreId })
+    .andWhere('e.updated_at > :cursor', { cursor })
+    .orderBy('e.updated_at', 'ASC')
+    .limit(CHUNK_SIZE)
+    .getMany();
+}
+
+async function pullGlobal<T extends ObjectLiteral>(
+  dataSource: DataSource,
+  entity: EntityTarget<T>,
+  cursor: Date,
+): Promise<T[]> {
+  return dataSource
+    .getRepository(entity)
+    .createQueryBuilder('e')
+    .where('e.updated_at > :cursor', { cursor })
+    .orderBy('e.updated_at', 'ASC')
+    .limit(CHUNK_SIZE)
+    .getMany();
+}
+
+export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
+  // ─── Bucket A — READ_ONLY (central → centre, central always wins) ──────
+  Centre: {
+    entityKey: 'Centre',
+    entityClass: Centre,
+    direction: 'READ_ONLY',
+    conditional: false,
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(Centre).createQueryBuilder('e')
+        .where('e.id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .limit(CHUNK_SIZE)
+        .getMany(),
+  },
+  Role: {
+    entityKey: 'Role',
+    entityClass: Role,
+    direction: 'READ_ONLY',
+    conditional: false,
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(Role).createQueryBuilder('e')
+        .innerJoin(RoleCentreMapping, 'rcm', 'rcm.role_id = e.id AND rcm.centre_id = :centreId AND rcm.is_deleted = false', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+  },
+  Permission: {
+    entityKey: 'Permission',
+    entityClass: Permission,
+    direction: 'READ_ONLY',
+    conditional: false,
+    // Global, no centre scoping — every centre pulls the full permission set.
+    pull: async (ds, _centreId, cursor) => pullGlobal(ds, Permission, cursor),
+  },
+  RoleCentreMapping: {
+    entityKey: 'RoleCentreMapping',
+    entityClass: RoleCentreMapping,
+    direction: 'READ_ONLY',
+    conditional: false,
+    conflictColumns: ['role_id', 'centre_id'],
+    conflictIndexPredicate: 'is_deleted = false',
+    pull: async (ds, centreId, cursor) => pullSimple(ds, RoleCentreMapping, 'centre_id', centreId, cursor),
+  },
+  PaymentType: {
+    entityKey: 'PaymentType',
+    entityClass: PaymentType,
+    direction: 'READ_ONLY',
+    conditional: false,
+    pull: async (ds, _centreId, cursor) => pullGlobal(ds, PaymentType, cursor),
+  },
+  Test: {
+    entityKey: 'Test',
+    entityClass: Test,
+    direction: 'READ_ONLY',
+    conditional: false,
+    pull: async (ds, _centreId, cursor) => pullGlobal(ds, Test, cursor),
+  },
+  Vehicle: {
+    entityKey: 'Vehicle',
+    entityClass: Vehicle,
+    direction: 'READ_ONLY',
+    conditional: false,
+    pull: async (ds, _centreId, cursor) => pullGlobal(ds, Vehicle, cursor),
+  },
+
+  // ─── Bucket C — BIDIRECTIONAL (most-recent-updated_at-wins) ─────────────
+  ChargeCategory: {
+    entityKey: 'ChargeCategory',
+    entityClass: ChargeCategory,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    // Global (no centre_id) — every centre sees the same category list.
+    pull: async (ds, _centreId, cursor) => pullGlobal(ds, ChargeCategory, cursor),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, ChargeCategory, cursor),
+  },
+  Line: {
+    entityKey: 'Line',
+    entityClass: Line,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) => pullSimple(ds, Line, 'centre_id', centreId, cursor),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Line, cursor),
+  },
+  Camera: {
+    entityKey: 'Camera',
+    entityClass: Camera,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    // Camera has no centre_id of its own — scoped via CameraLineMapping -> Line.centre_id.
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(Camera).createQueryBuilder('e')
+        .innerJoin(CameraLineMapping, 'clm', 'clm.camera_id = e.id AND clm.is_deleted = false')
+        .innerJoin(Line, 'l', 'l.id = clm.line_id AND l.centre_id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Camera, cursor),
+  },
+  CameraLineMapping: {
+    entityKey: 'CameraLineMapping',
+    entityClass: CameraLineMapping,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(CameraLineMapping).createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, CameraLineMapping, cursor),
+  },
+  AdminPc: {
+    entityKey: 'AdminPc',
+    entityClass: AdminPc,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) => pullSimple(ds, AdminPc, 'center_id', centreId, cursor),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, AdminPc, cursor),
+  },
+  AdminPcLineMapping: {
+    entityKey: 'AdminPcLineMapping',
+    entityClass: AdminPcLineMapping,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(AdminPcLineMapping).createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, AdminPcLineMapping, cursor),
+  },
+  Charge: {
+    entityKey: 'Charge',
+    entityClass: Charge,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) => pullSimple(ds, Charge, 'centre_id', centreId, cursor),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Charge, cursor),
+  },
+  User: {
+    entityKey: 'User',
+    entityClass: User,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) => pullSimple(ds, User, 'center_id', centreId, cursor),
+    // Excludes re-scoped Super Admin copies (requires_central_revalidation) —
+    // that row shares the real central Super Admin's PK; pushing it would
+    // corrupt their role_id/center_id centrally. See onboarding-central.service.ts.
+    pushLocal: async (ds, cursor) =>
+      ds.getRepository(User).createQueryBuilder('e')
+        .where('e.updated_at > :cursor', { cursor })
+        .andWhere('e.requires_central_revalidation = false')
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+  },
+  UserLineMapping: {
+    entityKey: 'UserLineMapping',
+    entityClass: UserLineMapping,
+    direction: 'BIDIRECTIONAL',
+    conditional: true,
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(UserLineMapping).createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
+    pushLocal: async (ds, cursor) => pullGlobal(ds, UserLineMapping, cursor),
+  },
+
+  // ─── Bucket B — WRITE_ONLY (centre → central, no conflict possible) ────
+  Customer: {
+    entityKey: 'Customer',
+    entityClass: Customer,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Customer, cursor),
+  },
+  VehicleRecord: {
+    entityKey: 'VehicleRecord',
+    entityClass: VehicleRecord,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, VehicleRecord, cursor),
+  },
+  AnprCapture: {
+    entityKey: 'AnprCapture',
+    entityClass: AnprCapture,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, AnprCapture, cursor),
+  },
+  RopVerification: {
+    entityKey: 'RopVerification',
+    entityClass: RopVerification,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, RopVerification, cursor),
+  },
+  Appointment: {
+    entityKey: 'Appointment',
+    entityClass: Appointment,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Appointment, cursor),
+  },
+  Job: {
+    entityKey: 'Job',
+    entityClass: Job,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Job, cursor),
+  },
+  Payments: {
+    entityKey: 'Payments',
+    entityClass: Payments,
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Payments, cursor),
+  },
+};
+
+/** Fixed pull order — central → centre. Respects dependency chains (Line before Camera/AdminPc mappings, matching the old registry's ordering). */
+export const PULL_ORDER = [
+  'Centre',
+  'Role',
+  'Permission',
+  'RoleCentreMapping',
+  'PaymentType',
+  'Test',
+  'ChargeCategory',
+  'Vehicle',
+  'Line',
+  'Camera',
+  'CameraLineMapping',
+  'AdminPc',
+  'AdminPcLineMapping',
+  'Charge',
+  'User',
+  'UserLineMapping',
+];
+
+/** Fixed push order — centre → central. Bucket C first, then bucket B, matching the original engine's sequence. */
+export const PUSH_ORDER = [
+  'Line',
+  'Charge',
+  'User',
+  'Camera',
+  'CameraLineMapping',
+  'AdminPc',
+  'AdminPcLineMapping',
+  'ChargeCategory',
+  'UserLineMapping',
+  'Customer',
+  'VehicleRecord',
+  'AnprCapture',
+  'RopVerification',
+  'Appointment',
+  'Job',
+  'Payments',
+];
+
+/**
+ * Mapping (join-table) entities have no independent business meaning for
+ * sync direction — they always follow their parent's direction. Kept for
+ * documentation/consistency with the old design; the map above already
+ * hardcodes each mapping entity's own direction identically to its parent,
+ * so no runtime derivation is needed anymore (no config table to derive from).
+ */
+export const MAPPING_ENTITY_PARENT: Record<string, string> = {
+  RoleCentreMapping: 'Role',
+  CameraLineMapping: 'Camera',
+  AdminPcLineMapping: 'AdminPc',
+  UserLineMapping: 'User',
+};

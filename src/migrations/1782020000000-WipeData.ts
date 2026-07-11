@@ -20,6 +20,8 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  *     row contents, so nulling center_id first is not enough — DELETE is required.
  *   - `appointments.payment_id ↔ payments.appointment_id` form a circular FK, so
  *     we null those link columns before deleting, then delete child→parent.
+ *   - `anpr_captures.rop_verification_id ↔ rop_verifications.anpr_capture_id` is
+ *     the same shape of circular FK — anpr_captures' link is nulled first.
  *
  * Note: row deletes do not reset identity sequences, but the numeric *_id values
  * (anpr_capture_id, charge_id, …) are derived as MAX(col)+1 by the DAOs, so they
@@ -32,11 +34,15 @@ export class WipeData1782020000000 implements MigrationInterface {
 
   /** Tables to wipe, ordered child → parent so plain DELETEs satisfy every FK. */
   private static readonly WIPE_ORDER = [
-    // transaction (+ master.payments) — deepest dependents first
-    '"transaction"."payment_transactions"',
-    '"master"."payments"',
-    '"transaction"."appointments"',
+    // transaction — deepest dependents first. payments has direct FKs to
+    // jobs/appointments/anpr_captures, so it must be deleted before all three
+    // (it lives in the "transaction" schema, per Payments' @Entity decorator
+    // — NOT "master", despite a same-named legacy/unrelated master.payments
+    // table also existing in some databases).
+    '"transaction"."payments"',
+    // jobs.appointment_id → appointments, so jobs must be deleted first
     '"transaction"."jobs"',
+    '"transaction"."appointments"',
     '"transaction"."rop_verifications"',
     '"transaction"."anpr_captures"',
     '"transaction"."customers"',
@@ -77,12 +83,18 @@ export class WipeData1782020000000 implements MigrationInterface {
     // Break FK links so the ordered DELETEs below never violate a constraint:
     //  - users → centres (keep users, drop the centre link)
     //  - appointments ↔ payments circular reference
+    //  - anpr_captures ↔ rop_verifications circular reference
     if (existing.has('core.users')) {
       await queryRunner.query(`UPDATE "core"."users" SET "center_id" = NULL`);
     }
     if (existing.has('transaction.appointments')) {
       await queryRunner.query(
         `UPDATE "transaction"."appointments" SET "payment_id" = NULL`,
+      );
+    }
+    if (existing.has('transaction.anpr_captures')) {
+      await queryRunner.query(
+        `UPDATE "transaction"."anpr_captures" SET "rop_verification_id" = NULL`,
       );
     }
 

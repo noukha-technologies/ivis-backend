@@ -142,8 +142,16 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "IDX_USER_ROLE_ID" ON "core"."users" ("role_id")`,
     );
     // Multiple users may share the same centre — drop the old unique constraint
-    // and keep a plain index for center_id lookups.
+    // and keep a plain index for center_id lookups. Two historically-different
+    // names have been seen for this same leftover partial-unique index
+    // depending on how a given DB was originally created (a hand-named
+    // "UQ_USER_CENTER_ID" from an early migration, vs. a lowercase/underscore
+    // "UQ_users_center_id" — confirmed live via pg_indexes, see the FK-error
+    // "duplicate key value violates unique constraint UQ_users_center_id"
+    // this fixes) — drop both explicitly so this is idempotent regardless of
+    // which one a given database actually has.
     await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_USER_CENTER_ID"`);
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."UQ_users_center_id"`);
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_USER_CENTER_ID" ON "core"."users" ("center_id")`,
     );
@@ -465,20 +473,52 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       )
     `);
 
-    // sync_state table (Database Sync feature — ongoing, bidirectional,
-    // separate system from Onboarding Sync above) — single-row table
-    // tracking this local DB's pull/push cursors.
+    // sync_state / sync_entity_config (old DB-connection-based Database Sync,
+    // see DATABASE_SYNC_ENTITY_CONFIG_PLAN.md) are retired — replaced by the
+    // HTTPS-only architecture (Database_sync_arch_replan.md). Explicit DROPs
+    // here (not just removed CREATE blocks) so any DB that already ran the
+    // old version of this migration gets cleaned up on next boot too.
+    await queryRunner.query(`DROP TABLE IF EXISTS "core"."sync_entity_config" CASCADE`);
+    await queryRunner.query(`DROP TABLE IF EXISTS "core"."sync_state" CASCADE`);
+
+    // sync_run_log table (new HTTPS-only Database Sync, see
+    // Database_sync_arch_replan.md §10/§11) — append-only history, one row
+    // per sync run, replacing the old single-row sync_state cursor table.
     await queryRunner.query(`
-      CREATE TABLE IF NOT EXISTS "core"."sync_state" (
-        "id"               bigint                NOT NULL,
-        "last_pulled_at"   TIMESTAMP,
-        "last_pushed_at"   TIMESTAMP,
-        "last_sync_status" character varying(16),
-        "last_error"       character varying,
-        "created_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
-        "updated_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
-        CONSTRAINT "PK_sync_state_id" PRIMARY KEY ("id")
+      CREATE TABLE IF NOT EXISTS "core"."sync_run_log" (
+        "id"          bigint                NOT NULL,
+        "started_at"  TIMESTAMP             NOT NULL,
+        "finished_at" TIMESTAMP,
+        "status"      character varying(16) NOT NULL DEFAULT 'IN_PROGRESS',
+        "pushed"      jsonb                 NOT NULL DEFAULT '{}',
+        "pulled"      jsonb                 NOT NULL DEFAULT '{}',
+        "error"       character varying,
+        "created_at"  TIMESTAMP             NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_sync_run_log_id" PRIMARY KEY ("id")
       )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_SYNC_RUN_LOG_STARTED_AT"
+      ON "core"."sync_run_log" ("started_at")
+    `);
+
+    // centre_api_keys table (central-side only — see
+    // Database_sync_arch_replan.md §4/§5) — per-centre API key hash, minted
+    // at the end of that centre's Onboarding Sync pull, used to authenticate
+    // every subsequent Database Sync run via ApiKeyGuard.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."centre_api_keys" (
+        "id"          bigint    NOT NULL,
+        "centre_id"   bigint    NOT NULL,
+        "key_hash"    character varying NOT NULL,
+        "created_at"  TIMESTAMP NOT NULL DEFAULT NOW(),
+        "revoked_at"  TIMESTAMP,
+        CONSTRAINT "PK_centre_api_keys_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_CENTRE_API_KEYS_CENTRE_ID"
+      ON "core"."centre_api_keys" ("centre_id")
     `);
   }
 
@@ -1782,7 +1822,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
 
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
-      `DROP TABLE IF EXISTS "core"."sync_state" CASCADE`,
+      `DROP TABLE IF EXISTS "core"."centre_api_keys" CASCADE`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."sync_run_log" CASCADE`,
     );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."onboarding_status" CASCADE`,

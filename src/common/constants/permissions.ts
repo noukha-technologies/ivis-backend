@@ -75,10 +75,6 @@ export const PermissionKeys = {
   CONFIGURATION_VIEW: 'CONFIGURATION_VIEW',
   CONFIGURATION_UPSERT: 'CONFIGURATION_UPSERT',
   FILE_PROCESSING_VIEW: 'FILE_PROCESSING_VIEW',
-
-  // Database Sync (ongoing, bidirectional — see DATABASE_SYNC_PLAN.md)
-  SYNC_VIEW: 'SYNC_VIEW',
-  SYNC_TRIGGER: 'SYNC_TRIGGER',
 } as const;
 
 export type PermissionKey =
@@ -150,9 +146,6 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.CONFIGURATION_UPSERT]:
     'Create or update centre configuration',
   [PermissionKeys.FILE_PROCESSING_VIEW]: 'View and manage file processing',
-
-  [PermissionKeys.SYNC_VIEW]: 'View Database Sync status',
-  [PermissionKeys.SYNC_TRIGGER]: 'Manually trigger Database Sync',
 };
 
 /** DB seed rows derived from PermissionKeys + PERMISSION_DESCRIPTIONS */

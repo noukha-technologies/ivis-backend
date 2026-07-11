@@ -40,6 +40,7 @@ import { User } from '../../database/entity/user.entity';
 import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
 import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
 import { OnboardingService } from '../../onboarding/service/onboarding.service';
+import { CentralOnboardingHttpClientService } from '../../onboarding/service/central-onboarding-http-client.service';
 import { AppLogger } from '../../../common/logger/app.logger';
 import { IAuthService } from './auth-service.interface';
 
@@ -59,6 +60,7 @@ export class AuthService implements IAuthService {
     private readonly permissionDao: PermissionDao,
     private readonly onboardingStatusDao: OnboardingStatusDao,
     private readonly onboardingService: OnboardingService,
+    private readonly centralOnboardingClient: CentralOnboardingHttpClientService,
     private readonly logger: AppLogger,
     private readonly configService: ConfigService,
   ) {
@@ -115,57 +117,50 @@ export class AuthService implements IAuthService {
   }
 
   /**
-   * A re-scoped Super Admin row: re-verify against the central password when
-   * central is reachable (source of truth — catches revocation/password
-   * changes), falling back to the local hash when it's not (offline
-   * resilience). Never throws CENTRAL_DB_UNAVAILABLE — a re-scoped row can
-   * already log in locally, so an unreachable central DB degrades to that,
-   * it never blocks the attempt.
+   * A re-scoped Super Admin row: re-verify against central when reachable
+   * (source of truth — catches revocation/password changes), falling back
+   * to the local hash when it's not (offline resilience). Password
+   * verification is now fully central-side (see verify-central endpoint) —
+   * the centre never receives a hash, only a valid/invalid boolean. Never
+   * throws CENTRAL_DB_UNAVAILABLE — a re-scoped row can already log in
+   * locally, so an unreachable central degrades to that, never blocks.
    */
   private async loginReScopedSuperAdmin(
     localUser: User,
     password: string,
   ): Promise<LoginResponseDto> {
-    let centralUser: User | null = null;
+    let verifyResult: { valid: boolean } | null = null;
     try {
-      centralUser = await this.onboardingService.findCentralUserWithPassword(
-        localUser.email,
-      );
+      verifyResult = await this.centralOnboardingClient.verifyCentral(localUser.email, password);
     } catch (error) {
       this.logger.warn(
-        `Central DB unreachable while re-validating Super Admin ${localUser.email} — falling back to local credentials: ${
+        `Central unreachable while re-validating Super Admin ${localUser.email} — falling back to local credentials: ${
           error instanceof Error ? error.message : String(error)
         }`,
         'AuthService',
       );
     }
 
-    if (centralUser?.password) {
-      const centralMatches = await this.onboardingService.verifyCentralPassword(
-        centralUser,
-        password,
-      );
-      if (!centralMatches) {
+    if (verifyResult) {
+      if (!verifyResult.valid) {
         throw new ErrorException('INVALID_USER');
       }
       return this.buildSuccessResponse(localUser);
     }
 
-    // Central unreachable, or the account no longer exists there — offline fallback.
+    // Central unreachable — offline fallback.
     return this.loginLocalOnly(localUser, password);
   }
 
   private async loginNotFoundLocally(
     request: LoginRequestDto,
   ): Promise<LoginResponseDto> {
-    let centralUser;
+    let verifyResult;
     try {
-      centralUser = await this.onboardingService.findCentralUserWithPassword(
-        request.email,
-      );
+      verifyResult = await this.centralOnboardingClient.verifyCentral(request.email, request.password);
     } catch (error) {
       this.logger.error(
-        `Central DB unreachable during login for ${request.email}: ${
+        `Central unreachable during login for ${request.email}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,
@@ -174,24 +169,17 @@ export class AuthService implements IAuthService {
       throw new ErrorException('CENTRAL_DB_UNAVAILABLE');
     }
 
-    if (!centralUser?.password) {
+    if (!verifyResult.valid) {
       throw new ErrorException('INVALID_USER');
     }
 
-    const passwordMatches = await this.onboardingService.verifyCentralPassword(
-      centralUser,
-      request.password,
-    );
-    if (!passwordMatches) {
-      throw new ErrorException('INVALID_USER');
-    }
-
-    if (isGlobalScope(centralUser.role?.access_scope)) {
-      return this.loginSuperAdmin(centralUser);
+    if (verifyResult.isGlobalScope) {
+      return this.loginSuperAdmin(request.email);
     }
 
     const result = await this.onboardingService.ensureOnboarded(
-      centralUser,
+      request.email,
+      request.password,
       request.confirmOnboarding ?? false,
       request.selectedSuperAdminIds,
     );
@@ -231,10 +219,12 @@ export class AuthService implements IAuthService {
    * centre-less user); once it is, the Super Admin is silently re-scoped to
    * that centre's own centre-admin role and logged in.
    */
-  private async loginSuperAdmin(
-    centralUser: User,
-  ): Promise<LoginResponseDto> {
+  private async loginSuperAdmin(email: string): Promise<LoginResponseDto> {
     if (process.env.NODE_ROLE === 'central') {
+      const centralUser = await this.usersDao.findByEmailWithPassword(email);
+      if (!centralUser?.password) {
+        throw new ErrorException('INVALID_USER');
+      }
       return this.buildSuccessResponse(centralUser);
     }
 
@@ -244,13 +234,10 @@ export class AuthService implements IAuthService {
     }
 
     try {
-      await this.onboardingService.syncReScopedSuperAdmin(
-        centralUser,
-        status.centre_id,
-      );
+      await this.onboardingService.syncReScopedSuperAdmin(email, status.centre_id);
     } catch (error) {
       this.logger.error(
-        `Failed to re-scope Super Admin ${centralUser.email} into centre ${status.centre_id}: ${
+        `Failed to re-scope Super Admin ${email} into centre ${status.centre_id}: ${
           error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,
@@ -262,9 +249,7 @@ export class AuthService implements IAuthService {
       );
     }
 
-    const localUser = await this.usersDao.findByEmailWithPassword(
-      centralUser.email,
-    );
+    const localUser = await this.usersDao.findByEmailWithPassword(email);
     if (!localUser?.password) {
       throw new ErrorException('SOMETHING_WENT_WRONG');
     }

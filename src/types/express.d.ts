@@ -4,6 +4,8 @@ declare global {
   namespace Express {
     interface Request {
       user?: UserContext;
+      /** Set by ApiKeyGuard — the authenticated centre's id, for /sync/** machine-to-machine routes. */
+      centreId?: string;
     }
   }
 }

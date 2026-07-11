@@ -5,10 +5,10 @@
  * See ONBOARDING_DB_SYNC_ARCHITECTURE.md and SUPER_ADMIN_ONBOARDING_FIX_PLAN.md.
  *
  * IMPORTANT: this needs a WRITABLE Postgres role against the central
- * database. The app's own CENTRAL_DB_* connection is documented/enforced as
- * read-only (see central-database.config.ts) — this script builds its own
- * DataSource from the same-shaped env vars, so point them at writable
- * credentials only while running this script, never in the running app.
+ * database. Unrelated to the app's own CENTRAL_SYNC_API_URL/KEY (HTTPS-only
+ * sync, see Database_sync_arch_replan.md) — this script builds its own
+ * direct DataSource from CENTRAL_DB_*-shaped env vars, since it runs once,
+ * by hand, directly against the central box's own local Postgres.
  *
  * Does NOT run migrations — the central database is expected to already
  * have the schema (it's a normal ivis-backend database in its own right).

@@ -1,38 +1,88 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SYNC_STATUS_VALUES, SyncStatusValue } from '../../modules/database/entity/sync-state.entity';
+import { IsArray, IsDateString, IsInt, IsObject, IsOptional, IsString } from 'class-validator';
 
-export class SyncStatusDto {
-  @ApiPropertyOptional({ description: 'Last successful (or partial) pull cursor' })
-  last_pulled_at?: Date | null;
+/** One entity's chunk of rows being pushed centre → central. See Database_sync_arch_replan.md §3a/§7. */
+export class SyncPushChunkDto {
+  @ApiProperty()
+  @IsString()
+  runId!: string;
 
-  @ApiPropertyOptional({ description: 'Last successful (or partial) push cursor' })
-  last_pushed_at?: Date | null;
+  @ApiProperty()
+  @IsString()
+  entityKey!: string;
 
-  @ApiPropertyOptional({ enum: SYNC_STATUS_VALUES })
-  last_sync_status?: SyncStatusValue | null;
+  @ApiProperty()
+  @IsInt()
+  chunkIndex!: number;
 
-  @ApiPropertyOptional()
-  last_error?: string | null;
+  @ApiProperty({ type: 'array', items: { type: 'object' } })
+  @IsArray()
+  @IsObject({ each: true })
+  rows!: Record<string, unknown>[];
 }
 
-export class SyncTriggerResponseDto {
-  @ApiProperty({ enum: ['SUCCESS', 'PARTIAL', 'FAILED'] })
-  status!: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+export class SyncPushChunkResponseDto {
+  @ApiProperty()
+  accepted!: number;
 
-  @ApiProperty({
-    description: 'Rows pulled from central per entity',
-    type: 'object',
-    additionalProperties: { type: 'number' },
-  })
-  pulled!: Record<string, number>;
-
-  @ApiProperty({
-    description: 'Rows pushed to central per entity',
-    type: 'object',
-    additionalProperties: { type: 'number' },
-  })
-  pushed!: Record<string, number>;
+  @ApiProperty()
+  hasMore!: boolean;
 
   @ApiPropertyOptional()
-  error?: string;
+  nextChunkIndex?: number;
+}
+
+/** Requests the next chunk of one entity's rows, central → centre. */
+export class SyncPullChunkDto {
+  @ApiProperty()
+  @IsString()
+  runId!: string;
+
+  @ApiProperty()
+  @IsString()
+  entityKey!: string;
+
+  @ApiPropertyOptional({ description: 'ISO timestamp cursor — rows strictly newer than this.' })
+  @IsOptional()
+  @IsDateString()
+  cursor?: string;
+}
+
+export class SyncPullChunkResponseDto {
+  @ApiProperty({ type: 'array', items: { type: 'object' } })
+  rows!: Record<string, unknown>[];
+
+  @ApiProperty()
+  hasMore!: boolean;
+
+  @ApiPropertyOptional()
+  nextCursor?: string | null;
+}
+
+export class SyncStartRunResponseDto {
+  @ApiProperty()
+  runId!: string;
+}
+
+export class SyncRunLogDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  started_at!: Date;
+
+  @ApiPropertyOptional()
+  finished_at?: Date | null;
+
+  @ApiProperty({ enum: ['IN_PROGRESS', 'SUCCESS', 'PARTIAL', 'FAILED'] })
+  status!: string;
+
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } })
+  pushed!: Record<string, number>;
+
+  @ApiProperty({ type: 'object', additionalProperties: { type: 'number' } })
+  pulled!: Record<string, number>;
+
+  @ApiPropertyOptional()
+  error?: string | null;
 }

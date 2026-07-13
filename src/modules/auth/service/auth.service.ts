@@ -96,11 +96,20 @@ export class AuthService implements IAuthService {
     );
 
     if (localUser?.password) {
+      this.logger.log(
+        `login: ${request.email} found locally` +
+          (localUser.requires_central_revalidation ? ' (requires central revalidation)' : ' (local-only)'),
+        'AuthService',
+      );
       return localUser.requires_central_revalidation
         ? this.loginReScopedSuperAdmin(localUser, request.password)
         : this.loginLocalOnly(localUser, request.password);
     }
 
+    this.logger.log(
+      `login: ${request.email} not found locally — falling back to central onboarding flow`,
+      'AuthService',
+    );
     return this.loginNotFoundLocally(request);
   }
 
@@ -168,6 +177,12 @@ export class AuthService implements IAuthService {
       );
       throw new ErrorException('CENTRAL_DB_UNAVAILABLE');
     }
+
+    this.logger.log(
+      `verify-central result for ${request.email}: valid=${verifyResult.valid}` +
+        (verifyResult.valid ? `, isGlobalScope=${verifyResult.isGlobalScope}` : ''),
+      'AuthService',
+    );
 
     if (!verifyResult.valid) {
       throw new ErrorException('INVALID_USER');

@@ -1,13 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { AppLogger } from '../../../common/logger/app.logger';
 
+export interface OnboardingSuperAdminCandidate {
+  id: string;
+  email: string;
+  user_name: string;
+}
+
 export interface OnboardingConfirmResult {
   status: 'CONFIRMATION_REQUIRED';
   centreId: string;
   centreName: string;
   centreCode: string;
   centreAdminRoleExists: boolean;
-  availableSuperAdminIds: string[];
+  availableSuperAdmins: OnboardingSuperAdminCandidate[];
   pullToken: string;
 }
 
@@ -100,9 +106,16 @@ export class CentralOnboardingHttpClientService {
   }
 
   private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const url = `${this.baseUrl()}${path}`;
+    // Never log the raw body as-is — it can carry a plaintext password
+    // (verify-central, confirm). Log only non-sensitive fields.
+    const safeBody = { ...body };
+    if ('password' in safeBody) safeBody.password = '<redacted>';
+    this.logger.log(`--> POST ${url} ${JSON.stringify(safeBody)}`, CentralOnboardingHttpClientService.context);
+
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl()}${path}`, {
+      res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
         body: JSON.stringify(body),
@@ -120,6 +133,11 @@ export class CentralOnboardingHttpClientService {
       throw new Error(message);
     }
 
-    return (await res.json()) as T;
+    const envelope = (await res.json()) as { data?: T };
+    this.logger.log(`<-- POST ${url} 200 ${JSON.stringify(envelope)}`, CentralOnboardingHttpClientService.context);
+    // Central wraps every response in the standard {success, data, ...}
+    // envelope (see common/interceptors/response.interceptor.ts) — unwrap it
+    // here, mirroring the frontend's unwrapData().
+    return envelope.data as T;
   }
 }

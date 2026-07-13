@@ -219,25 +219,14 @@ export class OnboardingService {
     centreName: string;
     centreCode: string;
     centreAdminRoleExists: boolean;
-    availableSuperAdminIds: string[];
+    availableSuperAdmins: { id: string; email: string; user_name: string }[];
   }): OnboardingCentreInfo {
     return {
       id: confirmResult.centreId,
       name: confirmResult.centreName,
       code: confirmResult.centreCode,
       centreAdminRoleExists: confirmResult.centreAdminRoleExists,
-      // The confirm response only carries ids (see verify-central/confirm
-      // DTOs) — email/user_name enrichment isn't available without another
-      // round trip. The admin UI only needs ids to build the selection
-      // payload it sends back, so this is sufficient; display-name lookup
-      // for the picker itself would need a small follow-up if the frontend
-      // wants richer labels than "id" (out of scope for this migration —
-      // matches this doc's "no frontend changes needed" note).
-      availableSuperAdmins: confirmResult.availableSuperAdminIds.map((id) => ({
-        id,
-        email: '',
-        user_name: '',
-      })),
+      availableSuperAdmins: confirmResult.availableSuperAdmins,
     };
   }
 
@@ -308,6 +297,18 @@ export class OnboardingService {
         const response = await this.centralClient.pullChunk(pullSessionId, entityKey, cursor);
         if (!response.rows.length) break;
 
+        // On-demand cross-centre FK top-up MUST happen before this chunk's
+        // own insert, using the chunk's own rows to know what's referenced —
+        // reading back what's already local (as an earlier version of this
+        // method did) is too late, since the FK violation already happened
+        // by the time anything could be read back.
+        if (entityKey === 'User') {
+          await this.topUpForeignRoles(pullSessionId, response.rows, syncedRoleIds);
+        }
+        if (entityKey === 'UserLineMapping') {
+          await this.topUpForeignLines(pullSessionId, response.rows, syncedLineIds);
+        }
+
         await this.dataSource.transaction(async (manager) => {
           await this.upsertRows(manager, entityClass, response.rows as ObjectLiteral[]);
         });
@@ -325,15 +326,6 @@ export class OnboardingService {
       }
 
       this.logger.log(`Onboarding sync: ${total} ${entityKey} row(s)`, OnboardingService.context);
-
-      // On-demand cross-centre top-up, right after the entity whose FKs
-      // might reference something foreign has fully landed.
-      if (entityKey === 'User') {
-        await this.topUpForeignRoles(pullSessionId, syncedRoleIds);
-      }
-      if (entityKey === 'UserLineMapping') {
-        await this.topUpForeignLines(pullSessionId, syncedLineIds);
-      }
     }
 
     // Re-scoped Super Admin rows — returned by pull/complete, written
@@ -354,14 +346,23 @@ export class OnboardingService {
   /**
    * A synced User's role_id can reference a Role not owned by this centre
    * (e.g. a shared "Center Admin" role whose primary link is elsewhere).
-   * Reads back what was just written this pull, finds any role_id not in
-   * syncedRoleIds, and top-ups those specific Roles (+ their Permission) via
-   * pullByIds — mirrors the old service's on-demand top-up exactly.
+   * Inspects the User chunk about to be inserted (NOT what's already local —
+   * that would be too late, the insert that needs this top-up hasn't
+   * happened yet), finds any role_id not in syncedRoleIds, and top-ups those
+   * specific Roles (+ their Permission) via pullByIds before the caller
+   * inserts the User chunk.
    */
-  private async topUpForeignRoles(pullSessionId: string, syncedRoleIds: Set<string>): Promise<void> {
-    const localUsers = await this.dataSource.getRepository(User).find();
+  private async topUpForeignRoles(
+    pullSessionId: string,
+    userRows: Record<string, unknown>[],
+    syncedRoleIds: Set<string>,
+  ): Promise<void> {
     const missingRoleIds = [
-      ...new Set(localUsers.map((u) => u.role_id).filter((id) => id && !syncedRoleIds.has(id))),
+      ...new Set(
+        userRows
+          .map((u) => u.role_id as string | undefined)
+          .filter((id): id is string => Boolean(id) && !syncedRoleIds.has(id!)),
+      ),
     ];
     if (!missingRoleIds.length) return;
 
@@ -388,12 +389,20 @@ export class OnboardingService {
   /**
    * Same idea for UserLineMapping -> Line -> (that Line's own) Centre — a
    * mapped user's line can belong to a different centre than the one being
-   * onboarded.
+   * onboarded. Inspects the UserLineMapping chunk about to be inserted, not
+   * what's already local, for the same reason as topUpForeignRoles above.
    */
-  private async topUpForeignLines(pullSessionId: string, syncedLineIds: Set<string>): Promise<void> {
-    const localMappings = await this.dataSource.getRepository(UserLineMapping).find();
+  private async topUpForeignLines(
+    pullSessionId: string,
+    mappingRows: Record<string, unknown>[],
+    syncedLineIds: Set<string>,
+  ): Promise<void> {
     const missingLineIds = [
-      ...new Set(localMappings.map((m) => m.line_id).filter((id) => id && !syncedLineIds.has(id))),
+      ...new Set(
+        mappingRows
+          .map((m) => m.line_id as string | undefined)
+          .filter((id): id is string => Boolean(id) && !syncedLineIds.has(id!)),
+      ),
     ];
     if (!missingLineIds.length) return;
 

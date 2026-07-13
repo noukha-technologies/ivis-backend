@@ -89,6 +89,10 @@ export class CentralSyncHttpClientService {
       throw new Error(message);
     }
 
-    return (await res.json()) as T;
+    const envelope = (await res.json()) as { data?: T };
+    // Central wraps every response in the standard {success, data, ...}
+    // envelope (see common/interceptors/response.interceptor.ts) — unwrap it
+    // here, mirroring the frontend's unwrapData().
+    return envelope.data as T;
   }
 }

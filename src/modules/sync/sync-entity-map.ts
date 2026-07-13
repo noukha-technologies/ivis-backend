@@ -246,12 +246,27 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: User,
     direction: 'BIDIRECTIONAL',
     conditional: true,
-    pull: async (ds, centreId, cursor) => pullSimple(ds, User, 'center_id', centreId, cursor),
+    // User.password has select:false (excluded from plain queries so it
+    // never leaks into normal API responses) — must be explicitly
+    // .addSelect()'d here, or every synced User row lands locally with a
+    // NULL password and can never log in locally afterward. The HASH
+    // travels over the wire deliberately (bucket C, bidirectional) so a
+    // centre can log a synced user in offline; this is unrelated to
+    // verify-central's separate "never send a plaintext password" rule.
+    pull: async (ds, centreId, cursor) =>
+      ds.getRepository(User).createQueryBuilder('e')
+        .addSelect('e.password')
+        .where('e.center_id = :centreId', { centreId })
+        .andWhere('e.updated_at > :cursor', { cursor })
+        .orderBy('e.updated_at', 'ASC')
+        .limit(CHUNK_SIZE)
+        .getMany(),
     // Excludes re-scoped Super Admin copies (requires_central_revalidation) —
     // that row shares the real central Super Admin's PK; pushing it would
     // corrupt their role_id/center_id centrally. See onboarding-central.service.ts.
     pushLocal: async (ds, cursor) =>
       ds.getRepository(User).createQueryBuilder('e')
+        .addSelect('e.password')
         .where('e.updated_at > :cursor', { cursor })
         .andWhere('e.requires_central_revalidation = false')
         .orderBy('e.updated_at', 'ASC')
@@ -328,8 +343,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
 /** Fixed pull order — central → centre. Respects dependency chains (Line before Camera/AdminPc mappings, matching the old registry's ordering). */
 export const PULL_ORDER = [
   'Centre',
-  'Role',
   'Permission',
+  'Role',
   'RoleCentreMapping',
   'PaymentType',
   'Test',

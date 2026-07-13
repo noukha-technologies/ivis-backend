@@ -14,6 +14,7 @@ import { RoleCentreMapping } from '../../database/entity/role-centre-mapping.ent
 import { Permission } from '../../database/entity/permission.entity';
 import { Line } from '../../database/entity/line.entity';
 import { Centre } from '../../database/entity/centre.entity';
+import { User } from '../../database/entity/user.entity';
 import { SYNC_ENTITY_MAP, CHUNK_SIZE } from '../../sync/sync-entity-map';
 
 /** Entities the by-ids top-up endpoint supports — only what onboarding's cross-centre FK top-up actually needs. */
@@ -38,13 +39,13 @@ const PULL_SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes — large datasets can
  */
 export const ONBOARDING_PULL_ORDER = [
   'Centre',
-  'Role',
   'Permission',
+  'Role',
   'RoleCentreMapping',
   'PaymentType',
   'Test',
-  'Vehicle',
   'ChargeCategory',
+  'Vehicle',
   'Line',
   'Camera',
   'CameraLineMapping',
@@ -162,7 +163,11 @@ export class OnboardingCentralService {
       centreName: centre.name,
       centreCode: centre.code,
       centreAdminRoleExists: centreAdminRole,
-      availableSuperAdminIds: availableSuperAdmins.map((u) => u.id),
+      availableSuperAdmins: availableSuperAdmins.map((u) => ({
+        id: u.id,
+        email: u.email,
+        user_name: u.user_name,
+      })),
       pullToken,
     };
   }
@@ -307,7 +312,17 @@ export class OnboardingCentralService {
     if (!centreAdminRole) {
       throw new Error(`No centre-admin role found for centre ${centreId}`);
     }
-    const superAdmin = await this.usersDao.findActiveById(superAdminId);
+    // findActiveById excludes password (select: false, see users.dao.ts) —
+    // must be fetched explicitly here, or the re-scoped row lands locally
+    // with a NULL password and the offline fallback in
+    // AuthService.loginReScopedSuperAdmin can never work.
+    const superAdmin = await this.dataSource
+      .getRepository(User)
+      .createQueryBuilder('user')
+      .addSelect('user.password')
+      .where('user.id = :id', { id: superAdminId })
+      .andWhere('user.is_deleted = false')
+      .getOne();
     if (!superAdmin) {
       throw new Error(`Super Admin ${superAdminId} not found`);
     }

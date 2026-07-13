@@ -66,6 +66,17 @@ export class OnboardingConfirmRequestDto {
   password!: string;
 }
 
+export class OnboardingSuperAdminCandidateDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  email!: string;
+
+  @ApiProperty()
+  user_name!: string;
+}
+
 export class OnboardingConfirmResponseDto {
   @ApiProperty({ enum: ['CONFIRMATION_REQUIRED'] })
   status!: 'CONFIRMATION_REQUIRED';
@@ -82,8 +93,11 @@ export class OnboardingConfirmResponseDto {
   @ApiProperty({ description: 'Availability of an is_center_admin role centrally.' })
   centreAdminRoleExists!: boolean;
 
-  @ApiProperty({ type: [String], description: 'Central Super Admin user ids eligible for re-scoping.' })
-  availableSuperAdminIds!: string[];
+  @ApiProperty({
+    type: [OnboardingSuperAdminCandidateDto],
+    description: 'Central Super Admin accounts eligible for re-scoping into this centre.',
+  })
+  availableSuperAdmins!: OnboardingSuperAdminCandidateDto[];
 
   @ApiProperty({ description: 'Short-lived token authorizing the subsequent /onboarding/pull/* calls for this centre.' })
   pullToken!: string;

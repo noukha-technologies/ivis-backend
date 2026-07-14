@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { DataSource } from 'typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
 
 import { Job } from './entity/job.entity';
@@ -31,6 +32,7 @@ import { Configurations } from './entity/configuration.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
 import { SyncRunLog } from './entity/sync-run-log.entity';
 import { CentreApiKey } from './entity/centre-api-key.entity';
+import { AuditLog } from './entity/audit-log.entity';
 
 import { JobDao } from './dao/job.dao';
 import { RoleDao } from './dao/role.dao';
@@ -60,6 +62,8 @@ import { ConfigurationDao } from './dao/configuration.dao';
 import { OnboardingStatusDao } from './dao/onboarding-status.dao';
 import { SyncRunLogDao } from './dao/sync-run-log.dao';
 import { CentreApiKeyDao } from './dao/centre-api-key.dao';
+import { AuditLogDao } from './dao/audit-log.dao';
+import { AuditLogSubscriber } from './subscribers/audit-log.subscriber';
 import { SchemaBootstrapService } from './service/schema-bootstrap.service';
 
 @Global()
@@ -75,6 +79,14 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
           ...dbConfig,
           autoLoadEntities: true,
         };
+      },
+      dataSourceFactory: async (options) => {
+        const dataSource = new DataSource(options!);
+        await dataSource.initialize();
+        // Host Postgres often defaults to Asia/Calcutta; force UTC so TIMESTAMP /
+        // NOW() and timestamptz round-trips match the admin GST display.
+        await dataSource.query(`SET TIME ZONE 'UTC'`);
+        return dataSource;
       },
     }),
     TypeOrmModule.forFeature([
@@ -106,6 +118,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
       RoleCentreMapping,
       SyncRunLog,
       CentreApiKey,
+      AuditLog,
     ]),
   ],
   providers: [
@@ -137,6 +150,8 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     OnboardingStatusDao,
     SyncRunLogDao,
     CentreApiKeyDao,
+    AuditLogDao,
+    AuditLogSubscriber,
     SchemaBootstrapService,
   ],
   exports: [
@@ -169,6 +184,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     OnboardingStatusDao,
     SyncRunLogDao,
     CentreApiKeyDao,
+    AuditLogDao,
     SchemaBootstrapService,
   ],
 })

@@ -35,7 +35,7 @@ export type TransactionsSubmodule =
   | 'customers'
   | 'file_processing'
   | 'rop_management';
-export type UserManagementSubmodule = 'users' | 'roles' | 'permissions';
+export type UserManagementSubmodule = 'users' | 'roles' | 'permissions' | 'audit_logs';
 
 export type RoleAccessMatrix = {
   dashboard: ModuleCrudFlags;
@@ -71,6 +71,7 @@ export const USER_MANAGEMENT_SUBMODULES: UserManagementSubmodule[] = [
   'users',
   'roles',
   'permissions',
+  'audit_logs',
 ];
 
 export const FLAT_MODULES = [

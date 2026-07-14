@@ -16,7 +16,7 @@ import {
   matrixFromFlatPermissions,
   resolveFlatPermissionsFromMatrix,
 } from '../../../common/auth/role-permissions';
-import { ALL_PERMISSION_KEYS } from '../../../common/constants/permissions';
+import { ALL_PERMISSION_KEYS, PermissionKeys } from '../../../common/constants/permissions';
 import {
   DEFAULT_ACCESS_SCOPE,
   isGlobalScope,
@@ -478,25 +478,32 @@ export class AuthService implements IAuthService {
   private async resolveUserPermissions(user: User): Promise<string[]> {
     // A global-scope role (Super Admin) always has every permission — this keeps
     // full access correct even for permission keys not surfaced in the matrix.
+    let permissions: string[];
     if (isGlobalScope(user.role?.access_scope)) {
-      return [...ALL_PERMISSION_KEYS];
-    }
-
-    const access = user.role?.permission?.access;
-    if (access && user.role?.permission?.is_active !== false) {
-      return resolveFlatPermissionsFromMatrix(access);
-    }
-
-    if (user.role_id) {
-      const role = await this.roleDao.findActiveByIdWithPermission(
-        user.role_id,
-      );
-      if (role?.permission?.access && role.permission.is_active) {
-        return resolveFlatPermissionsFromMatrix(role.permission.access);
+      permissions = [...ALL_PERMISSION_KEYS];
+    } else {
+      const access = user.role?.permission?.access;
+      if (access && user.role?.permission?.is_active !== false) {
+        permissions = resolveFlatPermissionsFromMatrix(access);
+      } else if (user.role_id) {
+        const role = await this.roleDao.findActiveByIdWithPermission(
+          user.role_id,
+        );
+        if (role?.permission?.access && role.permission.is_active) {
+          permissions = resolveFlatPermissionsFromMatrix(role.permission.access);
+        } else {
+          permissions = [];
+        }
+      } else {
+        permissions = [];
       }
     }
 
-    return [];
+    // Audit logs are visible to every authenticated user.
+    if (!permissions.includes(PermissionKeys.AUDIT_VIEW)) {
+      permissions = [...permissions, PermissionKeys.AUDIT_VIEW];
+    }
+    return permissions;
   }
 
   private async issueTokens(

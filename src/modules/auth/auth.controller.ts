@@ -5,6 +5,7 @@ import {
   HttpStatus,
   Param,
   Post,
+  Req,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -13,6 +14,7 @@ import {
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Request } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Permissions } from '../../common/decorators/permissions.decorator';
@@ -25,12 +27,17 @@ import {
   RefreshTokenRequestDto,
 } from '../../common/dto/auth.dto';
 import type { UserContext } from '../../common/dto/auth.dto';
+import { getRequestMetadata } from '../../common/utils/request-metadata.util';
+import { AuditService } from '../audit-logs/service/audit.service';
 import { AuthService } from './service/auth.service';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly auditService: AuditService,
+  ) {}
 
   @Post('bootstrap')
   @HttpCode(HttpStatus.CREATED)
@@ -51,8 +58,23 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiBody({ type: LoginRequestDto })
   @ApiOkResponse({ type: LoginResponseDto })
-  async login(@Body() body: LoginRequestDto): Promise<LoginResponseDto> {
-    return await this.authService.login(body);
+  async login(
+    @Body() body: LoginRequestDto,
+    @Req() req: Request,
+  ): Promise<LoginResponseDto> {
+    const result = await this.authService.login(body);
+    if (result.status === 'SUCCESS' && result.user) {
+      const meta = getRequestMetadata(req);
+      await this.auditService.log({
+        action: 'LOGIN',
+        description: 'Logged in',
+        userId: result.user.id,
+        userName: result.user.user_name,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.browser !== 'unknown' ? meta.browser : undefined,
+      });
+    }
+    return result;
   }
 
   @Public()
@@ -71,8 +93,20 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiBearerAuth('Bearer')
   @ApiOperation({ summary: 'Logout and invalidate current session' })
-  async logout(@CurrentUser() user: UserContext): Promise<{ message: string }> {
+  async logout(
+    @CurrentUser() user: UserContext,
+    @Req() req: Request,
+  ): Promise<{ message: string }> {
     await this.authService.logout(user);
+    const meta = getRequestMetadata(req);
+    await this.auditService.log({
+      action: 'LOGOUT',
+      description: 'Logged out',
+      userId: user.user.id,
+      userName: user.user.user_name,
+      ipAddress: meta.ipAddress,
+      userAgent: meta.browser !== 'unknown' ? meta.browser : undefined,
+    });
     return { message: 'Logged out successfully' };
   }
 
@@ -85,7 +119,24 @@ export class AuthController {
   async impersonate(
     @CurrentUser() actor: UserContext,
     @Param('userId') userId: string,
+    @Req() req: Request,
   ): Promise<LoginResponseDto> {
-    return await this.authService.impersonate(actor, userId);
+    const result = await this.authService.impersonate(actor, userId);
+    if (result.status === 'SUCCESS' && result.user) {
+      const meta = getRequestMetadata(req);
+      await this.auditService.log({
+        action: 'LOGIN',
+        description: `Logged in as ${result.user.user_name} (impersonation)`,
+        userId: result.user.id,
+        userName: result.user.user_name,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.browser !== 'unknown' ? meta.browser : undefined,
+        after: {
+          impersonated_by: actor.user.id,
+          impersonated_by_name: actor.user.user_name,
+        },
+      });
+    }
+    return result;
   }
 }

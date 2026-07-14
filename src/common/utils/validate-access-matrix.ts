@@ -93,11 +93,28 @@ export function validateAccessMatrix(access: unknown): RoleAccessMatrix {
     }
   }
 
-  // Validate nested submodules for modules that require them
+  // Validate nested submodules for modules that require them.
+  // Normalize first so older matrices missing a newly added submodule
+  // (e.g. audit_logs) get false defaults instead of failing validation.
+  const partiallyNormalized = normalizeRoleAccessMatrix(record);
+
   for (const mod of SUBMODULE_MODULES) {
-    const entry = record[mod] as Record<string, unknown>;
+    const entry = partiallyNormalized[mod] as Record<string, unknown>;
     validateSubmodules(mod, entry['submodules'], SUBMODULE_KEYS[mod]);
+
+    // Reject unknown submodule keys from the original payload
+    const original = (record[mod] as Record<string, unknown> | undefined)
+      ?.submodules as Record<string, unknown> | undefined;
+    if (original) {
+      for (const key of Object.keys(original)) {
+        if (!SUBMODULE_KEYS[mod].includes(key)) {
+          throw new BadRequestException(
+            `Unknown submodule "${key}" in module "${mod}".`,
+          );
+        }
+      }
+    }
   }
 
-  return normalizeRoleAccessMatrix(record);
+  return partiallyNormalized;
 }

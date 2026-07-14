@@ -259,6 +259,7 @@ export class CameraService {
       const camera = await this.findOne(id);
       camera.is_deleted = true;
       await this.cameraDao.save(camera);
+      await this.cameraLineMappingDao.softDeleteByCameraId(id);
       this.logger.log(`Camera soft-deleted ID: ${id}`, CameraService.context);
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {

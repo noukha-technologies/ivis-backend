@@ -208,6 +208,11 @@ export const MODULE_PERMISSION_MAP: Record<string, ModulePermissionEntry> = {
           PermissionKeys.PERMISSIONS_DELETE,
         ],
       },
+      audit_logs: {
+        view: [PermissionKeys.AUDIT_VIEW],
+        create: [],
+        edit: [],
+      },
     },
   },
 };

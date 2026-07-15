@@ -140,6 +140,11 @@ export class UserManagementSubmodulesDto {
   @ValidateNested()
   @Type(() => ModuleCrudFlagsDto)
   permissions!: ModuleCrudFlagsDto;
+
+  @ApiProperty({ type: ModuleCrudFlagsDto })
+  @ValidateNested()
+  @Type(() => ModuleCrudFlagsDto)
+  audit_logs!: ModuleCrudFlagsDto;
 }
 
 export class UserManagementDto extends ModuleCrudFlagsDto {

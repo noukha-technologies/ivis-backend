@@ -13,6 +13,7 @@ import swaggerConfig from './common/swagger/swagger.config';
 import { LoggerModule } from './common/logger/logger.module';
 import { MasterScopeModule } from './common/services/master-scope.module';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
+import { AuditContextMiddleware } from './common/audit/audit-context.middleware';
 import { PaginationModule } from './common/shared/pagination/pagination.module';
 
 import { JobsModule } from './modules/jobs/jobs.module';
@@ -29,6 +30,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
 import { SyncModule } from './modules/sync/sync.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
 
 @Module({
   imports: [
@@ -54,17 +56,19 @@ import { SyncModule } from './modules/sync/sync.module';
     PermissionsModule,
     RolesModule,
     SyncModule,
+    AuditLogsModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
     LoggerMiddleware,
+    AuditContextMiddleware,
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(LoggerMiddleware).forRoutes('*');
+    consumer.apply(AuditContextMiddleware, LoggerMiddleware).forRoutes('*');
   }
 }

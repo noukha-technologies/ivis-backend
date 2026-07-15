@@ -502,6 +502,61 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ON "core"."sync_run_log" ("started_at")
     `);
 
+    // audit_logs — append-only user activity trail (who/what/when/where).
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."audit_logs" (
+        "id"           bigint                 NOT NULL,
+        "user_id"      bigint,
+        "user_name"    character varying(255),
+        "action"       character varying(32)  NOT NULL,
+        "entity_type"  character varying(128),
+        "entity_id"    character varying(64),
+        "description"  character varying(512) NOT NULL,
+        "ip_address"   character varying(64),
+        "user_agent"   character varying(512),
+        "before"       jsonb,
+        "after"        jsonb,
+        "created_at"   TIMESTAMPTZ            NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_audit_logs_id" PRIMARY KEY ("id")
+      )
+    `);
+    // Existing envs created created_at as TIMESTAMP (Asia/Calcutta wall-clock).
+    // Promote to TIMESTAMPTZ interpreting old values as India local so GST/UTC
+    // display matches the real instant (avoids "tomorrow 01:xx GST" skew).
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'core'
+            AND table_name = 'audit_logs'
+            AND column_name = 'created_at'
+            AND data_type = 'timestamp without time zone'
+        ) THEN
+          ALTER TABLE "core"."audit_logs"
+            ALTER COLUMN "created_at" TYPE TIMESTAMPTZ
+            USING "created_at" AT TIME ZONE 'Asia/Kolkata';
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_AUDIT_LOGS_CREATED_AT"
+      ON "core"."audit_logs" ("created_at")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_AUDIT_LOGS_USER_ID"
+      ON "core"."audit_logs" ("user_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_AUDIT_LOGS_ENTITY_TYPE"
+      ON "core"."audit_logs" ("entity_type")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX IF NOT EXISTS "IDX_AUDIT_LOGS_ACTION"
+      ON "core"."audit_logs" ("action")
+    `);
+
     // centre_api_keys table (central-side only — see
     // Database_sync_arch_replan.md §4/§5) — per-centre API key hash, minted
     // at the end of that centre's Onboarding Sync pull, used to authenticate
@@ -1823,6 +1878,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   private async revertCore(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."centre_api_keys" CASCADE`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."audit_logs" CASCADE`,
     );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."sync_run_log" CASCADE`,

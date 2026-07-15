@@ -41,6 +41,8 @@ export interface DatabaseConfig {
   synchronize: boolean;
   logging: LoggerOptions;
   ssl: false | { rejectUnauthorized: boolean };
+  /** Force session TimeZone=UTC so NOW()/timestamps are not host-local (e.g. IST). */
+  extra: { options: string };
 }
 
 export const buildDatabaseOptions = (): DatabaseConfig => {
@@ -56,6 +58,8 @@ export const buildDatabaseOptions = (): DatabaseConfig => {
     synchronize: false,
     logging: parseDbLogging(),
     ssl: sslMode === 'require' ? { rejectUnauthorized: false } : false,
+    // UI displays in Oman GST (UTC+4); values must be true UTC in the DB.
+    extra: { options: '-c TimeZone=UTC' },
   };
 };
 

@@ -26,6 +26,7 @@ import { RoleCentreMapping } from './entity/role-centre-mapping.entity';
 import { OnboardingStatus } from './entity/onboarding-status.entity';
 import { SyncRunLog } from './entity/sync-run-log.entity';
 import { CentreApiKey } from './entity/centre-api-key.entity';
+import { AuditLog } from './entity/audit-log.entity';
 
 // Single source of truth for "every entity in the app" — shared by the
 // migration CLI's AppDataSource and anything else that needs an explicit
@@ -61,6 +62,7 @@ export const APP_ENTITIES = [
   RoleCentreMapping,
   SyncRunLog,
   CentreApiKey,
+  AuditLog,
 ];
 
 export const APP_MIGRATIONS_GLOB = [__dirname + '/../../migrations/*{.ts,.js}'];

@@ -75,6 +75,7 @@ export const PermissionKeys = {
   CONFIGURATION_VIEW: 'CONFIGURATION_VIEW',
   CONFIGURATION_UPSERT: 'CONFIGURATION_UPSERT',
   FILE_PROCESSING_VIEW: 'FILE_PROCESSING_VIEW',
+  AUDIT_VIEW: 'AUDIT_VIEW',
 } as const;
 
 export type PermissionKey =
@@ -146,6 +147,7 @@ export const PERMISSION_DESCRIPTIONS: Record<PermissionKey, string> = {
   [PermissionKeys.CONFIGURATION_UPSERT]:
     'Create or update centre configuration',
   [PermissionKeys.FILE_PROCESSING_VIEW]: 'View and manage file processing',
+  [PermissionKeys.AUDIT_VIEW]: 'View audit logs of user activity',
 };
 
 /** DB seed rows derived from PermissionKeys + PERMISSION_DESCRIPTIONS */

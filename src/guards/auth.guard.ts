@@ -6,6 +6,7 @@ import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { ErrorException } from '../common/errors/custom-error.exception';
 import { verifyAccessToken } from '../common/utils/jwt.util';
 import { AuthService } from '../modules/auth/service/auth.service';
+import { patchAuditContext } from '../common/audit/audit-context';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -51,6 +52,10 @@ export class AuthGuard implements CanActivate {
     }
 
     req.user = userContext;
+    patchAuditContext({
+      userId: userContext.user.id,
+      userName: userContext.user.user_name,
+    });
     return true;
   }
 }

@@ -33,14 +33,30 @@ import {
 } from '../../../common/exceptions/custom.exception';
 
 import { RoleDao } from '../../database/dao/role.dao';
+import { CentreDao } from '../../database/dao/centre.dao';
 import { UsersDao } from '../../database/dao/users.dao';
 import { UserLineMappingDao } from '../../database/dao/user-line-mapping.dao';
+import { User } from '../../database/entity/user.entity';
+import { patchAuditContext } from '../../../common/audit/audit-context';
+import { stashAuditEntityDetails } from '../../../common/audit/audit-entity-details.stash';
+
+type UserAuditDetails = {
+  center_name?: string | null;
+  role_name?: string | null;
+  line_ids?: string[] | null;
+};
+
+type UserAuditEntity = User & {
+  line_ids?: string[];
+  __auditLineIdsBefore?: string[];
+};
 
 @Injectable()
 export class UsersService implements IUsersService {
   private static readonly context = 'UsersService';
   constructor(
     private readonly roleDao: RoleDao,
+    private readonly centreDao: CentreDao,
     private readonly logger: AppLogger,
     private readonly usersDao: UsersDao,
     private readonly masterScope: MasterScopeService,
@@ -131,7 +147,28 @@ export class UsersService implements IUsersService {
         password,
         created_by: createdBy,
       });
-      const savedUser = await this.usersDao.save(user);
+
+      const auditDetails = await this.resolveUserAuditDetails({
+        roleId: role.id,
+        centerId: centreFkId,
+        roleName: role.role_name,
+        lineIds,
+      });
+      Object.assign(user, auditDetails);
+      const auditUser = user as UserAuditEntity;
+      auditUser.line_ids = lineIds;
+      patchAuditContext({ userAuditDetails: { ...auditDetails } });
+      stashAuditEntityDetails('User', user.id, { after: { ...auditDetails } });
+
+      let savedUser: User;
+      try {
+        savedUser = await this.usersDao.save(user);
+      } finally {
+        patchAuditContext({
+          userAuditDetails: null,
+          userAuditDetailsBefore: null,
+        });
+      }
 
       if (lineIds.length > 0) {
         await this.userLineMappingDao.replaceForUser(
@@ -293,6 +330,7 @@ export class UsersService implements IUsersService {
         : undefined;
 
       let roleId: string | undefined;
+      let updatedRoleName: string | undefined;
       let effectiveScope = user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE;
       let effectiveIsCenterAdmin = user.role?.is_center_admin ?? false;
       if (updatedRoleId !== undefined) {
@@ -301,6 +339,7 @@ export class UsersService implements IUsersService {
           throw new ResourceNotFoundException('Role', updatedRoleId);
         }
         roleId = role.id;
+        updatedRoleName = role.role_name;
         effectiveScope = role.access_scope;
         effectiveIsCenterAdmin = role.is_center_admin;
       }
@@ -347,6 +386,8 @@ export class UsersService implements IUsersService {
         }
       }
 
+      const lineIdsBefore = this.extractLineIds(user);
+
       if (hasLinesUpdate) {
         const normalizedLineIds = resolvedLineIds!;
         if (effectiveCentreId) {
@@ -374,6 +415,13 @@ export class UsersService implements IUsersService {
         await this.userLineMappingDao.syncForUser(id, [], createdBy);
       }
 
+      let lineIdsAfter = lineIdsBefore;
+      if (hasLinesUpdate) {
+        lineIdsAfter = resolvedLineIds ?? [];
+      } else if (centreFkId !== undefined && centreFkId !== user.center_id) {
+        lineIdsAfter = [];
+      }
+
       const mergedUser = this.usersDao.merge(user, {
         ...updateFields,
         ...(roleId !== undefined ? { role_id: roleId } : {}),
@@ -396,7 +444,45 @@ export class UsersService implements IUsersService {
       if (centreFkId !== undefined) {
         (mergedUser as { assignedCentre?: unknown }).assignedCentre = undefined;
       }
-      await this.usersDao.save(mergedUser);
+
+      const afterRoleId = roleId !== undefined ? roleId : user.role_id;
+      // Resolve both sides via DAOs so UPDATE diffs don't show Role/Center as
+      // "changed" when only the denormalized name was missing on `before`.
+      const [beforeDetails, afterDetails] = await Promise.all([
+        this.resolveUserAuditDetails({
+          roleId: user.role_id,
+          centerId: user.center_id,
+          roleName: user.role?.role_name,
+          lineIds: lineIdsBefore,
+        }),
+        this.resolveUserAuditDetails({
+          roleId: afterRoleId,
+          centerId: effectiveCentreId,
+          roleName: updatedRoleName ?? user.role?.role_name,
+          lineIds: lineIdsAfter,
+        }),
+      ]);
+      const auditMerged = mergedUser as UserAuditEntity;
+      auditMerged.line_ids = lineIdsAfter;
+      auditMerged.__auditLineIdsBefore = lineIdsBefore;
+      Object.assign(mergedUser, afterDetails);
+      patchAuditContext({
+        userAuditDetails: { ...afterDetails },
+        userAuditDetailsBefore: { ...beforeDetails },
+      });
+      stashAuditEntityDetails('User', mergedUser.id, {
+        after: { ...afterDetails },
+        before: { ...beforeDetails },
+      });
+
+      try {
+        await this.usersDao.save(mergedUser);
+      } finally {
+        patchAuditContext({
+          userAuditDetails: null,
+          userAuditDetailsBefore: null,
+        });
+      }
 
       this.logger.log(`User updated ID: ${id}`, UsersService.context);
       return this.findOne(id);
@@ -428,8 +514,26 @@ export class UsersService implements IUsersService {
       }
       // Centre-scoped actors can only delete users in their own centre, never a Super Admin.
       this.assertActorCanManage(actor, user.center_id, user.role?.access_scope);
+      const resolvedDetails = await this.resolveUserAuditDetails({
+        roleId: user.role_id,
+        centerId: user.center_id,
+        roleName: user.role?.role_name,
+        lineIds: this.extractLineIds(user),
+      });
+      Object.assign(user, resolvedDetails);
       user.is_deleted = true;
-      await this.usersDao.save(user);
+      patchAuditContext({ userAuditDetails: { ...resolvedDetails } });
+      stashAuditEntityDetails('User', user.id, {
+        after: { ...resolvedDetails },
+      });
+      try {
+        await this.usersDao.save(user);
+      } finally {
+        patchAuditContext({
+          userAuditDetails: null,
+          userAuditDetailsBefore: null,
+        });
+      }
       await this.userLineMappingDao.softDeleteByUserId(id);
       this.logger.log(`User soft-deleted ID: ${id}`, UsersService.context);
     } catch (error) {
@@ -500,5 +604,47 @@ export class UsersService implements IUsersService {
       return [];
     }
     return [...new Set(lineIds.map((id) => id.trim()).filter(Boolean))];
+  }
+
+  private extractLineIds(user: User): string[] {
+    return (user.lineMappings ?? [])
+      .filter((m) => !m.is_deleted)
+      .map((m) => m.line_id);
+  }
+
+  private async resolveUserAuditDetails(input: {
+    roleId?: string | null;
+    centerId?: string | null;
+    roleName?: string | null;
+    lineIds?: string[] | null;
+  }): Promise<UserAuditDetails> {
+    let roleName = input.roleName ?? null;
+    if (!roleName && input.roleId) {
+      const role = await this.roleDao.findActiveById(input.roleId);
+      roleName = role?.role_name ?? null;
+    }
+
+    let centerName: string | null = null;
+    if (input.centerId) {
+      const centre = await this.centreDao.findActiveById(input.centerId);
+      centerName = centre?.name ?? null;
+    }
+
+    const lineIds = input.lineIds?.length ? [...input.lineIds] : null;
+
+    return {
+      role_name: roleName,
+      center_name: centerName,
+      line_ids: lineIds,
+    };
+  }
+
+  private buildUserAuditDetailsFromEntity(user: User): UserAuditDetails {
+    const lineIds = this.extractLineIds(user);
+    return {
+      role_name: user.role?.role_name ?? null,
+      center_name: user.assignedCentre?.name ?? null,
+      line_ids: lineIds.length ? lineIds : null,
+    };
   }
 }

@@ -64,6 +64,13 @@ export class AnprCaptureController {
   @ApiParam({ name: 'id', type: String })
   @ApiResponse({ status: 200, description: 'Images uploaded successfully.' })
   @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
+  @ApiQuery({
+    name: 'skipAudit',
+    required: false,
+    type: Boolean,
+    description:
+      'When true, image upload is not written to audit (used immediately after create).',
+  })
   @UseInterceptors(
     FileFieldsInterceptor([
       { name: 'plate', maxCount: 1 },
@@ -72,14 +79,46 @@ export class AnprCaptureController {
   )
   async uploadImages(
     @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Query('skipAudit') skipAudit: string | undefined,
     @UploadedFiles()
     files: { plate?: UploadedImage[]; scene?: UploadedImage[] },
   ) {
     const data = await this.anprCaptureService.attachImages(id, {
       plate: files?.plate?.[0]?.buffer,
       scene: files?.scene?.[0]?.buffer,
-    });
+    }, { skipAudit: skipAudit === 'true' });
     return { message: 'ANPR capture images uploaded successfully', data };
+  }
+
+  @Delete(':id/images')
+  @ApiOperation({
+    summary: 'Remove plate and/or scene images from an ANPR capture',
+  })
+  @ApiParam({ name: 'id', type: String })
+  @ApiQuery({
+    name: 'plate',
+    required: false,
+    type: Boolean,
+    description: 'When true, clears the plate image.',
+  })
+  @ApiQuery({
+    name: 'scene',
+    required: false,
+    type: Boolean,
+    description: 'When true, clears the scene image.',
+  })
+  @ApiResponse({ status: 200, description: 'Images removed successfully.' })
+  @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
+  async removeImages(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Query('plate') plate: string | undefined,
+    @Query('scene') scene: string | undefined,
+  ) {
+    const data = await this.anprCaptureService.removeImages(id, {
+      plate: plate === 'true',
+      scene: scene === 'true',
+    });
+    return { message: 'ANPR capture images removed successfully', data };
   }
 
   @Get()
@@ -141,10 +180,23 @@ export class AnprCaptureController {
   @ApiOperation({
     summary: 'Validate an ANPR capture and queue an appointment',
   })
+  @ApiConsumes('multipart/form-data', 'application/json')
   @ApiParam({
     name: 'id',
     type: String,
     description: 'ANPR capture snowflake ID',
+  })
+  @ApiQuery({
+    name: 'removePlate',
+    required: false,
+    type: Boolean,
+    description: 'When true, clears the plate image as part of validate.',
+  })
+  @ApiQuery({
+    name: 'removeScene',
+    required: false,
+    type: Boolean,
+    description: 'When true, clears the scene image as part of validate.',
   })
   @ApiResponse({
     status: 200,
@@ -155,12 +207,43 @@ export class AnprCaptureController {
     description: "Selected line does not belong to the camera's centre.",
   })
   @ApiResponse({ status: 404, description: 'ANPR capture not found.' })
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'plate', maxCount: 1 },
+      { name: 'scene', maxCount: 1 },
+    ]),
+  )
   async validate(
     @CurrentUser() actor: UserContext,
     @Param('id', ParseSnowflakeIdPipe) id: string,
-    @Body() updateDto: UpdateAnprCaptureDto,
+    @Body() body: UpdateAnprCaptureDto & { payload?: string },
+    @Query('removePlate') removePlate: string | undefined,
+    @Query('removeScene') removeScene: string | undefined,
+    @UploadedFiles()
+    files?: { plate?: UploadedImage[]; scene?: UploadedImage[] },
   ) {
-    const data = await this.anprCaptureService.validate(id, updateDto, actor);
+    const updateDto =
+      typeof body?.payload === 'string'
+        ? (JSON.parse(body.payload) as UpdateAnprCaptureDto)
+        : body;
+    const hasMedia =
+      Boolean(files?.plate?.[0]) ||
+      Boolean(files?.scene?.[0]) ||
+      removePlate === 'true' ||
+      removeScene === 'true';
+    const data = await this.anprCaptureService.validate(
+      id,
+      updateDto,
+      actor,
+      hasMedia
+        ? {
+            plate: files?.plate?.[0]?.buffer,
+            scene: files?.scene?.[0]?.buffer,
+            removePlate: removePlate === 'true',
+            removeScene: removeScene === 'true',
+          }
+        : undefined,
+    );
     return { message: 'ANPR capture validated successfully', data };
   }
 

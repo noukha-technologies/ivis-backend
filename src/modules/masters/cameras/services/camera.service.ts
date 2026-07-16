@@ -21,6 +21,13 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { CameraLineMappingDao } from '../../../database/dao/camera-line-mapping.dao';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
+import { patchAuditContext } from '../../../../common/audit/audit-context';
+
+function asAuditBag(
+  entity: object,
+): Record<string, unknown> {
+  return entity as unknown as Record<string, unknown>;
+}
 
 function cleanIpAddress(ip: string): string {
   if (!ip) return ip;
@@ -53,6 +60,16 @@ export class CameraService {
   private normalizeLineIds(dto: { line_ids?: string[]; line_id?: string }): string[] {
     const ids = dto.line_ids ?? (dto.line_id ? [dto.line_id] : []);
     return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+  }
+
+  private sameLineIds(a: string[], b: string[]): boolean {
+    const norm = (ids: string[]) =>
+      [...new Set(ids.map((id) => id.trim()).filter(Boolean))].sort();
+    const left = norm(a);
+    const right = norm(b);
+    return (
+      left.length === right.length && left.every((id, index) => id === right[index])
+    );
   }
 
   async create(
@@ -110,6 +127,8 @@ export class CameraService {
         status: createCameraDto.status || 'Active',
         created_by: getCreatedById(actor),
       });
+      // Virtual field — include Line(s) in the CREATE audit snapshot.
+      camera.line_ids = lineIds;
       const savedCamera = await this.cameraDao.save(camera);
 
       await this.cameraLineMappingDao.replaceForCamera(
@@ -201,18 +220,27 @@ export class CameraService {
         }
       }
 
-      const hasLinesUpdate = updateCameraDto.line_ids !== undefined || updateCameraDto.line_id !== undefined;
-      if (hasLinesUpdate) {
-        const lineIds = this.normalizeLineIds(updateCameraDto);
-        for (const lineId of lineIds) {
+      const lineIdsBefore = [...(camera.line_ids ?? [])];
+      const requestedLineIds =
+        updateCameraDto.line_ids !== undefined ||
+        updateCameraDto.line_id !== undefined
+          ? this.normalizeLineIds(updateCameraDto)
+          : null;
+      const linesChanged =
+        requestedLineIds !== null &&
+        !this.sameLineIds(requestedLineIds, lineIdsBefore);
+      let nextLineIds = lineIdsBefore;
+      if (linesChanged && requestedLineIds) {
+        for (const lineId of requestedLineIds) {
           await this.masterScope.assertLineExists(lineId);
         }
-        await this.masterScope.assertLinesHaveNoCamera(lineIds, id);
+        await this.masterScope.assertLinesHaveNoCamera(requestedLineIds, id);
         await this.cameraLineMappingDao.replaceForCamera(
           id,
-          lineIds,
+          requestedLineIds,
           camera.created_by,
         );
+        nextLineIds = requestedLineIds;
       }
 
       const {
@@ -221,19 +249,39 @@ export class CameraService {
         ...updateFields
       } = updateCameraDto;
 
+      const passwordChanged =
+        updateCameraDto.password !== undefined &&
+        updateCameraDto.password !== (camera.password ?? '');
+
       const mergedCamera = this.cameraDao.merge(camera, {
         ...updateFields,
         ip_address: updateCameraDto.ip_address
           ? cleanIpAddress(updateCameraDto.ip_address)
           : camera.ip_address,
       });
-      const savedCamera = await this.cameraDao.save(mergedCamera);
-
-      this.logger.log(
-        `Camera updated ID: ${savedCamera.id}`,
-        CameraService.context,
-      );
-      return (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera;
+      if (linesChanged) {
+        mergedCamera.line_ids = nextLineIds;
+        asAuditBag(mergedCamera).__auditLineIdsBefore = lineIdsBefore;
+      } else {
+        delete mergedCamera.line_ids;
+        delete mergedCamera.lines;
+      }
+      if (passwordChanged) {
+        // Request-scoped flag (entity props are stripped by TypeORM).
+        patchAuditContext({ passwordChanged: true });
+      }
+      try {
+        const savedCamera = await this.cameraDao.save(mergedCamera);
+        this.logger.log(
+          `Camera updated ID: ${savedCamera.id}`,
+          CameraService.context,
+        );
+        return (
+          (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera
+        );
+      } finally {
+        patchAuditContext({ passwordChanged: false });
+      }
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||

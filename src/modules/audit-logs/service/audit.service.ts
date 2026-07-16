@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getAuditContext } from '../../../common/audit/audit-context';
-import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
   AuditLogDao,
@@ -12,6 +11,7 @@ import {
   AuditActionValue,
   AuditLog,
 } from '../../database/entity/audit-log.entity';
+import { AuditLogQueryDto } from '../dto/audit-log-query.dto';
 
 export type ExplicitAuditLogInput = {
   action: AuditActionValue;
@@ -34,7 +34,7 @@ export class AuditService {
   ) {}
 
   async findAll(
-    query: PaginationQueryDto,
+    query: AuditLogQueryDto,
   ): Promise<PaginatedResult<Omit<AuditLog, 'ip_address'>>> {
     const result = await this.auditLogDao.findPaginated(query);
     return {

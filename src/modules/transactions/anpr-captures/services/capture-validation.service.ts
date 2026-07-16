@@ -18,6 +18,7 @@ import { OnlineAppointmentApiClientService } from '../../../integrations/online-
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
 import { RopVerification } from '../../../database/entity/rop-verification.entity';
+import { patchAuditContext } from '../../../../common/audit/audit-context';
 
 /**
  * Shared validation pipeline for ANPR captures. Centralizes the "capture is
@@ -54,10 +55,15 @@ export class CaptureValidationService {
     createdBy: string,
   ): Promise<void> {
     await this.ensureQueuedAppointment(capture, createdBy, rop);
-    await this.anprCaptureDao.update(capture.id, {
-      status: AnprCaptureStatus.VALIDATED,
-      rop_verification_id: rop.id,
-    });
+    patchAuditContext({ suppressAnprCaptureAudit: true });
+    try {
+      await this.anprCaptureDao.update(capture.id, {
+        status: AnprCaptureStatus.VALIDATED,
+        rop_verification_id: rop.id,
+      });
+    } finally {
+      patchAuditContext({ suppressAnprCaptureAudit: false });
+    }
     this.logger.log(
       `Capture ${capture.id} validated from ROP ${rop.id}`,
       CaptureValidationService.context,

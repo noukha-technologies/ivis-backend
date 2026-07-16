@@ -388,6 +388,116 @@ export function normalizeRoleAccessMatrix(
   return base;
 }
 
+// ── Grid labels (mirrors admin PERMISSION_GRID_MODULES) ─────────────────────
+
+type GridSubmodule = { key: string; label: string };
+type GridModule = { key: string; label: string; submodules: GridSubmodule[] | null };
+
+const PERMISSION_GRID_MODULES: GridModule[] = [
+  { key: 'dashboard', label: 'Dashboard', submodules: null },
+  {
+    key: 'appointments',
+    label: 'Appointments',
+    submodules: [
+      { key: 'list_view', label: 'List View' },
+      { key: 'calendar_view', label: 'Calendar View' },
+    ],
+  },
+  { key: 'job_management', label: 'Job Management', submodules: null },
+  { key: 'reports_analytics', label: 'Reports & Analytics', submodules: null },
+  { key: 'configuration', label: 'Configuration', submodules: null },
+  {
+    key: 'master_management',
+    label: 'Master Management',
+    submodules: [
+      { key: 'vehicle', label: 'Vehicle' },
+      { key: 'center', label: 'Center' },
+      { key: 'line', label: 'Line' },
+      { key: 'admin_pc', label: 'Admin PC' },
+      { key: 'camera_anpr', label: 'Camera / ANPR' },
+      { key: 'charges', label: 'Charges' },
+    ],
+  },
+  {
+    key: 'transactions',
+    label: 'Transactions',
+    submodules: [
+      { key: 'payments', label: 'Payments' },
+      { key: 'vehicle_records', label: 'Vehicle Records' },
+      { key: 'customers', label: 'Customers' },
+      { key: 'file_processing', label: 'File Processing' },
+      { key: 'rop_management', label: 'ROP Management' },
+    ],
+  },
+  {
+    key: 'user_management',
+    label: 'User Management',
+    submodules: [
+      { key: 'users', label: 'Users' },
+      { key: 'roles', label: 'Roles' },
+      { key: 'permissions', label: 'Permissions' },
+      { key: 'audit_logs', label: 'Audit Log' },
+    ],
+  },
+];
+
+/** Flat permission keys → human-readable module labels for audit logs. */
+export function resolveAccessModuleLabels(flatKeys: string[]): string[] {
+  const permSet = new Set(flatKeys);
+  const labels: string[] = [];
+
+  for (const mod of PERMISSION_GRID_MODULES) {
+    const entry = MODULE_PERMISSION_MAP[mod.key];
+    if (!entry) continue;
+
+    if (!mod.submodules) {
+      const flat = entry as FlatModulePermissionMap;
+      if (
+        [...flat.view, ...flat.create, ...flat.edit].some((k) => permSet.has(k))
+      ) {
+        labels.push(mod.label);
+      }
+      continue;
+    }
+
+    const subEntry = entry as SubmodulePermissionMap;
+    const parentKeys = [...subEntry.view, ...subEntry.create, ...subEntry.edit];
+    if (parentKeys.some((k) => permSet.has(k))) {
+      labels.push(mod.label);
+    }
+
+    const grantedSubs: string[] = [];
+    for (const sub of mod.submodules) {
+      const sm = subEntry.submodules[sub.key];
+      if (!sm) continue;
+      const subKeys = [...sm.view, ...sm.create, ...sm.edit];
+      if (subKeys.some((k) => permSet.has(k))) {
+        grantedSubs.push(sub.label);
+      }
+    }
+
+    if (parentKeys.some((k) => permSet.has(k))) {
+      continue;
+    }
+
+    if (grantedSubs.length === mod.submodules.length) {
+      labels.push(mod.label);
+    } else {
+      labels.push(...grantedSubs);
+    }
+  }
+
+  return labels;
+}
+
+/** Role access matrix → comma-separated module labels for audit snapshots. */
+export function formatAccessModulesLabel(matrix: RoleAccessMatrix): string | null {
+  const labels = resolveAccessModuleLabels(
+    resolveFlatPermissionsFromMatrix(matrix),
+  );
+  return labels.length ? labels.join(', ') : null;
+}
+
 // ── Submodule key list exports (used by other modules) ───────────────────────
 export {
   APPOINTMENTS_SUBMODULES,

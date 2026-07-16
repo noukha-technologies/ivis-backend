@@ -98,6 +98,9 @@ export class AdminPcService {
         status: createAdminPcDto.status || 'Active',
         created_by: getCreatedById(actor),
       });
+      // Virtual field (not a DB column) — set so the CREATE audit snapshot
+      // includes Line before mappings are written in AdminPcLineMapping.
+      adminPc.line_ids = lineIds;
       const savedAdminPc = await this.adminPcDao.save(adminPc);
       await this.adminPcLineMappingDao.replaceForAdminPc(
         savedAdminPc.id,
@@ -235,20 +238,32 @@ export class AdminPcService {
         }
       }
 
-      if (updateAdminPcDto.line_ids || updateAdminPcDto.line_id) {
-        const lineIds = this.normalizeLineIds(
-          updateAdminPcDto.line_ids ??
-            (updateAdminPcDto.line_id ? [updateAdminPcDto.line_id] : []),
-        );
+      const lineIdsBefore = [...(adminPc.line_ids ?? [])];
+      const requestedLineIds =
+        updateAdminPcDto.line_ids || updateAdminPcDto.line_id
+          ? this.normalizeLineIds(
+              updateAdminPcDto.line_ids ??
+                (updateAdminPcDto.line_id ? [updateAdminPcDto.line_id] : []),
+            )
+          : null;
+      const linesChanged =
+        requestedLineIds !== null &&
+        !this.sameLineIds(requestedLineIds, lineIdsBefore);
+      let nextLineIds = lineIdsBefore;
+      if (linesChanged && requestedLineIds) {
         if (centerId) {
-          await this.masterScope.assertLinesBelongToCentre(lineIds, centerId);
+          await this.masterScope.assertLinesBelongToCentre(
+            requestedLineIds,
+            centerId,
+          );
         }
-        await this.validateLineAssignments(lineIds, id);
+        await this.validateLineAssignments(requestedLineIds, id);
         await this.adminPcLineMappingDao.replaceForAdminPc(
           id,
-          lineIds,
+          requestedLineIds,
           adminPc.created_by,
         );
+        nextLineIds = requestedLineIds;
       }
 
       const updateFields = { ...updateAdminPcDto };
@@ -259,6 +274,14 @@ export class AdminPcService {
         ...updateFields,
         center_id: centerId,
       });
+      if (linesChanged) {
+        mergedAdminPc.line_ids = nextLineIds;
+        (mergedAdminPc as unknown as Record<string, unknown>).__auditLineIdsBefore =
+          lineIdsBefore;
+      } else {
+        delete mergedAdminPc.line_ids;
+        delete mergedAdminPc.lines;
+      }
       const savedAdminPc = await this.adminPcDao.save(mergedAdminPc);
 
       this.logger.log(
@@ -316,6 +339,16 @@ export class AdminPcService {
 
   private normalizeLineIds(lineIds: string[]): string[] {
     return [...new Set(lineIds.map((lineId) => lineId.trim()).filter(Boolean))];
+  }
+
+  private sameLineIds(a: string[], b: string[]): boolean {
+    const norm = (ids: string[]) =>
+      [...new Set(ids.map((id) => id.trim()).filter(Boolean))].sort();
+    const left = norm(a);
+    const right = norm(b);
+    return (
+      left.length === right.length && left.every((id, index) => id === right[index])
+    );
   }
 
   private async validateLineAssignments(

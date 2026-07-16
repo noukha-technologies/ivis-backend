@@ -12,6 +12,7 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
+import { patchAuditContext } from '../../../common/audit/audit-context';
 import { AppointmentStatus } from '../../../common/enums/common.enums';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
@@ -45,6 +46,13 @@ export interface JobPricingResult {
   /** The payments_id that will be generated for this job's next payment. */
   next_payment_id: number;
 }
+
+/** Denormalized Job Management list fields for audit snapshots. */
+type JobAuditDetails = {
+  plate_number?: string | null;
+  customer_name?: string | null;
+  booking_type?: string | null;
+};
 
 @Injectable()
 export class JobService {
@@ -152,9 +160,24 @@ export class JobService {
         created_by: getCreatedById(actor),
       });
 
-      const saved = await this.jobDao.save(job);
-      this.logger.log(`Job created with ID: ${saved.id}`, JobService.context);
-      return (await this.jobDao.findActiveById(saved.id)) ?? saved;
+      const auditDetails = await this.resolveJobAuditDetails({
+        customer_id: createDto.customer_id,
+        vehicle_record_id: createDto.vehicle_record_id,
+        appointment_id: createDto.appointment_id,
+      });
+      Object.assign(job, auditDetails);
+      patchAuditContext({ jobAuditDetails: { ...auditDetails } });
+
+      try {
+        const saved = await this.jobDao.save(job);
+        this.logger.log(`Job created with ID: ${saved.id}`, JobService.context);
+        return (await this.jobDao.findActiveById(saved.id)) ?? saved;
+      } finally {
+        patchAuditContext({
+          jobAuditDetails: null,
+          jobAuditDetailsBefore: null,
+        });
+      }
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -417,9 +440,23 @@ export class JobService {
           : {}),
       });
 
-      const saved = await this.jobDao.save(merged);
-      this.logger.log(`Job updated ID: ${saved.id}`, JobService.context);
-      return (await this.jobDao.findActiveById(saved.id)) ?? saved;
+      const auditDetails = this.buildJobAuditDetailsFromEntity(job);
+      Object.assign(merged, auditDetails);
+      patchAuditContext({
+        jobAuditDetails: { ...auditDetails },
+        jobAuditDetailsBefore: { ...auditDetails },
+      });
+
+      try {
+        const saved = await this.jobDao.save(merged);
+        this.logger.log(`Job updated ID: ${saved.id}`, JobService.context);
+        return (await this.jobDao.findActiveById(saved.id)) ?? saved;
+      } finally {
+        patchAuditContext({
+          jobAuditDetails: null,
+          jobAuditDetailsBefore: null,
+        });
+      }
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -438,9 +475,19 @@ export class JobService {
 
     try {
       const job = await this.findOne(id);
+      const auditDetails = this.buildJobAuditDetailsFromEntity(job);
+      Object.assign(job, auditDetails);
       job.is_deleted = true;
-      await this.jobDao.save(job);
-      this.logger.log(`Job soft-deleted ID: ${id}`, JobService.context);
+      patchAuditContext({ jobAuditDetails: { ...auditDetails } });
+      try {
+        await this.jobDao.save(job);
+        this.logger.log(`Job soft-deleted ID: ${id}`, JobService.context);
+      } finally {
+        patchAuditContext({
+          jobAuditDetails: null,
+          jobAuditDetailsBefore: null,
+        });
+      }
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {
         throw error;
@@ -452,6 +499,38 @@ export class JobService {
       );
       throw new DatabaseException('Failed to delete job. Please try again.');
     }
+  }
+
+  private async resolveJobAuditDetails(input: {
+    customer_id?: string | null;
+    vehicle_record_id?: string | null;
+    appointment_id?: string | null;
+  }): Promise<JobAuditDetails> {
+    const [customer, vehicle, appointment] = await Promise.all([
+      input.customer_id
+        ? this.customerDao.findActiveById(input.customer_id)
+        : Promise.resolve(null),
+      input.vehicle_record_id
+        ? this.vehicleRecordDao.findActiveById(input.vehicle_record_id)
+        : Promise.resolve(null),
+      input.appointment_id
+        ? this.appointmentDao.findActiveById(input.appointment_id)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      plate_number: vehicle?.plate_number ?? null,
+      customer_name: customer?.owner_name ?? null,
+      booking_type: appointment?.booking_type ?? 'Walk-in',
+    };
+  }
+
+  private buildJobAuditDetailsFromEntity(job: Job): JobAuditDetails {
+    return {
+      plate_number: job.vehicleRecord?.plate_number ?? null,
+      customer_name: job.customer?.owner_name ?? null,
+      booking_type: job.appointment?.booking_type ?? 'Walk-in',
+    };
   }
 
   private async validateJobReferences(

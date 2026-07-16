@@ -64,7 +64,28 @@ export class CameraHealthCheckService {
     if (pingOk) {
       camera.last_seen_at = now;
     }
-    await this.cameraDao.save(camera);
+    // callListeners(false): QueryBuilder update still broadcasts AfterUpdate by
+    // default, which created a fake "Updated Camera" audit after every create.
+    const healthPatch: {
+      health_status: string;
+      is_online: boolean;
+      last_health_check: Date;
+      last_seen_at?: Date;
+    } = {
+      health_status: camera.health_status,
+      is_online: camera.is_online,
+      last_health_check: camera.last_health_check,
+    };
+    if (camera.last_seen_at) {
+      healthPatch.last_seen_at = camera.last_seen_at;
+    }
+    await this.cameraDao
+      .createQueryBuilder()
+      .update(Camera)
+      .set(healthPatch)
+      .where('id = :id', { id: camera.id })
+      .callListeners(false)
+      .execute();
     return this.buildHealthPayload(camera, pingOk);
   }
 

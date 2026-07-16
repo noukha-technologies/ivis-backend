@@ -29,7 +29,21 @@ import { PermissionDao } from '../../database/dao/permission.dao';
 import { RoleDao } from '../../database/dao/role.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { RoleCentreMappingDao } from '../../database/dao/role-centre-mapping.dao';
+import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
 import { Role } from '../../database/entity/role.entity';
+import { patchAuditContext } from '../../../common/audit/audit-context';
+import { stashAuditEntityDetails } from '../../../common/audit/audit-entity-details.stash';
+import { formatAccessModulesLabel } from '../../../common/auth/role-permissions';
+import type { RoleAccessMatrix } from '../../../common/types/role-access.types';
+import { validateAccessMatrix } from '../../../common/utils/validate-access-matrix';
+
+type RoleAuditDetails = {
+  role_type_label?: string | null;
+  centre_label?: string | null;
+  centre_ids?: string[] | null;
+  permission_name?: string | null;
+  access_modules?: string | null;
+};
 
 @Injectable()
 export class RolesService {
@@ -40,6 +54,7 @@ export class RolesService {
     private readonly permissionDao: PermissionDao,
     private readonly centreDao: CentreDao,
     private readonly roleCentreMappingDao: RoleCentreMappingDao,
+    private readonly userSessionsDao: UserSessionsDao,
     private readonly logger: AppLogger,
   ) {}
 
@@ -162,6 +177,8 @@ export class RolesService {
       }
 
       const createdBy = getCreatedById(actor);
+      const isCenterAdmin =
+        scope === 'centre' ? (dto.is_center_admin ?? false) : false;
       const role = this.roleDao.create({
         id: generateSnowflakeId(),
         role_name: dto.role_name.trim(),
@@ -169,11 +186,31 @@ export class RolesService {
         description: dto.description?.trim(),
         access_scope: scope,
         // Admin rank only applies to centre scope; global roles are never a "centre admin".
-        is_center_admin:
-          scope === 'centre' ? (dto.is_center_admin ?? false) : false,
+        is_center_admin: isCenterAdmin,
         created_by: createdBy,
       });
-      const saved = await this.roleDao.save(role);
+
+      const auditDetails = await this.resolveRoleAuditDetails({
+        accessScope: scope,
+        isCenterAdmin,
+        centreIds,
+        permissionId: permission.id,
+        permissionName: permission.name,
+        permissionAccess: permission.access,
+      });
+      Object.assign(role, auditDetails);
+      patchAuditContext({ roleAuditDetails: { ...auditDetails } });
+      stashAuditEntityDetails('Role', role.id, { after: { ...auditDetails } });
+
+      let saved: Role;
+      try {
+        saved = await this.roleDao.save(role);
+      } finally {
+        patchAuditContext({
+          roleAuditDetails: null,
+          roleAuditDetailsBefore: null,
+        });
+      }
       await this.roleCentreMappingDao.syncForRole(
         saved.id,
         centreIds,
@@ -265,7 +302,8 @@ export class RolesService {
     const existingMappings = await this.roleCentreMappingDao.findActiveByRoleId(
       id,
     );
-    let nextCentreIds = existingMappings.map((m) => m.centre_id);
+    const centreIdsBefore = existingMappings.map((m) => m.centre_id);
+    let nextCentreIds = [...centreIdsBefore];
 
     if (isGlobalScope(actor.user.access_scope)) {
       if (isGlobalScope(effectiveScope)) {
@@ -325,6 +363,13 @@ export class RolesService {
         ? (dto.is_center_admin ?? row.is_center_admin)
         : false;
 
+    // TypeORM merge mutates `row` in place — snapshot before-state first so
+    // audit "before" details are not overwritten with the incoming DTO values.
+    const accessScopeBefore = row.access_scope;
+    const isCenterAdminBefore = row.is_center_admin;
+    const permissionIdBefore = row.permission_id;
+    const roleNameBefore = row.role_name;
+
     const merged = this.roleDao.merge(row, {
       ...(dto.role_name !== undefined
         ? { role_name: dto.role_name.trim() }
@@ -340,7 +385,97 @@ export class RolesService {
         : {}),
       is_center_admin: nextIsCenterAdmin,
     });
-    await this.roleDao.save(merged);
+
+    const linkedPermission = await this.permissionDao.findActiveById(
+      permissionIdBefore,
+    );
+    if (!linkedPermission) {
+      throw new ResourceNotFoundException('Permission', permissionIdBefore);
+    }
+
+    const permissionAccessBefore: RoleAccessMatrix = linkedPermission.access;
+    const effectivePermissionId = merged.permission_id;
+
+    let permissionToUpdate = linkedPermission;
+    if (dto.permission_id && dto.permission_id !== permissionIdBefore) {
+      const switchedPermission = await this.permissionDao.findActiveById(
+        dto.permission_id,
+      );
+      if (!switchedPermission) {
+        throw new ResourceNotFoundException('Permission', dto.permission_id);
+      }
+      permissionToUpdate = switchedPermission;
+    }
+
+    let permissionAccessAfter: RoleAccessMatrix = permissionToUpdate.access;
+    let permissionNameAfter = permissionToUpdate.name;
+
+    const shouldUpdatePermissionProfile =
+      dto.access !== undefined ||
+      (dto.role_name !== undefined &&
+        dto.role_name.trim() !== roleNameBefore);
+
+    if (shouldUpdatePermissionProfile) {
+      const nextAccess =
+        dto.access !== undefined
+          ? validateAccessMatrix(dto.access)
+          : permissionToUpdate.access;
+      const nextName =
+        dto.role_name !== undefined
+          ? `${dto.role_name.trim()} Access`
+          : permissionToUpdate.name;
+
+      const mergedPermission = this.permissionDao.merge(permissionToUpdate, {
+        access: nextAccess,
+        name: nextName,
+      });
+      await this.permissionDao.save(mergedPermission);
+      permissionAccessAfter = mergedPermission.access;
+      permissionNameAfter = mergedPermission.name;
+
+      if (dto.access !== undefined) {
+        await this.userSessionsDao.deleteByPermissionId(effectivePermissionId);
+        // Touch updated_at so the Role audit subscriber runs when only
+        // permissions changed (no other role columns differ).
+        merged.updated_at = new Date();
+      }
+    }
+
+    const [beforeDetails, afterDetails] = await Promise.all([
+      this.resolveRoleAuditDetails({
+        accessScope: accessScopeBefore,
+        isCenterAdmin: isCenterAdminBefore,
+        centreIds: centreIdsBefore,
+        permissionId: permissionIdBefore,
+        permissionAccess: permissionAccessBefore,
+      }),
+      this.resolveRoleAuditDetails({
+        accessScope: effectiveScope,
+        isCenterAdmin: nextIsCenterAdmin,
+        centreIds: nextCentreIds,
+        permissionId: merged.permission_id,
+        permissionName: permissionNameAfter,
+        permissionAccess: permissionAccessAfter,
+      }),
+    ]);
+    Object.assign(merged, afterDetails);
+    patchAuditContext({
+      roleAuditDetails: { ...afterDetails },
+      roleAuditDetailsBefore: { ...beforeDetails },
+    });
+    stashAuditEntityDetails('Role', merged.id, {
+      after: { ...afterDetails },
+      before: { ...beforeDetails },
+    });
+
+    try {
+      await this.roleDao.save(merged);
+    } finally {
+      patchAuditContext({
+        roleAuditDetails: null,
+        roleAuditDetailsBefore: null,
+      });
+    }
     await this.roleCentreMappingDao.syncForRole(
       id,
       nextCentreIds,
@@ -366,8 +501,27 @@ export class RolesService {
       );
     }
 
+    const mappings = await this.roleCentreMappingDao.findActiveByRoleId(id);
+    const resolvedDetails = await this.resolveRoleAuditDetails({
+      accessScope: entity.access_scope,
+      isCenterAdmin: entity.is_center_admin,
+      centreIds: mappings.map((m) => m.centre_id),
+      permissionId: entity.permission_id,
+    });
+    Object.assign(entity, resolvedDetails);
     entity.is_deleted = true;
-    await this.roleDao.save(entity);
+    patchAuditContext({ roleAuditDetails: { ...resolvedDetails } });
+    stashAuditEntityDetails('Role', entity.id, {
+      after: { ...resolvedDetails },
+    });
+    try {
+      await this.roleDao.save(entity);
+    } finally {
+      patchAuditContext({
+        roleAuditDetails: null,
+        roleAuditDetailsBefore: null,
+      });
+    }
     await this.roleCentreMappingDao.softDeleteByRoleId(id);
   }
 
@@ -387,6 +541,69 @@ export class RolesService {
       byRole.set(mapping.role_id, list);
     }
     return byRole;
+  }
+
+  private resolveRoleTypeLabel(
+    scope: AccessScope,
+    isCenterAdmin: boolean,
+  ): string {
+    if (isGlobalScope(scope)) {
+      return 'Super Admin';
+    }
+    if (isCenterAdmin) {
+      return 'Centre Admin';
+    }
+    return 'Centre User';
+  }
+
+  private async resolveCentreLabel(centreIds: string[]): Promise<string> {
+    if (!centreIds.length) {
+      return 'Global';
+    }
+    const names: string[] = [];
+    for (const centreId of centreIds) {
+      const centre = await this.centreDao.findActiveById(centreId);
+      if (centre?.name) {
+        names.push(centre.name);
+      }
+    }
+    return names.length ? names.join(', ') : 'Global';
+  }
+
+  private async resolveRoleAuditDetails(input: {
+    accessScope: AccessScope;
+    isCenterAdmin: boolean;
+    centreIds: string[];
+    permissionId: string;
+    permissionName?: string | null;
+    permissionAccess?: RoleAccessMatrix | null;
+  }): Promise<RoleAuditDetails> {
+    let permissionName = input.permissionName ?? null;
+    let permissionAccess = input.permissionAccess ?? null;
+    if ((!permissionName || !permissionAccess) && input.permissionId) {
+      const permission = await this.permissionDao.findActiveById(
+        input.permissionId,
+      );
+      if (!permissionName) {
+        permissionName = permission?.name ?? null;
+      }
+      if (!permissionAccess) {
+        permissionAccess = permission?.access ?? null;
+      }
+    }
+
+    return {
+      role_type_label: this.resolveRoleTypeLabel(
+        input.accessScope,
+        input.isCenterAdmin,
+      ),
+      centre_label: await this.resolveCentreLabel(input.centreIds),
+      centre_ids: input.centreIds.length ? [...input.centreIds] : null,
+      permission_name: permissionName,
+      access_modules: permissionAccess
+        ? formatAccessModulesLabel(permissionAccess)
+        : null,
+    };
   }
 
   /**

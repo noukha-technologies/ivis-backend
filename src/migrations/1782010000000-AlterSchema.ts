@@ -1,6 +1,16 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
+ * Bump this whenever this file's DDL changes. SchemaBootstrapService compares
+ * it against `onboarding_status.schema_version` at boot and skips re-running
+ * this migration's ~400 statements when they already match — see
+ * SchemaBootstrapService for the skip logic. Forgetting to bump this after a
+ * real schema change just means the next boot re-applies it anyway (every
+ * statement here is idempotent), so it fails safe, not silently stale.
+ */
+export const ALTER_SCHEMA_VERSION = 1;
+
+/**
  * Standalone ALTER migration — apply all structural changes to an existing database.
  *
  * Run with:  npm run migration:alter
@@ -467,10 +477,16 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "schema_initialized_at"   TIMESTAMP,
         "data_synced_at"          TIMESTAMP,
         "last_error"              character varying,
+        "schema_version"          character varying,
         "created_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
         "updated_at"              TIMESTAMP             NOT NULL DEFAULT NOW(),
         CONSTRAINT "PK_onboarding_status_id" PRIMARY KEY ("id")
       )
+    `);
+    // Existing deployments from before schema_version existed — add it here too.
+    await queryRunner.query(`
+      ALTER TABLE "core"."onboarding_status"
+        ADD COLUMN IF NOT EXISTS "schema_version" character varying
     `);
 
     // sync_state / sync_entity_config (old DB-connection-based Database Sync,

@@ -4,8 +4,12 @@ import { DataSource } from 'typeorm';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { CreateSchema1782000000000 } from '../../../migrations/1782000000000-CreateSchema';
-import { AlterSchema1782010000000 } from '../../../migrations/1782010000000-AlterSchema';
+import {
+  ALTER_SCHEMA_VERSION,
+  AlterSchema1782010000000,
+} from '../../../migrations/1782010000000-AlterSchema';
 import { OnboardingStatusDao } from '../dao/onboarding-status.dao';
+import { OnboardingStatus } from '../entity/onboarding-status.entity';
 
 /**
  * Runs schema bootstrap (CreateSchema + AlterSchema) unconditionally at app
@@ -36,18 +40,42 @@ export class SchemaBootstrapService {
       );
     }
 
-    this.logger.log('Running AlterSchema (idempotent).', 'SchemaBootstrap');
-    await this.runMigration(new AlterSchema1782010000000(), 'RUN_ALTER_SCHEMA');
+    const currentVersion = String(ALTER_SCHEMA_VERSION);
+    const status = await this.getStatusResilient();
 
-    const status = await this.onboardingStatusDao.ensureSingletonRow();
-    if (!status.schema_initialized_at) {
-      await this.onboardingStatusDao.save({
-        ...status,
-        schema_initialized_at: new Date(),
-      });
+    if (schemasPresent && status?.schema_version === currentVersion) {
+      this.logger.log(
+        `Schema already at version ${currentVersion} — skipping AlterSchema.`,
+        'SchemaBootstrap',
+      );
+      return;
     }
 
+    this.logger.log(
+      'Running AlterSchema (schema version changed or not yet applied).',
+      'SchemaBootstrap',
+    );
+    await this.runMigration(new AlterSchema1782010000000(), 'RUN_ALTER_SCHEMA');
+
+    const refreshed = await this.onboardingStatusDao.ensureSingletonRow();
+    await this.onboardingStatusDao.save({
+      ...refreshed,
+      schema_version: currentVersion,
+      schema_initialized_at: refreshed.schema_initialized_at ?? new Date(),
+    });
+
     this.logger.log('Schema bootstrap complete.', 'SchemaBootstrap');
+  }
+
+  // Reads the onboarding_status row without letting a missing schema_version
+  // column (a DB that hasn't run this version of AlterSchema yet) abort boot —
+  // treated the same as "no version recorded", which forces AlterSchema to run.
+  private async getStatusResilient(): Promise<OnboardingStatus | null> {
+    try {
+      return await this.onboardingStatusDao.ensureSingletonRow();
+    } catch {
+      return null;
+    }
   }
 
   private async anySchemaExists(): Promise<boolean> {

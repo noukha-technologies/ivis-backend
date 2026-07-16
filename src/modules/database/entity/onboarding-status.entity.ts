@@ -42,6 +42,11 @@ export class OnboardingStatus {
   @Column({ type: 'varchar', nullable: true })
   last_error?: string | null;
 
+  // Compared against ALTER_SCHEMA_VERSION (migrations/1782010000000-AlterSchema.ts)
+  // at boot — SchemaBootstrapService skips re-running AlterSchema when these match.
+  @Column({ type: 'varchar', nullable: true })
+  schema_version?: string | null;
+
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;
 

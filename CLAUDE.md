@@ -297,6 +297,17 @@ Rules that follow from this:
 - Adding a column that must be non-null on existing rows: add it nullable (or with a default) + backfill, don't blindly `SET NOT NULL` on a table with existing rows.
 - A pure TypeScript-only change (filling an interface, adding a class `implements`, DTO validation, getters that don't map to columns) needs **no** migration — only actual DB schema changes do.
 
+### Schema version bump (REQUIRED whenever AlterSchema.ts changes)
+
+`SchemaBootstrapService` (`modules/database/service/schema-bootstrap.service.ts`) does **not** blindly re-run `AlterSchema.ts`'s ~400 statements on every app boot — that alone was costing ~70s of network round-trips on every restart. Instead it compares the file's `ALTER_SCHEMA_VERSION` constant against the version stamped in `onboarding_status.schema_version` at boot, and skips the whole migration when they already match.
+
+**Whenever you edit `1782010000000-AlterSchema.ts`, bump `export const ALTER_SCHEMA_VERSION` at the top of that file in the SAME change.** Do this every time, in addition to (not instead of) the idempotency rules above:
+
+- Forgetting to bump it is not silently dangerous — every statement is idempotent, so the app just keeps re-running the full migration on every boot until someone bumps it, which is slow but correct.
+- Bump it even for a single-column tweak — there's no partial-version tracking, one number covers the whole file.
+- After bumping, run `npm run migration:alter` once locally so your own DB gets stamped immediately, instead of waiting for the next natural boot to pick it up.
+- Never reuse an old version number — always increment.
+
 ## Live Rules
 
 **When I say "update the rules" or "add this to rules" in conversation, immediately update this CLAUDE.md file with the new rule.**

@@ -1,4 +1,5 @@
 import { Job } from './entity/job.entity';
+import { JobImage } from './entity/job-image.entity';
 import { User } from './entity/user.entity';
 import { Test } from './entity/test.entity';
 import { Role } from './entity/role.entity';
@@ -53,6 +54,7 @@ export const APP_ENTITIES = [
   Customer,
   VehicleRecord,
   Job,
+  JobImage,
   Appointment,
   Charge,
   ChargeCategory,

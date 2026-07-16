@@ -21,6 +21,7 @@ import { CentreDao } from '../../database/dao/centre.dao';
 import { ChargeDao } from '../../database/dao/charge.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
 import { JobDao } from '../../database/dao/job.dao';
+import { JobImageDao } from '../../database/dao/job-image.dao';
 import { LineDao } from '../../database/dao/line.dao';
 import { PaymentsDao } from '../../database/dao/payments.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
@@ -51,6 +52,7 @@ export class JobService {
 
   constructor(
     private readonly jobDao: JobDao,
+    private readonly jobImageDao: JobImageDao,
     private readonly customerDao: CustomerDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly appointmentDao: AppointmentDao,
@@ -356,6 +358,7 @@ export class JobService {
       if (!job) {
         throw new ResourceNotFoundException('Job', id);
       }
+      job.images = await this.jobImageDao.findByJobId(id);
       return job;
     } catch (error) {
       if (error instanceof ResourceNotFoundException) {

@@ -5,6 +5,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -26,6 +27,7 @@ import { Customer } from './customer.entity';
 import { Appointment } from './appointment.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
+import { JobImage } from './job-image.entity';
 
 @Entity({ name: 'jobs', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_JOB_JOB_ID', ['job_id'], { unique: true })
@@ -91,6 +93,10 @@ export class Job implements IJobFields {
   @ManyToOne(() => AnprCapture, { nullable: true })
   @JoinColumn({ name: 'anpr_capture_id' })
   anprCapture?: AnprCapture;
+
+  /** Manually-uploaded / camera-captured photos for this job (Test & Submit step). */
+  @OneToMany(() => JobImage, (jobImage) => jobImage.job)
+  images?: JobImage[];
 
   /* Centre FK */
   @Column({

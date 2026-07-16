@@ -5,6 +5,7 @@ import { DataSource } from 'typeorm';
 import databaseConfig, { DatabaseConfig } from './database.config';
 
 import { Job } from './entity/job.entity';
+import { JobImage } from './entity/job-image.entity';
 import { User } from './entity/user.entity';
 import { Role } from './entity/role.entity';
 import { Test } from './entity/test.entity';
@@ -35,6 +36,7 @@ import { CentreApiKey } from './entity/centre-api-key.entity';
 import { AuditLog } from './entity/audit-log.entity';
 
 import { JobDao } from './dao/job.dao';
+import { JobImageDao } from './dao/job-image.dao';
 import { RoleDao } from './dao/role.dao';
 import { TestDao } from './dao/test.dao';
 import { LineDao } from './dao/line.dao';
@@ -109,6 +111,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
       Customer,
       VehicleRecord,
       Job,
+      JobImage,
       Appointment,
       Charge,
       ChargeCategory,
@@ -142,6 +145,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     CustomerDao,
     VehicleRecordDao,
     JobDao,
+    JobImageDao,
     AppointmentDao,
     ChargeDao,
     ChargeCategoryDao,
@@ -176,6 +180,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     CustomerDao,
     VehicleRecordDao,
     JobDao,
+    JobImageDao,
     AppointmentDao,
     ChargeDao,
     ChargeCategoryDao,

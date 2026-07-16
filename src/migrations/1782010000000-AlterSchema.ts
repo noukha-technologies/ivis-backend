@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 1;
+export const ALTER_SCHEMA_VERSION = 2;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1192,6 +1192,35 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       END $$;
     `);
 
+    // job_images table — manually-uploaded / camera-captured photos for a job
+    // (Test & Submit step's Images card). ANPR-sourced images stay on
+    // anpr_captures.image_url/scene_image_url and are not duplicated here.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "transaction"."job_images" (
+        "id"          bigint                NOT NULL,
+        "job_id"      bigint                NOT NULL,
+        "image_url"   character varying     NOT NULL,
+        "source"      character varying(16) NOT NULL,
+        "created_by"  character varying,
+        "created_at"  TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"  TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "is_deleted"  boolean               NOT NULL DEFAULT false,
+        CONSTRAINT "PK_job_images_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_JOB_IMAGE_JOB_ID" ON "transaction"."job_images" ("job_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_job_images_job_id') THEN
+          ALTER TABLE "transaction"."job_images"
+            ADD CONSTRAINT "FK_job_images_job_id"
+            FOREIGN KEY ("job_id") REFERENCES "transaction"."jobs"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
     // customers: driver details now stored here (driver_phone_number).
     await queryRunner.query(
       `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
@@ -1577,6 +1606,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertTransaction(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "transaction"."job_images" CASCADE`,
+    );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "booking_type"`,
     );

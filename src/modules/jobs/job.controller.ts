@@ -9,8 +9,12 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiConsumes,
   ApiOperation,
   ApiParam,
   ApiQuery,
@@ -28,8 +32,13 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../common/dto/auth.dto';
+import { getCreatedById } from '../../common/utils/created-by.util';
 import { JobService } from './services/job.service';
 import { JobIntakeService } from './services/job-intake.service';
+import { JobImageService } from './services/job-image.service';
+import type { JobImageSource } from '../database/entity/job-image.entity';
+
+type UploadedImage = { buffer: Buffer; mimetype: string; size: number };
 
 @ApiTags('Jobs')
 @Controller('jobs')
@@ -37,6 +46,7 @@ export class JobController {
   constructor(
     private readonly jobService: JobService,
     private readonly jobIntakeService: JobIntakeService,
+    private readonly jobImageService: JobImageService,
   ) {}
 
   @Post()
@@ -149,6 +159,38 @@ export class JobController {
   async inFile(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.getInFileContent(id);
     return { message: 'IN file retrieved', data };
+  }
+
+  @Post(':id/images')
+  @ApiOperation({ summary: 'Upload or capture a photo for a job' })
+  @ApiConsumes('multipart/form-data')
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  @UseInterceptors(FileInterceptor('image'))
+  async uploadImage(
+    @CurrentUser() actor: UserContext,
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @UploadedFile() file: UploadedImage,
+    @Body('source') source: JobImageSource,
+  ) {
+    const data = await this.jobImageService.addImage(
+      id,
+      file,
+      source === 'CAPTURE' ? 'CAPTURE' : 'UPLOAD',
+      getCreatedById(actor),
+    );
+    return { message: 'Job image uploaded successfully', data };
+  }
+
+  @Delete(':id/images/:imageId')
+  @ApiOperation({ summary: 'Remove a job image' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  @ApiParam({ name: 'imageId', type: String, description: 'Job image snowflake ID' })
+  async deleteImage(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Param('imageId', ParseSnowflakeIdPipe) imageId: string,
+  ) {
+    await this.jobImageService.removeImage(id, imageId);
+    return { message: 'Job image deleted successfully', data: null };
   }
 
   @Post(':id/start')

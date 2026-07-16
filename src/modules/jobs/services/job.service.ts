@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import * as fs from 'fs/promises';
 import { CreateJobDto, UpdateJobDto } from '../../../common/dto/job.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
@@ -366,6 +367,30 @@ export class JobService {
         JobService.context,
       );
       throw new DatabaseException('Failed to fetch job. Please try again.');
+    }
+  }
+
+  /** Raw IN file contents for the Test & Submit preview modal. */
+  async getInFileContent(id: string): Promise<string> {
+    const job = await this.findOne(id);
+
+    if (!job.infile_path) {
+      throw new BadRequestException(
+        'IN file has not been generated yet — start the job first.',
+      );
+    }
+
+    try {
+      return await fs.readFile(job.infile_path, 'utf8');
+    } catch (error) {
+      this.logger.error(
+        `Failed to read IN file at ${job.infile_path}: ${(error as Error).message}`,
+        (error as Error).stack,
+        JobService.context,
+      );
+      throw new BadRequestException(
+        'IN file could not be read from disk — it may have been moved or the share is unavailable.',
+      );
     }
   }
 

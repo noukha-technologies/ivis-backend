@@ -251,11 +251,15 @@ export function resolvePermissionsForRole(role: string): string[] {
 export function resolveFlatPermissionsFromMatrix(
   matrix: RoleAccessMatrix,
 ): string[] {
+  // Stored JSON can predate a module/submodule added to MODULE_PERMISSION_MAP
+  // since the role was last saved — normalize so a stale row never crashes
+  // login, it just resolves as "no access" for the missing piece.
+  const normalized = normalizeRoleAccessMatrix(matrix ?? {});
   const resolved = new Set<string>();
 
   // Flat modules
   for (const mod of FLAT_MODULES) {
-    const flags = matrix[mod];
+    const flags = normalized[mod];
     const map = MODULE_PERMISSION_MAP[mod];
 
     if (flags.view) map.view.forEach((k) => resolved.add(k));
@@ -265,7 +269,7 @@ export function resolveFlatPermissionsFromMatrix(
 
   // Submodule modules: parent view = false → suppress all submodule keys
   for (const mod of SUBMODULE_MODULES) {
-    const modFlags = matrix[mod] as ModuleWithSubmodules<string>;
+    const modFlags = normalized[mod] as ModuleWithSubmodules<string>;
     if (!modFlags.view) continue;
 
     const entry = MODULE_PERMISSION_MAP[mod] as SubmodulePermissionMap;

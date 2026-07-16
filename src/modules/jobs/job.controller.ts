@@ -143,6 +143,14 @@ export class JobController {
     return { message: 'Job pricing resolved', data };
   }
 
+  @Get(':id/in-file')
+  @ApiOperation({ summary: 'Retrieve raw IN file contents for a job' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async inFile(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.getInFileContent(id);
+    return { message: 'IN file retrieved', data };
+  }
+
   @Post(':id/start')
   @ApiOperation({
     summary: 'Start the inspection (generate IN file, set In Progress)',

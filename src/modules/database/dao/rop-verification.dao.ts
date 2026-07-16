@@ -37,6 +37,14 @@ export class RopVerificationDao
     });
   }
 
+  /** Most recent verification already on file for a plate — reused instead of re-calling ROP. */
+  async findLatestByRegNo(regNo: string): Promise<RopVerification | null> {
+    return this.findOne({
+      where: { reg_no: regNo, is_deleted: false },
+      order: { created_at: 'DESC' },
+    });
+  }
+
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<RopVerification>> {

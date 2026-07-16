@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 3;
+export const ALTER_SCHEMA_VERSION = 5;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1337,6 +1337,22 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `UPDATE "transaction"."rop_verifications" SET "fetch_status" = 'Pending' WHERE "created_by" = 'anpr-system' AND "fetch_status" = 'Fetched'`,
     );
 
+    // rop_verifications: proof-of-lookup — the raw API response payload and
+    // the timestamp of the actual fetch (distinct from created_at/updated_at,
+    // which also move on unrelated manual edits).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "raw_response" jsonb`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "fetched_at" TIMESTAMP`,
+    );
+
+    // rop_verifications: anpr_capture_id is now optional — a manual/walk-in
+    // plate lookup (no camera involved) has no ANPR capture to attach to.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ALTER COLUMN "anpr_capture_id" DROP NOT NULL`,
+    );
+
     // vehicle_type is free text stored lowercase for reliable charge comparison —
     // normalize any existing values across the tables that carry it.
     await queryRunner.query(
@@ -1614,6 +1630,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertTransaction(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "raw_response"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "fetched_at"`,
+    );
+    // Not reverting anpr_capture_id back to NOT NULL — by this point rows
+    // created from manual/walk-in plate lookups may legitimately have it
+    // null, and re-tightening would fail (or destroy data) on those rows.
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."job_images" CASCADE`,
     );

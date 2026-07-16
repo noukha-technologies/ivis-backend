@@ -29,23 +29,25 @@ export class RopVerification {
   @Column({ type: 'integer', unique: true, nullable: false })
   rop_verification_id!: number;
 
+  // Nullable — a manual/walk-in plate lookup (no camera involved) has no ANPR
+  // capture to attach to; only camera-sourced verifications set this.
   @Column({
     type: 'bigint',
     transformer: bigintAsStringTransformer,
-    nullable: false,
+    nullable: true,
   })
-  anpr_capture_id!: string;
+  anpr_capture_id?: string | null;
 
   @ManyToOne(
     () => AnprCapture,
     (anprCapture) => anprCapture.rop_verifications,
     {
-      nullable: false,
+      nullable: true,
       onDelete: 'CASCADE',
     },
   )
   @JoinColumn({ name: 'anpr_capture_id' })
-  anpr_capture!: AnprCapture;
+  anpr_capture?: AnprCapture;
 
   @Column({ type: 'varchar', length: 128, nullable: true })
   owner_name?: string;
@@ -75,6 +77,15 @@ export class RopVerification {
     nullable: false,
   })
   fetch_status!: string;
+
+  // Proof of lookup — the raw API response payload and when the fetch
+  // actually happened, distinct from created_at/updated_at which also move
+  // on unrelated manual edits.
+  @Column({ type: 'jsonb', nullable: true })
+  raw_response?: Record<string, unknown> | null;
+
+  @Column({ type: 'timestamp', nullable: true })
+  fetched_at?: Date | null;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;

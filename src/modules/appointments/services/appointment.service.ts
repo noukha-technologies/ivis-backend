@@ -24,6 +24,9 @@ import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
+import { RopVerificationDao } from '../../database/dao/rop-verification.dao';
+import { RopApiClientService } from '../../integrations/rop/rop-api-client.service';
+import { RopVerificationStatus } from '../../../common/enums/common.enums';
 
 export interface PlateLookupResult {
   plate_number: string;
@@ -55,38 +58,80 @@ export class AppointmentService {
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly paymentTypeDao: PaymentTypeDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
+    private readonly ropVerificationDao: RopVerificationDao,
+    private readonly ropApiClient: RopApiClientService,
   ) {}
 
   /**
-   * Resolve known vehicle + customer details for a plate from the vehicle
-   * records (and the linked customer / vehicle master). Used by the walk-in
-   * drawer to auto-fill fields. Returns null when no record exists for the plate.
+   * Resolve known vehicle + customer details for a plate — used by the
+   * walk-in drawer to auto-fill fields. Priority:
+   *  1. An existing RopVerification already on file for this plate (no need
+   *     to re-call ROP — reused as-is, "proof of lookup" and all).
+   *  2. Not on file → call the real ROP API once and persist the result as a
+   *     new RopVerification row (anpr_capture_id left null — this lookup has
+   *     no camera capture behind it) so the next lookup for this plate hits (1).
+   *  3. Local vehicle records / customer (previously created walk-ins) —
+   *     supplements whichever of the above ran, and is the sole source when
+   *     ROP has nothing at all. Returns null only when none of the three
+   *     sources have anything for this plate.
    */
   async resolveByPlate(plate: string): Promise<PlateLookupResult | null> {
     const p = plate?.trim();
     if (!p) return null;
 
+    let rop = await this.ropVerificationDao.findLatestByRegNo(p);
+
+    if (!rop) {
+      const ropResult = await this.ropApiClient.fetchByPlate(p);
+      if (ropResult) {
+        rop = await this.ropVerificationDao.save(
+          this.ropVerificationDao.create({
+            id: generateSnowflakeId(),
+            rop_verification_id:
+              await this.ropVerificationDao.getNextRopVerificationId(),
+            anpr_capture_id: null,
+            owner_name: ropResult.owner_name,
+            vehicle_make: ropResult.vehicle_make,
+            vehicle_model: ropResult.vehicle_model,
+            reg_no: ropResult.reg_no ?? p,
+            chassis_no: ropResult.chassis_no,
+            insurance: ropResult.insurance,
+            reg_expiry: ropResult.reg_expiry,
+            fetch_status: RopVerificationStatus.VALIDATED,
+            raw_response: ropResult.raw_response ?? null,
+            fetched_at: new Date(),
+            created_by: 'walk-in-plate-lookup',
+          }),
+        );
+        this.logger.log(
+          `ROP plate lookup saved for walk-in — plate: ${p}`,
+          AppointmentService.context,
+        );
+      }
+    }
+
     const record = await this.vehicleRecordDao.findByPlateNumber(p);
-    if (!record) return null;
-
-    const customer = await this.customerDao.findByVehicleRecordId(record.id);
-
+    const customer = record
+      ? await this.customerDao.findByVehicleRecordId(record.id)
+      : null;
     // Plate colour is sourced from the ANPR capture (camera read); fall back to
     // the vehicle record if the latest capture has none.
     const latestCapture = await this.anprCaptureDao.findLatestByPlate(p);
 
+    if (!rop && !record) return null;
+
     return {
-      plate_number: record.plate_number,
-      owner_name: customer?.owner_name ?? null,
+      plate_number: rop?.reg_no ?? record?.plate_number ?? p,
+      owner_name: rop?.owner_name ?? customer?.owner_name ?? null,
       owner_phone: customer?.owner_phone_number ?? null,
-      customer_name: customer?.owner_name ?? null,
+      customer_name: rop?.owner_name ?? customer?.owner_name ?? null,
       customer_phone: customer?.owner_phone_number ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
-      plate_color: latestCapture?.plate_color ?? record.plate_color ?? null,
+      plate_color: latestCapture?.plate_color ?? record?.plate_color ?? null,
       vehicle_type:
-        record.vehicle_type ?? record.vehicleMaster?.vehicle_type ?? null,
-      chassis_no: record.chassis_no ?? null,
-      charge_category_id: record.vehicleMaster?.charge_category_id ?? null,
+        record?.vehicle_type ?? record?.vehicleMaster?.vehicle_type ?? null,
+      chassis_no: rop?.chassis_no ?? record?.chassis_no ?? null,
+      charge_category_id: record?.vehicleMaster?.charge_category_id ?? null,
     };
   }
 
@@ -138,6 +183,8 @@ export class AppointmentService {
         createDto.vehicle_type ?? capture?.vehicle_type ?? undefined,
         createDto.chassis_no,
         actor,
+        createDto.plate_color,
+        createDto.vehicle_color,
       );
 
       // Create / link the customer with all entered details (#4) and link it to
@@ -231,6 +278,8 @@ export class AppointmentService {
       updateDto.vehicle_type,
       updateDto.chassis_no,
       actor,
+      updateDto.plate_color,
+      updateDto.vehicle_color,
     );
 
     // Update the linked customer's details (#4). Reuse the existing customer id.
@@ -294,6 +343,8 @@ export class AppointmentService {
     vehicleType: string | undefined,
     chassisNo: string | undefined,
     actor: UserContext,
+    plateColor?: string,
+    vehicleColor?: string,
   ): Promise<string | undefined> {
     if (existingRecordId) {
       const record =
@@ -302,6 +353,8 @@ export class AppointmentService {
         const merged = this.vehicleRecordDao.merge(record, {
           vehicle_type: vehicleType ?? record.vehicle_type,
           chassis_no: chassisNo ?? record.chassis_no,
+          plate_color: plateColor ?? record.plate_color,
+          vehicle_color: vehicleColor ?? record.vehicle_color,
         });
         const saved = await this.vehicleRecordDao.save(merged);
         return saved.id;
@@ -316,6 +369,8 @@ export class AppointmentService {
       const merged = this.vehicleRecordDao.merge(found, {
         vehicle_type: vehicleType ?? found.vehicle_type,
         chassis_no: chassisNo ?? found.chassis_no,
+        plate_color: plateColor ?? found.plate_color,
+        vehicle_color: vehicleColor ?? found.vehicle_color,
       });
       const saved = await this.vehicleRecordDao.save(merged);
       return saved.id;
@@ -328,6 +383,8 @@ export class AppointmentService {
         plate_number: plate,
         vehicle_type: vehicleType,
         chassis_no: chassisNo,
+        plate_color: plateColor,
+        vehicle_color: vehicleColor,
         created_by: getCreatedById(actor),
       }),
     );

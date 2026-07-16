@@ -144,6 +144,8 @@ export class AnprOrchestrationService {
           insurance: ropResult?.insurance,
           reg_expiry: ropResult?.reg_expiry,
           fetch_status: status,
+          raw_response: ropResult?.raw_response ?? null,
+          fetched_at: ropResult != null ? new Date() : null,
           created_by: SYSTEM_ACTOR,
         }),
       );

@@ -33,10 +33,14 @@ export class ChargeService {
   private computeGrandTotal(
     centerCharges: number,
     ropCharges: number,
+    categoryCharges: number,
     vatPercent: number,
   ): number {
     return Number(
-      ((centerCharges + ropCharges) * (1 + vatPercent / 100)).toFixed(3),
+      (
+        (centerCharges + ropCharges + categoryCharges) *
+        (1 + vatPercent / 100)
+      ).toFixed(3),
     );
   }
 
@@ -94,6 +98,7 @@ export class ChargeService {
       const grand_total = this.computeGrandTotal(
         dto.center_charges,
         dto.rop_charges,
+        dto.category_charges,
         dto.vat_percent,
       );
 
@@ -224,10 +229,12 @@ export class ChargeService {
 
       const finalCenterCharges = Number(mergedCharge.center_charges);
       const finalRopCharges = Number(mergedCharge.rop_charges);
+      const finalCategoryCharges = Number(mergedCharge.category_charges);
       const finalVatPercent = Number(mergedCharge.vat_percent);
       mergedCharge.grand_total = this.computeGrandTotal(
         finalCenterCharges,
         finalRopCharges,
+        finalCategoryCharges,
         finalVatPercent,
       );
 

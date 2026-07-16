@@ -43,7 +43,6 @@ export class ChargeCategoryDao
         'category_id',
         'vehicle_weight',
         'engine_capacity',
-        'fees',
         'status',
         'created_at',
       ],

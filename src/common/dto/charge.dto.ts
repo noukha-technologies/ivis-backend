@@ -73,6 +73,11 @@ export class CreateChargeDto {
   @Min(0, { message: 'rop_charges must be 0 or greater' })
   rop_charges!: number;
 
+  @ApiProperty({ description: 'Category charges amount (OMR)', example: 10.5 })
+  @IsNumber({}, { message: 'category_charges must be a number' })
+  @Min(0, { message: 'category_charges must be 0 or greater' })
+  category_charges!: number;
+
   @ApiProperty({ description: 'VAT percentage (0–100)', example: 5 })
   @IsNumber({}, { message: 'vat_percent must be a number' })
   @Min(0, { message: 'vat_percent must be 0 or greater' })

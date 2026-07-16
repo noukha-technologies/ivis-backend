@@ -74,6 +74,17 @@ export class Charge implements IChargeMasterFields {
   })
   rop_charges!: number;
 
+  // Moved from ChargeCategory.fees — this is now a per-Charge amount rather
+  // than a fixed per-category fee, included in grand_total like center/rop.
+  @Column({
+    type: 'decimal',
+    precision: 12,
+    scale: 3,
+    nullable: false,
+    default: 0,
+  })
+  category_charges!: number;
+
   @Column({
     type: 'decimal',
     precision: 5,

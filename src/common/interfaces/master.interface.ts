@@ -77,7 +77,6 @@ export interface IChargeCategoryMasterFields {
   category_id: number;
   vehicle_weight: string;
   engine_capacity?: string;
-  fees: number;
   status: string;
   created_by?: string;
   created_at: Date;
@@ -94,6 +93,7 @@ export interface IChargeMasterFields {
   category?: string;
   center_charges: number;
   rop_charges: number;
+  category_charges: number;
   vat_percent: number;
   grand_total: number;
   validate_to: Date;

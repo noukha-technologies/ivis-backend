@@ -37,6 +37,7 @@ import { AuditLog } from './entity/audit-log.entity';
 
 import { JobDao } from './dao/job.dao';
 import { JobImageDao } from './dao/job-image.dao';
+import { DashboardDao } from './dao/dashboard.dao';
 import { RoleDao } from './dao/role.dao';
 import { TestDao } from './dao/test.dao';
 import { LineDao } from './dao/line.dao';
@@ -146,6 +147,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     VehicleRecordDao,
     JobDao,
     JobImageDao,
+    DashboardDao,
     AppointmentDao,
     ChargeDao,
     ChargeCategoryDao,
@@ -181,6 +183,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     VehicleRecordDao,
     JobDao,
     JobImageDao,
+    DashboardDao,
     AppointmentDao,
     ChargeDao,
     ChargeCategoryDao,

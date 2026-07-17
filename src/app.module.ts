@@ -31,6 +31,7 @@ import { IntegrationsModule } from './modules/integrations/integrations.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
 import { SyncModule } from './modules/sync/sync.module';
 import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
     RolesModule,
     SyncModule,
     AuditLogsModule,
+    DashboardModule,
   ],
   controllers: [AppController],
   providers: [

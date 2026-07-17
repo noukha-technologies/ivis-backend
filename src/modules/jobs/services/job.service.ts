@@ -230,13 +230,16 @@ export class JobService {
       vehicleRecordId = record.id;
     }
 
+    const resolvedCentreId =
+      appt.centre_id ?? actor.user.center_id ?? undefined;
+
     const job = await this.create(
       {
         appointment_id: appt.id,
         status: 'Pending',
         customer_id: appt.customer_id,
         vehicle_record_id: vehicleRecordId,
-        centre_id: appt.centre_id ?? undefined,
+        centre_id: resolvedCentreId,
         line_id: appt.line_id ?? undefined,
         anpr_capture_id: appt.anpr_capture_id ?? undefined,
       },

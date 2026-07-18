@@ -25,6 +25,7 @@ import { getCreatedById } from '../../../common/utils/created-by.util';
 import { saveBase64File } from '../../../common/utils/file-storage.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { generateIdNumber } from '../../../common/shared/id-number.util';
+import { patchAuditContext } from '../../../common/audit/audit-context';
 
 import { JobDao } from '../../database/dao/job.dao';
 import { LineDao } from '../../database/dao/line.dao';
@@ -155,6 +156,9 @@ export class JobIntakeService {
             adminPcId: createDto.admin_pc_id,
             cameraId: createDto.camera_id,
             createdBy,
+            customerName: createDto.customer_name,
+            plateNumber: createDto.vehicle_no,
+            bookingType: createDto.source || 'Walk-in',
           });
           savedPayment.job_id = job.id;
           savedPayment = await manager.save(Payments, savedPayment);
@@ -320,6 +324,9 @@ export class JobIntakeService {
       adminPcId?: string;
       cameraId?: string;
       createdBy: string;
+      customerName?: string;
+      plateNumber?: string;
+      bookingType?: string;
     },
   ): Promise<Job> {
     const jobId = await this.getNextNumericId(manager, Job, 'job_id');
@@ -337,7 +344,21 @@ export class JobIntakeService {
       created_by: input.createdBy,
     });
 
-    return manager.save(Job, job);
+    const auditDetails = {
+      plate_number: input.plateNumber ?? null,
+      customer_name: input.customerName ?? null,
+      booking_type: input.bookingType ?? 'Walk-in',
+    };
+    Object.assign(job, auditDetails);
+    patchAuditContext({ jobAuditDetails: { ...auditDetails } });
+    try {
+      return await manager.save(Job, job);
+    } finally {
+      patchAuditContext({
+        jobAuditDetails: null,
+        jobAuditDetailsBefore: null,
+      });
+    }
   }
 
   private async getNextNumericId(

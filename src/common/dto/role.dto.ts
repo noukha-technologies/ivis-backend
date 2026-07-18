@@ -1,13 +1,17 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
   IsIn,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
 import { PermissionProfileDto } from './permission-profile.dto';
+import { RoleAccessMatrixDto } from './role-access.dto';
 import { ACCESS_SCOPES, AccessScope } from '../constants/access-scope';
 
 export class CreateRoleDto {
@@ -59,7 +63,18 @@ export class CreateRoleDto {
   center_ids?: string[];
 }
 
-export class UpdateRoleDto extends PartialType(CreateRoleDto) {}
+export class UpdateRoleDto extends PartialType(CreateRoleDto) {
+  @ApiPropertyOptional({
+    description:
+      'Permission access matrix for the linked profile. When provided, updates the profile and records the change on the Role audit log.',
+    type: RoleAccessMatrixDto,
+  })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => RoleAccessMatrixDto)
+  access?: RoleAccessMatrixDto;
+}
 
 export class RoleDto {
   @ApiProperty()

@@ -11,6 +11,7 @@ import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { generateIdNumber } from '../../../common/shared/id-number.util';
+import { patchAuditContext } from '../../../common/audit/audit-context';
 import {
   DatabaseException,
   DuplicateResourceException,
@@ -20,6 +21,8 @@ import {
 import { LineDao } from '../../database/dao/line.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
+import { VehicleDao } from '../../database/dao/vehicle.dao';
+import { AuditLogDao } from '../../database/dao/audit-log.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
@@ -45,6 +48,25 @@ import { Appointment } from '../../database/entity/appointment.entity';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
 
+/** Denormalized detail fields attached for audit log snapshots (not DB columns). */
+type AppointmentAuditDetails = {
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  owner_name?: string | null;
+  driver_phone_number?: string | null;
+  mulkiya_id?: string | null;
+  plate_number?: string | null;
+  plate_color?: string | null;
+  vehicle_type?: string | null;
+  charge_category_id?: string | null;
+  chassis_no?: string | null;
+};
+
+type AppointmentAuditEntity = Appointment &
+  AppointmentAuditDetails & {
+    __auditDetailBefore?: AppointmentAuditDetails;
+  };
+
 @Injectable()
 export class AppointmentService {
   private static readonly context = 'AppointmentService';
@@ -54,6 +76,8 @@ export class AppointmentService {
     private readonly logger: AppLogger,
     private readonly centreDao: CentreDao,
     private readonly customerDao: CustomerDao,
+    private readonly vehicleDao: VehicleDao,
+    private readonly auditLogDao: AuditLogDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly paymentTypeDao: PaymentTypeDao,
@@ -214,12 +238,36 @@ export class AppointmentService {
         created_by: getCreatedById(actor),
       });
 
-      const saved = await this.appointmentDao.save(appointment);
-      this.logger.log(
-        `Appointment created ID: ${saved.id}`,
-        AppointmentService.context,
-      );
-      return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
+      const auditDetails: AppointmentAuditDetails = {
+        customer_name: createDto.customer_name ?? null,
+        customer_phone: createDto.customer_phone ?? null,
+        owner_name: createDto.owner_name ?? createDto.customer_name ?? null,
+        driver_phone_number: createDto.driver_phone ?? null,
+        mulkiya_id: createDto.mulkiya_id ?? null,
+        plate_number: plateNumber ?? null,
+        plate_color: createDto.plate_color ?? capture?.plate_color ?? null,
+        vehicle_type:
+          createDto.vehicle_type ?? capture?.vehicle_type ?? null,
+        charge_category_id: createDto.charge_category_id ?? null,
+        chassis_no: createDto.chassis_no ?? null,
+      };
+
+      this.attachAuditDetails(appointment, auditDetails);
+      patchAuditContext({ appointmentAuditDetails: { ...auditDetails } });
+
+      try {
+        const saved = await this.appointmentDao.save(appointment);
+        this.logger.log(
+          `Appointment created ID: ${saved.id}`,
+          AppointmentService.context,
+        );
+        return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
+      } finally {
+        patchAuditContext({
+          appointmentAuditDetails: null,
+          appointmentAuditDetailsBefore: null,
+        });
+      }
     } catch (error) {
       if (
         error instanceof DuplicateResourceException ||
@@ -322,14 +370,170 @@ export class AppointmentService {
         : {}),
     });
 
-    const saved = await this.appointmentDao.save(merged);
-    return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
+    const beforeDetails = this.buildAuditDetailsFromEntity(appointment);
+    const afterDetails = this.buildAuditDetailsFromDto(
+      updateDto,
+      appointment,
+      beforeDetails,
+    );
+    this.attachAuditDetails(merged, afterDetails);
+    (merged as AppointmentAuditEntity).__auditDetailBefore = beforeDetails;
+    patchAuditContext({
+      appointmentAuditDetails: { ...afterDetails },
+      appointmentAuditDetailsBefore: { ...beforeDetails },
+    });
+
+    try {
+      const saved = await this.appointmentDao.save(merged);
+      return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
+    } finally {
+      patchAuditContext({
+        appointmentAuditDetails: null,
+        appointmentAuditDetailsBefore: null,
+      });
+    }
   }
 
   async remove(id: string): Promise<void> {
     const appointment = await this.findOne(id);
+    const details = await this.buildAuditDetailsForDelete(appointment);
+    this.attachAuditDetails(appointment, details);
     appointment.is_deleted = true;
-    await this.appointmentDao.save(appointment);
+    patchAuditContext({ appointmentAuditDetails: { ...details } });
+    try {
+      await this.appointmentDao.save(appointment);
+    } finally {
+      patchAuditContext({
+        appointmentAuditDetails: null,
+        appointmentAuditDetailsBefore: null,
+      });
+    }
+  }
+
+  private attachAuditDetails(
+    appointment: Appointment,
+    details: AppointmentAuditDetails,
+  ): void {
+    Object.assign(appointment as AppointmentAuditEntity, details);
+  }
+
+  /**
+   * DELETE snapshot: entity relations + prior CREATE/UPDATE audit for fields
+   * that are not columns on appointments (esp. Vehicle Category).
+   */
+  private async buildAuditDetailsForDelete(
+    appointment: Appointment,
+  ): Promise<AppointmentAuditDetails> {
+    const details = this.buildAuditDetailsFromEntity(appointment);
+    if (details.charge_category_id) {
+      return details;
+    }
+
+    const prior = await this.auditLogDao.findLatestEntityDetailSnapshot(
+      'Appointment',
+      appointment.id,
+    );
+    if (!prior) {
+      return details;
+    }
+
+    return {
+      ...details,
+      customer_name:
+        details.customer_name ??
+        (prior.customer_name as string | null | undefined) ??
+        null,
+      customer_phone:
+        details.customer_phone ??
+        (prior.customer_phone as string | null | undefined) ??
+        (prior.owner_phone_number as string | null | undefined) ??
+        null,
+      owner_name:
+        details.owner_name ??
+        (prior.owner_name as string | null | undefined) ??
+        null,
+      driver_phone_number:
+        details.driver_phone_number ??
+        (prior.driver_phone_number as string | null | undefined) ??
+        null,
+      mulkiya_id:
+        details.mulkiya_id ??
+        (prior.mulkiya_id as string | null | undefined) ??
+        null,
+      plate_number:
+        details.plate_number ??
+        (prior.plate_number as string | null | undefined) ??
+        null,
+      plate_color:
+        details.plate_color ??
+        (prior.plate_color as string | null | undefined) ??
+        null,
+      vehicle_type:
+        details.vehicle_type ??
+        (prior.vehicle_type as string | null | undefined) ??
+        null,
+      charge_category_id:
+        details.charge_category_id ??
+        (prior.charge_category_id as string | null | undefined) ??
+        null,
+      chassis_no:
+        details.chassis_no ??
+        (prior.chassis_no as string | null | undefined) ??
+        null,
+    };
+  }
+
+  private buildAuditDetailsFromEntity(
+    appointment: Appointment,
+  ): AppointmentAuditDetails {
+    const customer = appointment.customer;
+    const vehicle = appointment.vehicleRecord;
+    const capture = appointment.anprCapture;
+    return {
+      // Customer name is not a separate DB column — fall back to owner name.
+      customer_name: customer?.owner_name ?? null,
+      customer_phone: customer?.owner_phone_number ?? null,
+      owner_name: customer?.owner_name ?? null,
+      driver_phone_number: customer?.driver_phone_number ?? null,
+      mulkiya_id: customer?.mulkiya_id ?? null,
+      plate_number:
+        vehicle?.plate_number ??
+        capture?.plate_number ??
+        customer?.plate_number ??
+        null,
+      plate_color: vehicle?.plate_color ?? capture?.plate_color ?? null,
+      vehicle_type: vehicle?.vehicle_type ?? capture?.vehicle_type ?? null,
+      charge_category_id: vehicle?.vehicleMaster?.charge_category_id ?? null,
+      chassis_no: vehicle?.chassis_no ?? customer?.chassis_no ?? null,
+    };
+  }
+
+  private buildAuditDetailsFromDto(
+    dto: UpdateAppointmentDto,
+    appointment: Appointment,
+    fallback: AppointmentAuditDetails,
+  ): AppointmentAuditDetails {
+    const capture = appointment.anprCapture;
+    return {
+      customer_name: dto.customer_name ?? fallback.customer_name ?? null,
+      customer_phone: dto.customer_phone ?? fallback.customer_phone ?? null,
+      owner_name:
+        dto.owner_name ?? dto.customer_name ?? fallback.owner_name ?? null,
+      driver_phone_number:
+        dto.driver_phone ?? fallback.driver_phone_number ?? null,
+      mulkiya_id: dto.mulkiya_id ?? fallback.mulkiya_id ?? null,
+      plate_number: dto.plate_number ?? fallback.plate_number ?? null,
+      plate_color:
+        dto.plate_color ?? capture?.plate_color ?? fallback.plate_color ?? null,
+      vehicle_type:
+        dto.vehicle_type ??
+        capture?.vehicle_type ??
+        fallback.vehicle_type ??
+        null,
+      charge_category_id:
+        dto.charge_category_id ?? fallback.charge_category_id ?? null,
+      chassis_no: dto.chassis_no ?? fallback.chassis_no ?? null,
+    };
   }
 
   /**
@@ -346,6 +550,15 @@ export class AppointmentService {
     plateColor?: string,
     vehicleColor?: string,
   ): Promise<string | undefined> {
+    const vehicleMasterId = chargeCategoryId
+      ? (
+          await this.vehicleDao.findByChargeCategory(
+            chargeCategoryId,
+            vehicleType,
+          )
+        )?.id
+      : undefined;
+
     if (existingRecordId) {
       const record =
         await this.vehicleRecordDao.findActiveById(existingRecordId);

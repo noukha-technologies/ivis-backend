@@ -12,6 +12,12 @@ import { RopApiClientService } from '../../../integrations/rop/rop-api-client.se
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { CaptureValidationService } from './capture-validation.service';
+import {
+  applyRopVerificationAuditContext,
+  clearRopVerificationAuditContext,
+  EMPTY_ROP_VERIFICATION_AUDIT,
+  snapshotRopVerification,
+} from '../../../../common/audit/rop-verification-audit';
 
 const SYSTEM_ACTOR = 'anpr-system';
 const normalizePlate = (v: string | null | undefined): string =>
@@ -149,6 +155,12 @@ export class AnprOrchestrationService {
           created_by: SYSTEM_ACTOR,
         }),
       );
+      let savedRop;
+      try {
+        savedRop = await this.ropVerificationDao.save(ropEntity);
+      } finally {
+        clearRopVerificationAuditContext();
+      }
 
       // Fetched → validate the capture + queue the appointment (combined data).
       if (status === RopVerificationStatus.VALIDATED) {
@@ -180,7 +192,16 @@ export class AnprOrchestrationService {
           fetch_status: RopVerificationStatus.FAILED,
           created_by: SYSTEM_ACTOR,
         });
-        await this.ropVerificationDao.save(failedVerification);
+        applyRopVerificationAuditContext(
+          failedVerification.id,
+          EMPTY_ROP_VERIFICATION_AUDIT,
+          snapshotRopVerification(failedVerification, plate),
+        );
+        try {
+          await this.ropVerificationDao.save(failedVerification);
+        } finally {
+          clearRopVerificationAuditContext();
+        }
         // Capture is NOT stamped on failure — only a successful fetch updates it.
       } catch (saveErr) {
         this.logger.warn(

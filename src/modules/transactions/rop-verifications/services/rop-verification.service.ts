@@ -19,6 +19,12 @@ import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { RopVerification } from '../../../database/entity/rop-verification.entity';
 import { CaptureValidationService } from '../../anpr-captures/services/capture-validation.service';
+import {
+  applyRopVerificationAuditContext,
+  clearRopVerificationAuditContext,
+  EMPTY_ROP_VERIFICATION_AUDIT,
+  snapshotRopVerification,
+} from '../../../../common/audit/rop-verification-audit';
 
 @Injectable()
 export class RopVerificationService {
@@ -30,6 +36,11 @@ export class RopVerificationService {
     private readonly captureValidation: CaptureValidationService,
     private readonly logger: AppLogger,
   ) {}
+
+  private async resolvePlateNumber(anprCaptureId: string): Promise<string | null> {
+    const capture = await this.anprCaptureDao.findActiveById(anprCaptureId);
+    return capture?.plate_number ?? null;
+  }
 
   /**
    * When a ROP verification is "Fetched", validate the linked capture and queue
@@ -113,7 +124,19 @@ export class RopVerificationService {
         created_by: getCreatedById(actor),
       });
 
-      const saved = await this.ropVerificationDao.save(ropVerification);
+      const plateNumber = anprCapture.plate_number ?? null;
+      const afterState = snapshotRopVerification(ropVerification, plateNumber);
+      applyRopVerificationAuditContext(
+        ropVerification.id,
+        EMPTY_ROP_VERIFICATION_AUDIT,
+        afterState,
+      );
+      let saved: RopVerification;
+      try {
+        saved = await this.ropVerificationDao.save(ropVerification);
+      } finally {
+        clearRopVerificationAuditContext();
+      }
       // Fetched → validate the linked capture + queue the appointment.
       await this.syncCaptureFromRop(saved);
       this.logger.log(
@@ -209,7 +232,14 @@ export class RopVerificationService {
           ? { fetched_at: new Date() }
           : {}),
       });
-      const saved = await this.ropVerificationDao.save(merged);
+      const afterState = snapshotRopVerification(merged, plateNumber);
+      applyRopVerificationAuditContext(merged.id, beforeState, afterState);
+      let saved: RopVerification;
+      try {
+        saved = await this.ropVerificationDao.save(merged);
+      } finally {
+        clearRopVerificationAuditContext();
+      }
       // Fetched → validate the linked capture + queue the appointment.
       await this.syncCaptureFromRop(saved);
       this.logger.log(
@@ -239,8 +269,18 @@ export class RopVerificationService {
     );
     try {
       const ropVerification = await this.findOne(id);
-      ropVerification.is_deleted = true;
-      await this.ropVerificationDao.save(ropVerification);
+      const plateNumber = await this.resolvePlateNumber(ropVerification.anpr_capture_id);
+      const beforeState = snapshotRopVerification(ropVerification, plateNumber);
+      const merged = this.ropVerificationDao.merge(ropVerification, {
+        is_deleted: true,
+      });
+      const afterState = snapshotRopVerification(merged, plateNumber);
+      applyRopVerificationAuditContext(merged.id, beforeState, afterState);
+      try {
+        await this.ropVerificationDao.save(merged);
+      } finally {
+        clearRopVerificationAuditContext();
+      }
       this.logger.log(
         `ROP verification soft-deleted ID: ${id}`,
         RopVerificationService.context,

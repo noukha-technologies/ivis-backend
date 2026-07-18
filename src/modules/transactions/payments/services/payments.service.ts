@@ -21,11 +21,24 @@ import { PaymentStatusEnum } from '../../../../common/enums/payment.enums';
 
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+import { patchAuditContext } from '../../../../common/audit/audit-context';
+import { stashAuditEntityDetails } from '../../../../common/audit/audit-entity-details.stash';
 
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { PaymentsDao } from '../../../database/dao/payments.dao';
+import { PaymentTypeDao } from '../../../database/dao/payment-type.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
+import { JobDao } from '../../../database/dao/job.dao';
+
+type PaymentsAuditDetails = {
+  customer_name?: string | null;
+  plate_number?: string | null;
+  vehicle_type?: string | null;
+  payment_mode?: string | null;
+  payment_kind?: string | null;
+  job_label?: string | null;
+};
 
 @Injectable()
 export class PaymentsService {
@@ -34,9 +47,11 @@ export class PaymentsService {
   constructor(
     private readonly logger: AppLogger,
     private readonly jobService: JobService,
+    private readonly jobDao: JobDao,
     private readonly customerDao: CustomerDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
+    private readonly paymentTypeDao: PaymentTypeDao,
     private readonly paymentsDao: PaymentsDao,
   ) {}
 
@@ -89,7 +104,28 @@ export class PaymentsService {
         created_by: getCreatedById(actor),
       });
 
-      let saved = await this.paymentsDao.save(payment);
+      const auditDetails = await this.resolvePaymentsAuditDetails({
+        customerId: resolved.customer_id,
+        vehicleRecordId: resolved.vehicle_record_id,
+        paymentTypeId: createDto.payment_type_id,
+        jobId: createDto.job_id,
+        grandTotal: createDto.grand_total,
+      });
+      Object.assign(payment, auditDetails);
+      patchAuditContext({ paymentsAuditDetails: { ...auditDetails } });
+      stashAuditEntityDetails('Payments', payment.id, {
+        after: { ...auditDetails },
+      });
+
+      let saved: Payments;
+      try {
+        saved = await this.paymentsDao.save(payment);
+      } finally {
+        patchAuditContext({
+          paymentsAuditDetails: null,
+          paymentsAuditDetailsBefore: null,
+        });
+      }
 
       if (isPaid && createDto.auto_create_job !== false) {
         const job = await this.jobService.create(
@@ -108,10 +144,26 @@ export class PaymentsService {
         );
 
         saved.job_id = job.id;
-        saved = await this.paymentsDao.save(saved);
+        const withJob: PaymentsAuditDetails = {
+          ...auditDetails,
+          job_label: `#J${String(job.job_id).padStart(2, '0')}`,
+        };
+        Object.assign(saved, withJob);
+        patchAuditContext({ paymentsAuditDetails: { ...withJob } });
+        stashAuditEntityDetails('Payments', saved.id, {
+          after: { ...withJob },
+          before: { ...auditDetails },
+        });
+        try {
+          saved = await this.paymentsDao.save(saved);
+        } finally {
+          patchAuditContext({
+            paymentsAuditDetails: null,
+            paymentsAuditDetailsBefore: null,
+          });
+        }
         this.logger.log(
-          `Job auto-created ID: ${job.id} from payment $
-          {saved.id}`,
+          `Job auto-created ID: ${job.id} from payment ${saved.id}`,
           PaymentsService.context,
         );
       }
@@ -159,6 +211,8 @@ export class PaymentsService {
     actor: UserContext,
   ): Promise<Payments> {
     const payment = await this.findOne(id);
+    const beforeDetails = this.buildPaymentsAuditDetailsFromEntity(payment);
+
     const resolved = await this.resolveReferences({
       ...updateDto,
       customer_id: updateDto.customer_id ?? payment.customer_id,
@@ -169,6 +223,8 @@ export class PaymentsService {
     });
 
     const nextGrandTotal = updateDto.grand_total ?? Number(payment.grand_total);
+    const paymentTypeId =
+      updateDto.payment_type_id ?? payment.payment_type_id ?? null;
     const merged = this.paymentsDao.merge(payment, {
       payment_type_id: updateDto.payment_type_id ?? payment.payment_type_id,
       job_id: updateDto.job_id ?? payment.job_id,
@@ -188,7 +244,32 @@ export class PaymentsService {
         : {}),
     });
 
-    let saved = await this.paymentsDao.save(merged);
+    const afterDetails = await this.resolvePaymentsAuditDetails({
+      customerId: resolved.customer_id,
+      vehicleRecordId: resolved.vehicle_record_id,
+      paymentTypeId,
+      jobId: payment.job_id,
+      grandTotal: nextGrandTotal,
+    });
+    Object.assign(merged, afterDetails);
+    patchAuditContext({
+      paymentsAuditDetails: { ...afterDetails },
+      paymentsAuditDetailsBefore: { ...beforeDetails },
+    });
+    stashAuditEntityDetails('Payments', merged.id, {
+      after: { ...afterDetails },
+      before: { ...beforeDetails },
+    });
+
+    let saved: Payments;
+    try {
+      saved = await this.paymentsDao.save(merged);
+    } finally {
+      patchAuditContext({
+        paymentsAuditDetails: null,
+        paymentsAuditDetailsBefore: null,
+      });
+    }
 
     if (
       Number(saved.grand_total) > 0 &&
@@ -210,7 +291,27 @@ export class PaymentsService {
         actor,
       );
       saved.job_id = job.id;
-      saved = await this.paymentsDao.save(saved);
+      const withJob: PaymentsAuditDetails = {
+        ...afterDetails,
+        job_label: `#J${String(job.job_id).padStart(2, '0')}`,
+      };
+      Object.assign(saved, withJob);
+      patchAuditContext({
+        paymentsAuditDetails: { ...withJob },
+        paymentsAuditDetailsBefore: { ...beforeDetails },
+      });
+      stashAuditEntityDetails('Payments', saved.id, {
+        after: { ...withJob },
+        before: { ...beforeDetails },
+      });
+      try {
+        saved = await this.paymentsDao.save(saved);
+      } finally {
+        patchAuditContext({
+          paymentsAuditDetails: null,
+          paymentsAuditDetailsBefore: null,
+        });
+      }
     }
 
     return (await this.paymentsDao.findActiveById(saved.id)) ?? saved;
@@ -218,8 +319,78 @@ export class PaymentsService {
 
   async remove(id: string): Promise<void> {
     const payment = await this.findOne(id);
+    // Resolve via DAOs so soft-delete snapshots always store display names,
+    // even if relations on the entity were incomplete.
+    const auditDetails = await this.resolvePaymentsAuditDetails({
+      customerId: payment.customer_id,
+      vehicleRecordId: payment.vehicle_record_id,
+      paymentTypeId: payment.payment_type_id,
+      jobId: payment.job_id,
+      grandTotal: Number(payment.grand_total),
+    });
+    Object.assign(payment, auditDetails);
     payment.is_deleted = true;
-    await this.paymentsDao.save(payment);
+    patchAuditContext({ paymentsAuditDetails: { ...auditDetails } });
+    stashAuditEntityDetails('Payments', payment.id, {
+      after: { ...auditDetails },
+    });
+    try {
+      await this.paymentsDao.save(payment);
+    } finally {
+      patchAuditContext({
+        paymentsAuditDetails: null,
+        paymentsAuditDetailsBefore: null,
+      });
+    }
+  }
+
+  private async resolvePaymentsAuditDetails(input: {
+    customerId?: string | null;
+    vehicleRecordId?: string | null;
+    paymentTypeId?: string | null;
+    jobId?: string | null;
+    grandTotal: number;
+  }): Promise<PaymentsAuditDetails> {
+    const [customer, vehicle, paymentType, job] = await Promise.all([
+      input.customerId
+        ? this.customerDao.findActiveById(input.customerId)
+        : Promise.resolve(null),
+      input.vehicleRecordId
+        ? this.vehicleRecordDao.findActiveById(input.vehicleRecordId)
+        : Promise.resolve(null),
+      input.paymentTypeId
+        ? this.paymentTypeDao.findActiveById(input.paymentTypeId)
+        : Promise.resolve(null),
+      input.jobId
+        ? this.jobDao.findActiveById(input.jobId)
+        : Promise.resolve(null),
+    ]);
+
+    return {
+      customer_name: customer?.owner_name ?? null,
+      plate_number: vehicle?.plate_number ?? null,
+      vehicle_type: vehicle?.vehicle_type ?? null,
+      payment_mode: paymentType?.name ?? null,
+      payment_kind: Number(input.grandTotal) > 0 ? 'Paid' : 'FOC',
+      job_label: job
+        ? `#J${String(job.job_id).padStart(2, '0')}`
+        : null,
+    };
+  }
+
+  private buildPaymentsAuditDetailsFromEntity(
+    payment: Payments,
+  ): PaymentsAuditDetails {
+    return {
+      customer_name: payment.customer?.owner_name ?? null,
+      plate_number: payment.vehicleRecord?.plate_number ?? null,
+      vehicle_type: payment.vehicleRecord?.vehicle_type ?? null,
+      payment_mode: payment.paymentType?.name ?? null,
+      payment_kind: Number(payment.grand_total) > 0 ? 'Paid' : 'FOC',
+      job_label: payment.job
+        ? `#J${String(payment.job.job_id).padStart(2, '0')}`
+        : null,
+    };
   }
 
   async lookupJob(jobId: string) {

@@ -89,6 +89,7 @@ export class PaymentsService {
       const payment = this.paymentsDao.create({
         id: generateSnowflakeId(),
         payment_id: paymentsId,
+        job_id: createDto.job_id ?? null,
         appointment_id: resolved.appointment_id,
         customer_id: resolved.customer_id,
         vehicle_record_id: resolved.vehicle_record_id,
@@ -225,7 +226,8 @@ export class PaymentsService {
     const paymentTypeId =
       updateDto.payment_type_id ?? payment.payment_type_id ?? null;
     const merged = this.paymentsDao.merge(payment, {
-      payment_type_id: paymentTypeId,
+      payment_type_id: updateDto.payment_type_id ?? payment.payment_type_id,
+      job_id: updateDto.job_id ?? payment.job_id,
       customer_id: resolved.customer_id,
       vehicle_record_id: resolved.vehicle_record_id,
       appointment_id: resolved.appointment_id ?? payment.appointment_id,
@@ -426,12 +428,13 @@ export class PaymentsService {
     let lineId = dto.line_id;
     let adminPcId = dto.admin_pc_id;
     let cameraId = dto.camera_id;
-    const appointmentId = dto.appointment_id;
+    let appointmentId = dto.appointment_id;
 
     if (dto.job_id) {
       const job = await this.jobService.findOne(dto.job_id);
       customerId = customerId ?? job.customer_id;
       vehicleRecordId = vehicleRecordId ?? job.vehicle_record_id;
+      appointmentId = appointmentId ?? job.appointment_id ?? undefined;
       anprCaptureId = anprCaptureId ?? job.anpr_capture_id ?? undefined;
       centreId = centreId ?? job.centre_id ?? undefined;
       lineId = lineId ?? job.line_id ?? undefined;

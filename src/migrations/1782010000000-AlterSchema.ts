@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 2;
+export const ALTER_SCHEMA_VERSION = 5;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -913,6 +913,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "category"        character varying   NOT NULL,
         "center_charges"  numeric(12,3)       NOT NULL DEFAULT 0,
         "rop_charges"     numeric(12,3)       NOT NULL DEFAULT 0,
+        "category_charges" numeric(12,3)      NOT NULL DEFAULT 0,
         "vat_percent"     numeric(5,2)        NOT NULL DEFAULT 0,
         "grand_total"     numeric(12,3)       NOT NULL DEFAULT 0,
         "validate_to"     date                NOT NULL,
@@ -931,6 +932,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `CREATE INDEX IF NOT EXISTS "IDX_CHARGE_CENTRE_ID" ON "master"."charges" ("centre_id")`,
+    );
+    // Existing DBs from before category_charges existed — add it here too.
+    await queryRunner.query(
+      `ALTER TABLE "master"."charges" ADD COLUMN IF NOT EXISTS "category_charges" numeric(12,3) NOT NULL DEFAULT 0`,
     );
     // (vehicle_id index + combo are created below on vehicle_type — charges use a
     // free-text vehicle_type, not a FK to the vehicle master.)
@@ -966,7 +971,6 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "category_id"      integer                 NOT NULL,
         "vehicle_weight"   character varying(128)  NOT NULL,
         "engine_capacity"  character varying(128),
-        "fees"             numeric(12,3)           NOT NULL DEFAULT 0,
         "status"           character varying       NOT NULL DEFAULT 'Active',
         "created_by"       character varying,
         "created_at"       TIMESTAMP               NOT NULL DEFAULT NOW(),
@@ -982,6 +986,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     // engine_capacity is optional (existing DBs created it NOT NULL).
     await queryRunner.query(
       `ALTER TABLE "master"."charge_categories" ALTER COLUMN "engine_capacity" DROP NOT NULL`,
+    );
+    // fees moved to charges.category_charges (per-Charge, not per-Category) — drop here.
+    await queryRunner.query(
+      `ALTER TABLE "master"."charge_categories" DROP COLUMN IF EXISTS "fees"`,
     );
 
     // charges: link to charge_categories master, relax legacy free-text category
@@ -1329,6 +1337,22 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `UPDATE "transaction"."rop_verifications" SET "fetch_status" = 'Pending' WHERE "created_by" = 'anpr-system' AND "fetch_status" = 'Fetched'`,
     );
 
+    // rop_verifications: proof-of-lookup — the raw API response payload and
+    // the timestamp of the actual fetch (distinct from created_at/updated_at,
+    // which also move on unrelated manual edits).
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "raw_response" jsonb`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "fetched_at" TIMESTAMP`,
+    );
+
+    // rop_verifications: anpr_capture_id is now optional — a manual/walk-in
+    // plate lookup (no camera involved) has no ANPR capture to attach to.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ALTER COLUMN "anpr_capture_id" DROP NOT NULL`,
+    );
+
     // vehicle_type is free text stored lowercase for reliable charge comparison —
     // normalize any existing values across the tables that carry it.
     await queryRunner.query(
@@ -1606,6 +1630,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertTransaction(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "raw_response"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "fetched_at"`,
+    );
+    // Not reverting anpr_capture_id back to NOT NULL — by this point rows
+    // created from manual/walk-in plate lookups may legitimately have it
+    // null, and re-tightening would fail (or destroy data) on those rows.
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."job_images" CASCADE`,
     );

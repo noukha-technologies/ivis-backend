@@ -104,6 +104,8 @@ export class RopVerificationService {
         }
       }
 
+      const fetchStatus =
+        createDto.fetch_status || RopVerificationStatus.VALIDATED;
       const ropVerification = this.ropVerificationDao.create({
         id: generateSnowflakeId(),
         ...createDto,
@@ -112,7 +114,13 @@ export class RopVerificationService {
           ? new Date(createDto.reg_expiry)
           : undefined,
         // Manually entered ROP details are treated as Fetched unless stated otherwise.
-        fetch_status: createDto.fetch_status || RopVerificationStatus.VALIDATED,
+        fetch_status: fetchStatus,
+        // Proof of when this record was actually validated (manual entry —
+        // no raw API payload exists for this path, only the timestamp).
+        fetched_at:
+          fetchStatus === RopVerificationStatus.VALIDATED
+            ? new Date()
+            : undefined,
         created_by: getCreatedById(actor),
       });
 
@@ -211,12 +219,17 @@ export class RopVerificationService {
     );
     try {
       const ropVerification = await this.findOne(id);
-      const plateNumber = await this.resolvePlateNumber(ropVerification.anpr_capture_id);
-      const beforeState = snapshotRopVerification(ropVerification, plateNumber);
+      const becomingValidated =
+        updateDto.fetch_status === RopVerificationStatus.VALIDATED &&
+        ropVerification.fetch_status !== RopVerificationStatus.VALIDATED;
       const merged = this.ropVerificationDao.merge(ropVerification, {
         ...updateDto,
         ...(updateDto.reg_expiry
           ? { reg_expiry: new Date(updateDto.reg_expiry) }
+          : {}),
+        // Stamp the moment this record was (re)validated, same as create().
+        ...(becomingValidated && !ropVerification.fetched_at
+          ? { fetched_at: new Date() }
           : {}),
       });
       const afterState = snapshotRopVerification(merged, plateNumber);

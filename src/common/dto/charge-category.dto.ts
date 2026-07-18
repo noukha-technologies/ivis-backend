@@ -2,7 +2,6 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
-  IsNumber,
   IsOptional,
   IsString,
   Min,
@@ -40,11 +39,6 @@ export class CreateChargeCategoryDto {
   @IsOptional()
   @IsString({ message: 'engine_capacity must be a string' })
   engine_capacity?: string;
-
-  @ApiProperty({ description: 'Category fees (OMR)', example: 10.5 })
-  @IsNumber({}, { message: 'fees must be a number' })
-  @Min(0, { message: 'fees must be 0 or greater' })
-  fees!: number;
 
   @ApiPropertyOptional({
     description: 'Record status',

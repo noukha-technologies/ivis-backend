@@ -152,6 +152,14 @@ export class CreateAppointmentDto {
   plate_color?: string;
 
   @ApiPropertyOptional({
+    description: 'Vehicle body colour',
+    example: 'Black',
+  })
+  @IsOptional()
+  @IsString({ message: 'vehicle_color must be a string' })
+  vehicle_color?: string;
+
+  @ApiPropertyOptional({
     description:
       'Vehicle VIN / chassis number (optional; up to 17 alphanumeric chars)',
     example: 'JT2BF22K0W0123456',

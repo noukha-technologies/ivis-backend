@@ -10,6 +10,8 @@ export interface RopApiResult {
   chassis_no?: string;
   insurance?: string;
   reg_expiry?: Date;
+  /** The full, unmodified API response — kept as proof of the lookup. */
+  raw_response?: Record<string, unknown>;
 }
 
 @Injectable()

@@ -39,7 +39,6 @@ export class ChargeCategoryService {
       category_id: categoryId,
       vehicle_weight: dto.vehicle_weight,
       engine_capacity: dto.engine_capacity,
-      fees: dto.fees,
       status: dto.status ?? 'Active',
       created_by: getCreatedById(actor),
     });

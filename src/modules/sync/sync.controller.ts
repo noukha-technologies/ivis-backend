@@ -120,7 +120,10 @@ export class SyncController {
   @Get('runs')
   @ApiOperation({ summary: 'Admin UI: recent sync run history (Sync Log tab)' })
   @ApiOkResponse({ type: [SyncRunLogDto] })
-  async recentRuns(): Promise<SyncRunLogDto[]> {
-    return this.syncCentralService.recentRuns(20) as unknown as SyncRunLogDto[];
+  async recentRuns(): Promise<{ message: string; data: SyncRunLogDto[] }> {
+    const data = (await this.syncCentralService.recentRuns(
+      20,
+    )) as unknown as SyncRunLogDto[];
+    return { message: 'Sync run history retrieved', data };
   }
 }

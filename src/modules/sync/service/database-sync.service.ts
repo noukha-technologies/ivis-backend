@@ -67,7 +67,25 @@ export class DatabaseSyncService {
     }
 
     const localRun = await this.syncRunLogDao.startRun();
-    const { runId } = await this.centralClient.startRun();
+
+    let runId: string;
+    try {
+      ({ runId } = await this.centralClient.startRun());
+    } catch (error) {
+      // Central unreachable (or misconfigured, e.g. missing API key/URL) before
+      // any work started — finalize the row as FAILED instead of leaving it
+      // orphaned at IN_PROGRESS forever.
+      const message = error instanceof Error ? error.message : String(error);
+      await this.syncRunLogDao.finishRun(localRun.id, 'FAILED', message);
+      this.logger.error(
+        `Database Sync failed to start a central run: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+        DatabaseSyncService.context,
+      );
+      const result: SyncRunResult = { status: 'FAILED', pulled: {}, pushed: {}, error: message };
+      this.syncGateway.broadcastSyncRunComplete(result);
+      return result;
+    }
 
     const result: SyncRunResult = { status: 'SUCCESS', pulled: {}, pushed: {} };
     let pushOk = true;

@@ -98,7 +98,7 @@ export const generateUniqueUserNameFromEmail = async (
   prefix: string = 'NA',
 ): Promise<string> => {
   const baseName = email.split('@')[0]; // get name from email
-  let userName: string;
+  let userName = '';
   let isUnique = false;
 
   while (!isUnique) {
@@ -152,7 +152,7 @@ export function getRequestMetadata(req: Request): RequestMetata {
   } else if (remoteAddress) {
     ipAddress = remoteAddress;
   } else {
-    ipAddress = req.ip;
+    ipAddress = req.ip ?? 'unknown';
   }
   return {
     browser: `${browser} - ${browserVersion}`,
@@ -239,12 +239,20 @@ export function chunkArray<T>(array: T[], size: number): T[][] {
   return chunks;
 }
 
+// IANA identifier for Oman's timezone (UTC+4, no DST) — the single source of
+// truth used app-wide (backend + frontend) so "today"/"now" always means the
+// same wall-clock day, regardless of which host timezone the server runs in.
+export const OmanTimeZone = 'Asia/Muscat';
+
 export function getDateFolder(): string {
-  const now = new Date();
+  const [yyyy, mm, dd] = new Intl.DateTimeFormat('en-CA', {
+    timeZone: OmanTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+    .format(new Date())
+    .split('-');
 
-  const yyyy = now.getFullYear().toString();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-
-  return `${yyyy}${mm}${dd}`; // yyyymmdd
+  return `${yyyy}${mm}${dd}`; // yyyymmdd, Oman calendar day
 }

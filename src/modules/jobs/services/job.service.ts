@@ -11,6 +11,7 @@ import {
 import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
+import { OmanTimeZone } from '../../../common/utils/util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { patchAuditContext } from '../../../common/audit/audit-context';
 import { AppointmentStatus } from '../../../common/enums/common.enums';
@@ -80,7 +81,7 @@ export class JobService {
   private isSameOmanDay(a: Date, b: Date): boolean {
     const fmt = (d: Date) =>
       new Intl.DateTimeFormat('en-CA', {
-        timeZone: 'Asia/Muscat',
+        timeZone: OmanTimeZone,
         year: 'numeric',
         month: '2-digit',
         day: '2-digit',

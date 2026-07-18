@@ -136,24 +136,27 @@ export class AnprOrchestrationService {
         status = RopVerificationStatus.FAILED;
       }
 
-      const savedRop = await this.ropVerificationDao.save(
-        this.ropVerificationDao.create({
-          id: generateSnowflakeId(),
-          rop_verification_id:
-            await this.ropVerificationDao.getNextRopVerificationId(),
-          anpr_capture_id: anprCapture.id,
-          owner_name: ropResult?.owner_name,
-          vehicle_make: ropResult?.vehicle_make,
-          vehicle_model: ropResult?.vehicle_model,
-          reg_no: ropResult?.reg_no ?? plate,
-          chassis_no: ropResult?.chassis_no,
-          insurance: ropResult?.insurance,
-          reg_expiry: ropResult?.reg_expiry,
-          fetch_status: status,
-          raw_response: ropResult?.raw_response ?? null,
-          fetched_at: ropResult != null ? new Date() : null,
-          created_by: SYSTEM_ACTOR,
-        }),
+      const ropEntity = this.ropVerificationDao.create({
+        id: generateSnowflakeId(),
+        rop_verification_id:
+          await this.ropVerificationDao.getNextRopVerificationId(),
+        anpr_capture_id: anprCapture.id,
+        owner_name: ropResult?.owner_name,
+        vehicle_make: ropResult?.vehicle_make,
+        vehicle_model: ropResult?.vehicle_model,
+        reg_no: ropResult?.reg_no ?? plate,
+        chassis_no: ropResult?.chassis_no,
+        insurance: ropResult?.insurance,
+        reg_expiry: ropResult?.reg_expiry,
+        fetch_status: status,
+        raw_response: ropResult?.raw_response ?? null,
+        fetched_at: ropResult != null ? new Date() : null,
+        created_by: SYSTEM_ACTOR,
+      });
+      applyRopVerificationAuditContext(
+        ropEntity.id,
+        EMPTY_ROP_VERIFICATION_AUDIT,
+        snapshotRopVerification(ropEntity, plate),
       );
       let savedRop;
       try {

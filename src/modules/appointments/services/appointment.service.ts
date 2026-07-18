@@ -553,15 +553,6 @@ export class AppointmentService {
     plateColor?: string,
     vehicleColor?: string,
   ): Promise<string | undefined> {
-    const vehicleMasterId = chargeCategoryId
-      ? (
-          await this.vehicleDao.findByChargeCategory(
-            chargeCategoryId,
-            vehicleType,
-          )
-        )?.id
-      : undefined;
-
     if (existingRecordId) {
       const record =
         await this.vehicleRecordDao.findActiveById(existingRecordId);

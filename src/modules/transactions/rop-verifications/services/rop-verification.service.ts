@@ -37,7 +37,10 @@ export class RopVerificationService {
     private readonly logger: AppLogger,
   ) {}
 
-  private async resolvePlateNumber(anprCaptureId: string): Promise<string | null> {
+  private async resolvePlateNumber(
+    anprCaptureId: string | null | undefined,
+  ): Promise<string | null> {
+    if (!anprCaptureId) return null;
     const capture = await this.anprCaptureDao.findActiveById(anprCaptureId);
     return capture?.plate_number ?? null;
   }
@@ -219,6 +222,10 @@ export class RopVerificationService {
     );
     try {
       const ropVerification = await this.findOne(id);
+      const plateNumber = await this.resolvePlateNumber(
+        ropVerification.anpr_capture_id,
+      );
+      const beforeState = snapshotRopVerification(ropVerification, plateNumber);
       const becomingValidated =
         updateDto.fetch_status === RopVerificationStatus.VALIDATED &&
         ropVerification.fetch_status !== RopVerificationStatus.VALIDATED;

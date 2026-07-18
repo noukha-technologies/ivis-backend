@@ -223,13 +223,16 @@ export class AppointmentService {
         ? await this.ensureCustomer(createDto, vehicleRecordId, actor)
         : undefined;
 
+      const resolvedCentreId =
+        createDto.centre_id ?? actor.user.center_id ?? undefined;
+
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
         appointment_id: appointmentId,
         anpr_capture_id: createDto.anpr_capture_id,
         customer_id: customerId,
         vehicle_record_id: vehicleRecordId,
-        centre_id: createDto.centre_id,
+        centre_id: resolvedCentreId,
         line_id: createDto.line_id,
         appointment_at: new Date(createDto.appointment_at),
         status: AppointmentStatus.QUEUED,

@@ -1,20 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, Repository } from 'typeorm';
+
+import { RopVerification } from '../entity/rop-verification.entity';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import {
-  buildTypeOrmPaginationOptions,
-  toPaginatedResult,
-} from '../../../common/shared/pagination/pagination-query.util';
-import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { IRopVerificationDao } from '../../transactions/rop-verifications/dao/rop-verification.dao.interface';
-import { RopVerification } from '../entity/rop-verification.entity';
+import { buildTypeOrmPaginationOptions, toPaginatedResult } from '../../../common/shared/pagination/pagination-query.util';
 
+import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 @Injectable()
-export class RopVerificationDao
-  extends Repository<RopVerification>
-  implements IRopVerificationDao
-{
+export class RopVerificationDao extends Repository<RopVerification> implements IRopVerificationDao {
   constructor(
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
@@ -29,15 +24,12 @@ export class RopVerificationDao
     });
   }
 
-  async findByRopVerificationId(
-    ropVerificationId: number,
-  ): Promise<RopVerification | null> {
+  async findByRopVerificationId(ropVerificationId: number): Promise<RopVerification | null> {
     return this.findOne({
       where: { rop_verification_id: ropVerificationId, is_deleted: false },
     });
   }
 
-  /** Most recent verification already on file for a plate — reused instead of re-calling ROP. */
   async findLatestByRegNo(regNo: string): Promise<RopVerification | null> {
     return this.findOne({
       where: { reg_no: regNo, is_deleted: false },
@@ -45,13 +37,8 @@ export class RopVerificationDao
     });
   }
 
-  async findPaginated(
-    query: PaginationQueryDto,
-  ): Promise<PaginatedResult<RopVerification>> {
-    const options = buildTypeOrmPaginationOptions<
-      RopVerification,
-      RopVerification
-    >(query, {
+  async findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<RopVerification>> {
+    const options = buildTypeOrmPaginationOptions<RopVerification, RopVerification>(query, {
       searchFields: [
         'owner_name',
         'vehicle_make',

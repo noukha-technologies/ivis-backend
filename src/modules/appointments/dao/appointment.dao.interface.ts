@@ -9,6 +9,7 @@ export interface IAppointmentDao {
   merge(entity: Appointment, entityLike: DeepPartial<Appointment>): Appointment;
   findActiveById(id: string): Promise<Appointment | null>;
   findByAppointmentId(appointmentId: number): Promise<Appointment | null>;
+  findLatestQueuedByPlate(plate: string): Promise<Appointment | null>;
   findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Appointment>>;

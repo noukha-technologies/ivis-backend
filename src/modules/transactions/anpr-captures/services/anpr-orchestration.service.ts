@@ -118,7 +118,24 @@ export class AnprOrchestrationService {
     //   • API not configured (no data)     → Pending (no real API yet).
     //   • API throws                       → Failed.
     try {
-      const ropResult = await this.ropApiClient.fetchByPlate(plate);
+      // Reuse an existing on-file RopVerification for this plate (e.g. saved
+      // earlier from a walk-in plate lookup) instead of refetching from ROP —
+      // ownership/registration data doesn't change intraday, and reusing the
+      // same row (rather than inserting a second one) is what lets a walk-in
+      // appointment's rop_verification_id stay valid after real arrival.
+      const onFile = await this.ropVerificationDao.findLatestByRegNo(plate);
+      const ropResult = onFile
+        ? {
+            owner_name: onFile.owner_name,
+            vehicle_make: onFile.vehicle_make,
+            vehicle_model: onFile.vehicle_model,
+            reg_no: onFile.reg_no,
+            chassis_no: onFile.chassis_no,
+            insurance: onFile.insurance,
+            reg_expiry: onFile.reg_expiry,
+            raw_response: onFile.raw_response ?? undefined,
+          }
+        : await this.ropApiClient.fetchByPlate(plate);
       const plateMatches =
         ropResult != null &&
         normalizePlate(ropResult.reg_no) === normalizePlate(plate);
@@ -136,33 +153,54 @@ export class AnprOrchestrationService {
         status = RopVerificationStatus.FAILED;
       }
 
-      const ropEntity = this.ropVerificationDao.create({
-        id: generateSnowflakeId(),
-        rop_verification_id:
-          await this.ropVerificationDao.getNextRopVerificationId(),
-        anpr_capture_id: anprCapture.id,
-        owner_name: ropResult?.owner_name,
-        vehicle_make: ropResult?.vehicle_make,
-        vehicle_model: ropResult?.vehicle_model,
-        reg_no: ropResult?.reg_no ?? plate,
-        chassis_no: ropResult?.chassis_no,
-        insurance: ropResult?.insurance,
-        reg_expiry: ropResult?.reg_expiry,
-        fetch_status: status,
-        raw_response: ropResult?.raw_response ?? null,
-        fetched_at: ropResult != null ? new Date() : null,
-        created_by: SYSTEM_ACTOR,
-      });
-      applyRopVerificationAuditContext(
-        ropEntity.id,
-        EMPTY_ROP_VERIFICATION_AUDIT,
-        snapshotRopVerification(ropEntity, plate),
-      );
       let savedRop;
-      try {
-        savedRop = await this.ropVerificationDao.save(ropEntity);
-      } finally {
-        clearRopVerificationAuditContext();
+      if (onFile) {
+        // Reuse the existing row — just backfill its anpr_capture_id if this
+        // is the first real capture to reference it (walk-in-originated rows
+        // start with anpr_capture_id null).
+        const before = snapshotRopVerification(onFile, plate);
+        const merged = this.ropVerificationDao.merge(onFile, {
+          anpr_capture_id: onFile.anpr_capture_id ?? anprCapture.id,
+          fetch_status: status,
+        });
+        applyRopVerificationAuditContext(
+          onFile.id,
+          before,
+          snapshotRopVerification(merged, plate),
+        );
+        try {
+          savedRop = await this.ropVerificationDao.save(merged);
+        } finally {
+          clearRopVerificationAuditContext();
+        }
+      } else {
+        const ropEntity = this.ropVerificationDao.create({
+          id: generateSnowflakeId(),
+          rop_verification_id:
+            await this.ropVerificationDao.getNextRopVerificationId(),
+          anpr_capture_id: anprCapture.id,
+          owner_name: ropResult?.owner_name,
+          vehicle_make: ropResult?.vehicle_make,
+          vehicle_model: ropResult?.vehicle_model,
+          reg_no: ropResult?.reg_no ?? plate,
+          chassis_no: ropResult?.chassis_no,
+          insurance: ropResult?.insurance,
+          reg_expiry: ropResult?.reg_expiry,
+          fetch_status: status,
+          raw_response: ropResult?.raw_response ?? null,
+          fetched_at: ropResult != null ? new Date() : null,
+          created_by: SYSTEM_ACTOR,
+        });
+        applyRopVerificationAuditContext(
+          ropEntity.id,
+          EMPTY_ROP_VERIFICATION_AUDIT,
+          snapshotRopVerification(ropEntity, plate),
+        );
+        try {
+          savedRop = await this.ropVerificationDao.save(ropEntity);
+        } finally {
+          clearRopVerificationAuditContext();
+        }
       }
 
       // Fetched → validate the capture + queue the appointment (combined data).

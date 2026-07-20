@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 5;
+export const ALTER_SCHEMA_VERSION = 9;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1346,11 +1346,40 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "fetched_at" TIMESTAMP`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "owner_phone" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "driver_phone" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "mulkiya_id" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "plate_color" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "vehicle_color" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" ADD COLUMN IF NOT EXISTS "vehicle_type" character varying(64)`,
+    );
 
     // rop_verifications: anpr_capture_id is now optional — a manual/walk-in
     // plate lookup (no camera involved) has no ANPR capture to attach to.
     await queryRunner.query(
       `ALTER TABLE "transaction"."rop_verifications" ALTER COLUMN "anpr_capture_id" DROP NOT NULL`,
+    );
+
+    // appointments: link a walk-in appointment to the RopVerification row
+    // fetched/reused at creation time, so a later real ANPR arrival for the
+    // same plate can match back to this appointment instead of creating a
+    // duplicate.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "rop_verification_id" BIGINT`,
     );
 
     // vehicle_type is free text stored lowercase for reliable charge comparison —
@@ -1630,6 +1659,30 @@ export class AlterSchema1782010000000 implements MigrationInterface {
   }
 
   private async revertTransaction(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "rop_verification_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "vehicle_type"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "vehicle_color"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "plate_color"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "mulkiya_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "driver_phone"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "driver_name"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "owner_phone"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "transaction"."rop_verifications" DROP COLUMN IF EXISTS "raw_response"`,
     );

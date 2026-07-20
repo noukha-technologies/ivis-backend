@@ -9,6 +9,7 @@ import {
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { IAppointmentDao } from '../../appointments/dao/appointment.dao.interface';
 import { Appointment } from '../entity/appointment.entity';
+import { AppointmentStatus } from '../../../common/enums/common.enums';
 
 @Injectable()
 export class AppointmentDao
@@ -93,6 +94,19 @@ export class AppointmentDao
       options,
     );
     return toPaginatedResult(response);
+  }
+
+  async findLatestQueuedByPlate(plate: string): Promise<Appointment | null> {
+    return this.createQueryBuilder('appointment')
+      .innerJoin('appointment.vehicleRecord', 'vehicleRecord')
+      .where('appointment.is_deleted = false')
+      .andWhere('appointment.status = :status', {
+        status: AppointmentStatus.QUEUED,
+      })
+      .andWhere('appointment.anpr_capture_id IS NULL')
+      .andWhere('vehicleRecord.plate_number = :plate', { plate })
+      .orderBy('appointment.created_at', 'DESC')
+      .getOne();
   }
 
   async getNextAppointmentId(): Promise<number> {

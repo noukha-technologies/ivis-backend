@@ -2,70 +2,38 @@ import { Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { RopVerificationStatus } from '../../../common/enums/common.enums';
 import {
-  CreateAppointmentDto,
-  UpdateAppointmentDto,
-} from '../../../common/dto/appointment.dto';
+  AppointmentAuditDetails,
+  AppointmentAuditEntity,
+  PlateLookupResult
+} from 'src/common/interfaces/common.interfaces';
+import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
+import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import { CreateAppointmentDto, UpdateAppointmentDto } from '../../../common/dto/appointment.dto';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
-import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { generateIdNumber } from '../../../common/shared/id-number.util';
 import { patchAuditContext } from '../../../common/audit/audit-context';
+import { generateIdNumber } from '../../../common/shared/id-number.util';
+import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException,
+  ResourceNotFoundException
 } from '../../../common/exceptions/custom.exception';
 
 import { LineDao } from '../../database/dao/line.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { CustomerDao } from '../../database/dao/customer.dao';
-import { VehicleDao } from '../../database/dao/vehicle.dao';
 import { AuditLogDao } from '../../database/dao/audit-log.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
+import { Appointment } from '../../database/entity/appointment.entity';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../database/dao/rop-verification.dao';
 import { RopApiClientService } from '../../integrations/rop/rop-api-client.service';
-import { RopVerificationStatus } from '../../../common/enums/common.enums';
-
-export interface PlateLookupResult {
-  plate_number: string;
-  owner_name: string | null;
-  owner_phone: string | null;
-  customer_name: string | null;
-  customer_phone: string | null;
-  id_number: string | null;
-  plate_color: string | null;
-  vehicle_type: string | null;
-  chassis_no: string | null;
-  charge_category_id: string | null;
-}
-
-import { Appointment } from '../../database/entity/appointment.entity';
-import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
-
-/** Denormalized detail fields attached for audit log snapshots (not DB columns). */
-type AppointmentAuditDetails = {
-  customer_name?: string | null;
-  customer_phone?: string | null;
-  owner_name?: string | null;
-  driver_phone_number?: string | null;
-  mulkiya_id?: string | null;
-  plate_number?: string | null;
-  plate_color?: string | null;
-  vehicle_type?: string | null;
-  charge_category_id?: string | null;
-  chassis_no?: string | null;
-};
-
-type AppointmentAuditEntity = Appointment &
-  AppointmentAuditDetails & {
-    __auditDetailBefore?: AppointmentAuditDetails;
-  };
 
 @Injectable()
 export class AppointmentService {
@@ -75,30 +43,16 @@ export class AppointmentService {
     private readonly lineDao: LineDao,
     private readonly logger: AppLogger,
     private readonly centreDao: CentreDao,
-    private readonly customerDao: CustomerDao,
-    private readonly vehicleDao: VehicleDao,
     private readonly auditLogDao: AuditLogDao,
+    private readonly customerDao: CustomerDao,
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly paymentTypeDao: PaymentTypeDao,
+    private readonly ropApiClient: RopApiClientService,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly ropVerificationDao: RopVerificationDao,
-    private readonly ropApiClient: RopApiClientService,
-  ) {}
+  ) { }
 
-  /**
-   * Resolve known vehicle + customer details for a plate — used by the
-   * walk-in drawer to auto-fill fields. Priority:
-   *  1. An existing RopVerification already on file for this plate (no need
-   *     to re-call ROP — reused as-is, "proof of lookup" and all).
-   *  2. Not on file → call the real ROP API once and persist the result as a
-   *     new RopVerification row (anpr_capture_id left null — this lookup has
-   *     no camera capture behind it) so the next lookup for this plate hits (1).
-   *  3. Local vehicle records / customer (previously created walk-ins) —
-   *     supplements whichever of the above ran, and is the sole source when
-   *     ROP has nothing at all. Returns null only when none of the three
-   *     sources have anything for this plate.
-   */
   async resolveByPlate(plate: string): Promise<PlateLookupResult | null> {
     const p = plate?.trim();
     if (!p) return null;
@@ -111,14 +65,20 @@ export class AppointmentService {
         rop = await this.ropVerificationDao.save(
           this.ropVerificationDao.create({
             id: generateSnowflakeId(),
-            rop_verification_id:
-              await this.ropVerificationDao.getNextRopVerificationId(),
+            rop_verification_id: await this.ropVerificationDao.getNextRopVerificationId(),
             anpr_capture_id: null,
             owner_name: ropResult.owner_name,
+            owner_phone: ropResult.owner_phone,
+            driver_name: ropResult.driver_name,
+            driver_phone: ropResult.driver_phone,
+            mulkiya_id: ropResult.mulkiya_id,
             vehicle_make: ropResult.vehicle_make,
             vehicle_model: ropResult.vehicle_model,
             reg_no: ropResult.reg_no ?? p,
             chassis_no: ropResult.chassis_no,
+            plate_color: ropResult.plate_color,
+            vehicle_color: ropResult.vehicle_color,
+            vehicle_type: ropResult.vehicle_type,
             insurance: ropResult.insurance,
             reg_expiry: ropResult.reg_expiry,
             fetch_status: RopVerificationStatus.VALIDATED,
@@ -138,8 +98,6 @@ export class AppointmentService {
     const customer = record
       ? await this.customerDao.findByVehicleRecordId(record.id)
       : null;
-    // Plate colour is sourced from the ANPR capture (camera read); fall back to
-    // the vehicle record if the latest capture has none.
     const latestCapture = await this.anprCaptureDao.findLatestByPlate(p);
 
     if (!rop && !record) return null;
@@ -147,13 +105,21 @@ export class AppointmentService {
     return {
       plate_number: rop?.reg_no ?? record?.plate_number ?? p,
       owner_name: rop?.owner_name ?? customer?.owner_name ?? null,
-      owner_phone: customer?.owner_phone_number ?? null,
+      owner_phone: customer?.owner_phone_number ?? rop?.owner_phone ?? null,
       customer_name: rop?.owner_name ?? customer?.owner_name ?? null,
-      customer_phone: customer?.owner_phone_number ?? null,
+      customer_phone: customer?.owner_phone_number ?? rop?.owner_phone ?? null,
+      driver_name: customer?.driver_name ?? rop?.driver_name ?? null,
+      driver_phone: customer?.driver_phone_number ?? rop?.driver_phone ?? null,
+      mulkiya_id: customer?.mulkiya_id ?? rop?.mulkiya_id ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
-      plate_color: latestCapture?.plate_color ?? record?.plate_color ?? null,
+      plate_color:
+        latestCapture?.plate_color ?? record?.plate_color ?? rop?.plate_color ?? null,
+      vehicle_color: record?.vehicle_color ?? rop?.vehicle_color ?? null,
       vehicle_type:
-        record?.vehicle_type ?? record?.vehicleMaster?.vehicle_type ?? null,
+        record?.vehicle_type ??
+        record?.vehicleMaster?.vehicle_type ??
+        rop?.vehicle_type ??
+        null,
       chassis_no: rop?.chassis_no ?? record?.chassis_no ?? null,
       charge_category_id: record?.vehicleMaster?.charge_category_id ?? null,
     };
@@ -226,10 +192,18 @@ export class AppointmentService {
       const resolvedCentreId =
         createDto.centre_id ?? actor.user.center_id ?? undefined;
 
+      // Link the RopVerification already fetched/saved for this plate (via
+      // resolveByPlate on the walk-in form) so a later real ANPR arrival for
+      // the same plate can be matched back to this appointment.
+      const rop = plateNumber
+        ? await this.ropVerificationDao.findLatestByRegNo(plateNumber)
+        : null;
+
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
         appointment_id: appointmentId,
         anpr_capture_id: createDto.anpr_capture_id,
+        rop_verification_id: rop?.id ?? null,
         customer_id: customerId,
         vehicle_record_id: vehicleRecordId,
         centre_id: resolvedCentreId,
@@ -337,14 +311,14 @@ export class AppointmentService {
     const customerId =
       updateDto.sync_customer !== false
         ? await this.ensureCustomer(
-            {
-              ...updateDto,
-              customer_id:
-                updateDto.customer_id ?? appointment.customer_id ?? undefined,
-            },
-            vehicleRecordId,
-            actor,
-          )
+          {
+            ...updateDto,
+            customer_id:
+              updateDto.customer_id ?? appointment.customer_id ?? undefined,
+          },
+          vehicleRecordId,
+          actor,
+        )
         : (appointment.customer_id ?? undefined);
 
     // Only the appointment's own columns are merged — booking_type is left

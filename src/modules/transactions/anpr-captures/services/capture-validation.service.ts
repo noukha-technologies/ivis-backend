@@ -94,6 +94,38 @@ export class CaptureValidationService {
       createdBy,
     );
 
+    // A walk-in may already have created a Queued appointment for this exact
+    // plate before the car physically arrived (no anpr_capture_id yet). If
+    // so, attach this capture to that same appointment instead of creating a
+    // duplicate — this is what makes "Convert to Job" appear on it.
+    const walkInMatch = await this.appointmentDao.findLatestQueuedByPlate(
+      capture.plate_number,
+    );
+    if (walkInMatch) {
+      const patch: {
+        anpr_capture_id: string;
+        vehicle_record_id?: string;
+        customer_id?: string;
+      } = { anpr_capture_id: capture.id };
+      if (
+        vehicleRecord &&
+        walkInMatch.vehicle_record_id !== vehicleRecord.id
+      ) {
+        patch.vehicle_record_id = vehicleRecord.id;
+      }
+      // Only fill customer if the walk-in doesn't already have one — never
+      // overwrite operator-entered data.
+      if (customerId && !walkInMatch.customer_id) {
+        patch.customer_id = customerId;
+      }
+      await this.appointmentDao.update(walkInMatch.id, patch);
+      this.logger.log(
+        `Matched walk-in appointment ${walkInMatch.id} to arriving capture ${capture.id}`,
+        CaptureValidationService.context,
+      );
+      return;
+    }
+
     const existing = await this.appointmentDao.findByAnprCaptureId(capture.id);
     if (existing) {
       // Keep the appointment pointed at the (possibly newly created) record /

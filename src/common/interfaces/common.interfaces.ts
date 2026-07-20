@@ -1,3 +1,5 @@
+import { Appointment } from "src/modules/database/entity/appointment.entity";
+
 export const whiteListingDomains = ['http://localhost:3000'];
 
 export interface ErrorDetails {
@@ -41,3 +43,39 @@ export interface IConfigurationFields {
   updated_at: Date;
   is_deleted: boolean;
 }
+
+
+export interface PlateLookupResult {
+  plate_number: string;
+  owner_name: string | null;
+  owner_phone: string | null;
+  customer_name: string | null;
+  customer_phone: string | null;
+  driver_name: string | null;
+  driver_phone: string | null;
+  mulkiya_id: string | null;
+  id_number: string | null;
+  plate_color: string | null;
+  vehicle_color: string | null;
+  vehicle_type: string | null;
+  chassis_no: string | null;
+  charge_category_id: string | null;
+}
+
+export type AppointmentAuditDetails = {
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  owner_name?: string | null;
+  driver_phone_number?: string | null;
+  mulkiya_id?: string | null;
+  plate_number?: string | null;
+  plate_color?: string | null;
+  vehicle_type?: string | null;
+  charge_category_id?: string | null;
+  chassis_no?: string | null;
+};
+
+export type AppointmentAuditEntity = Appointment &
+  AppointmentAuditDetails & {
+    __auditDetailBefore?: AppointmentAuditDetails;
+  };

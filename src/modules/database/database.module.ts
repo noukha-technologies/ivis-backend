@@ -86,8 +86,6 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
       dataSourceFactory: async (options) => {
         const dataSource = new DataSource(options!);
         await dataSource.initialize();
-        // Host Postgres often defaults to Asia/Calcutta; force UTC so TIMESTAMP /
-        // NOW() and timestamptz round-trips match the admin GST display.
         await dataSource.query(`SET TIME ZONE 'UTC'`);
         return dataSource;
       },
@@ -196,4 +194,4 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     SchemaBootstrapService,
   ],
 })
-export class DatabaseModule {}
+export class DatabaseModule { }

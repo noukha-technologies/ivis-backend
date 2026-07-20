@@ -29,8 +29,6 @@ export class RopVerification {
   @Column({ type: 'integer', unique: true, nullable: false })
   rop_verification_id!: number;
 
-  // Nullable — a manual/walk-in plate lookup (no camera involved) has no ANPR
-  // capture to attach to; only camera-sourced verifications set this.
   @Column({
     type: 'bigint',
     transformer: bigintAsStringTransformer,
@@ -52,6 +50,18 @@ export class RopVerification {
   @Column({ type: 'varchar', length: 128, nullable: true })
   owner_name?: string;
 
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  owner_phone?: string;
+
+  @Column({ type: 'varchar', length: 128, nullable: true })
+  driver_name?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  driver_phone?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  mulkiya_id?: string;
+
   @Column({ type: 'varchar', length: 64, nullable: true })
   vehicle_make?: string;
 
@@ -63,6 +73,15 @@ export class RopVerification {
 
   @Column({ type: 'varchar', length: 64, nullable: true })
   chassis_no?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  plate_color?: string;
+
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  vehicle_color?: string;
+
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  vehicle_type?: string;
 
   @Column({ type: 'varchar', length: 128, nullable: true })
   insurance?: string;
@@ -78,9 +97,6 @@ export class RopVerification {
   })
   fetch_status!: string;
 
-  // Proof of lookup — the raw API response payload and when the fetch
-  // actually happened, distinct from created_at/updated_at which also move
-  // on unrelated manual edits.
   @Column({ type: 'jsonb', nullable: true })
   raw_response?: Record<string, unknown> | null;
 

@@ -19,6 +19,7 @@ import { Centre } from './centre.entity';
 import { Customer } from './customer.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
+import { RopVerification } from './rop-verification.entity';
 
 @Entity({ name: 'appointments', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_APPOINTMENT_APPOINTMENT_ID', ['appointment_id'], { unique: true })
@@ -42,6 +43,18 @@ export class Appointment implements IAppointmentFields {
   @ManyToOne(() => AnprCapture, { nullable: true })
   @JoinColumn({ name: 'anpr_capture_id' })
   anprCapture?: AnprCapture;
+
+  /* ROP Verification FK */
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
+  rop_verification_id?: string | null;
+
+  @ManyToOne(() => RopVerification, { nullable: true })
+  @JoinColumn({ name: 'rop_verification_id' })
+  ropVerification?: RopVerification;
 
   /* Customer FK */
   @Column({

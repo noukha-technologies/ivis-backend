@@ -13,11 +13,13 @@ import {
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { Charge } from '../../../database/entity/charge.entity';
+import { ChargeCategory } from '../../../database/entity/charge-category.entity';
 import { ChargeDao } from '../../../database/dao/charge.dao';
 import { CentreDao } from '../../../database/dao/centre.dao';
 import { ChargeCategoryDao } from '../../../database/dao/charge-category.dao';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
+import { normalizeVehicleType } from '../../../../common/utils/normalize-vehicle-type.util';
 
 @Injectable()
 export class ChargeService {
@@ -146,6 +148,54 @@ export class ChargeService {
         ChargeService.context,
       );
       throw new DatabaseException('Failed to fetch charges. Please try again.');
+    }
+  }
+
+  async findCategoriesByVehicleType(
+    vehicleType: string,
+  ): Promise<ChargeCategory[]> {
+    const normalized = String(normalizeVehicleType(vehicleType) ?? '').trim();
+
+    this.logger.log(
+      `Fetching charge categories for vehicle type: ${normalized || '(empty)'}`,
+      ChargeService.context,
+    );
+
+    if (!normalized) {
+      return [];
+    }
+
+    try {
+      return await this.chargeDao.findActiveCategoriesByVehicleType(normalized);
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch categories by vehicle type: ${(error as Error).message}`,
+        (error as Error).stack,
+        ChargeService.context,
+      );
+      throw new DatabaseException(
+        'Failed to fetch categories for vehicle type. Please try again.',
+      );
+    }
+  }
+
+  async findVehicleTypes(): Promise<string[]> {
+    this.logger.log(
+      'Fetching distinct Active vehicle types from Charges Master',
+      ChargeService.context,
+    );
+
+    try {
+      return await this.chargeDao.findDistinctActiveVehicleTypes();
+    } catch (error) {
+      this.logger.error(
+        `Failed to fetch vehicle types: ${(error as Error).message}`,
+        (error as Error).stack,
+        ChargeService.context,
+      );
+      throw new DatabaseException(
+        'Failed to fetch vehicle types. Please try again.',
+      );
     }
   }
 

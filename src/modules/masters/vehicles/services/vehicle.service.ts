@@ -33,11 +33,11 @@ export class VehicleService implements IVehicleService {
   ) {}
 
   /**
-   * Resolve the vehicle-type classification code from the vehicle type + the
-   * linked charge category's weight. This code is the identity of the record —
-   * same type + category → same code → blocked by the unique code index.
+   * Classification prefix from vehicle type + charge category weight.
+   * A unique suffix (vehicle_id) is appended on create/update so the same
+   * type+category can exist on multiple vehicles; only VIN must be unique.
    */
-  private async resolveVehicleCode(
+  private async resolveVehicleCodePrefix(
     vehicleType: string,
     chargeCategoryId: string,
   ): Promise<string> {
@@ -49,6 +49,10 @@ export class VehicleService implements IVehicleService {
     return generateVehicleCode(vehicleType, category.vehicle_weight);
   }
 
+  private toUniqueVehicleCode(prefix: string, vehicleId: number): string {
+    return `${prefix}-${vehicleId}`;
+  }
+
   async create(
     createVehicleDto: CreateVehicleDto,
     actor: UserContext,
@@ -58,20 +62,7 @@ export class VehicleService implements IVehicleService {
     );
 
     try {
-      // Code is derived from type + category; it is the duplicate key.
-      const code = await this.resolveVehicleCode(
-        createVehicleDto.vehicle_type,
-        createVehicleDto.charge_category_id,
-      );
-      const existingCode = await this.vehicleDao.findByCode(code);
-      if (existingCode) {
-        throw new DuplicateResourceException(
-          'Vehicle',
-          'type and category',
-          code,
-        );
-      }
-
+      // Only VIN/chassis must be unique across vehicles.
       if (createVehicleDto.vin_no) {
         const existingVin = await this.vehicleDao.findByVinNo(
           createVehicleDto.vin_no,
@@ -99,6 +90,12 @@ export class VehicleService implements IVehicleService {
           );
         }
       }
+
+      const codePrefix = await this.resolveVehicleCodePrefix(
+        createVehicleDto.vehicle_type,
+        createVehicleDto.charge_category_id,
+      );
+      const code = this.toUniqueVehicleCode(codePrefix, vehicle_id);
 
       const vehicle = this.vehicleDao.create({
         id: generateSnowflakeId(),
@@ -180,24 +177,21 @@ export class VehicleService implements IVehicleService {
     try {
       const vehicle = await this.findOne(id);
 
-      // Recompute the code from the resulting type + category (either may change).
+      // Recompute classification code when type/category change; keep it unique
+      // per vehicle via vehicle_id suffix (VIN is the only business unique key).
       const effectiveType =
         updateVehicleDto.vehicle_type ?? vehicle.vehicle_type ?? '';
       const effectiveCategoryId =
         updateVehicleDto.charge_category_id ?? vehicle.charge_category_id ?? '';
       const code = effectiveCategoryId
-        ? await this.resolveVehicleCode(effectiveType, effectiveCategoryId)
+        ? this.toUniqueVehicleCode(
+            await this.resolveVehicleCodePrefix(
+              effectiveType,
+              effectiveCategoryId,
+            ),
+            vehicle.vehicle_id,
+          )
         : vehicle.code;
-      if (code !== vehicle.code) {
-        const existingCode = await this.vehicleDao.findByCode(code);
-        if (existingCode && existingCode.id !== id) {
-          throw new DuplicateResourceException(
-            'Vehicle',
-            'type and category',
-            code,
-          );
-        }
-      }
 
       if (
         updateVehicleDto.vin_no &&

@@ -40,7 +40,7 @@ export class VehicleController {
     description: 'Vehicle master created successfully.',
   })
   @ApiResponse({ status: 400, description: 'Validation failed.' })
-  @ApiResponse({ status: 409, description: 'Duplicate code or vehicle_id.' })
+  @ApiResponse({ status: 409, description: 'Duplicate VIN/chassis or vehicle_id.' })
   async create(
     @CurrentUser() actor: UserContext,
     @Body() createVehicleDto: CreateVehicleDto,
@@ -101,7 +101,7 @@ export class VehicleController {
     description: 'Vehicle master updated successfully.',
   })
   @ApiResponse({ status: 404, description: 'Vehicle master not found.' })
-  @ApiResponse({ status: 409, description: 'Duplicate code.' })
+  @ApiResponse({ status: 409, description: 'Duplicate VIN/chassis.' })
   async update(
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Body() updateVehicleDto: UpdateVehicleDto,

@@ -112,6 +112,18 @@ export class CreateChargeDto {
   is_enabled?: boolean;
 }
 
+export class CategoriesByVehicleTypeQueryDto {
+  @ApiProperty({
+    description:
+      'Vehicle type (free text; matched case-insensitively against Charges Master)',
+    example: 'erc',
+  })
+  @Transform(({ value }) => normalizeVehicleType(value))
+  @IsString({ message: 'type must be a string' })
+  @IsNotEmpty({ message: 'type is required' })
+  type!: string;
+}
+
 export class UpdateChargeDto extends PartialType(
   OmitType(CreateChargeDto, ['charge_id'] as const),
 ) {}

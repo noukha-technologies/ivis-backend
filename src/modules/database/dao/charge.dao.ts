@@ -9,6 +9,7 @@ import {
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { IChargeDao } from '../../masters/charges/dao/charge.dao.interface';
 import { Charge } from '../entity/charge.entity';
+import { ChargeCategory } from '../entity/charge-category.entity';
 
 @Injectable()
 export class ChargeDao extends Repository<Charge> implements IChargeDao {
@@ -67,6 +68,55 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
       if (centreCharge) return centreCharge;
     }
     return this.findOne({ where: { ...base, centre_id: IsNull() } });
+  }
+
+  /**
+   * Distinct Active charge categories mapped to a vehicle type via Active,
+   * enabled Charges Master rows (case-insensitive type match).
+   */
+  async findActiveCategoriesByVehicleType(
+    vehicleType: string,
+  ): Promise<ChargeCategory[]> {
+    const rows = await this.createQueryBuilder('charge')
+      .innerJoinAndSelect('charge.chargeCategory', 'chargeCategory')
+      .where('charge.is_deleted = :isDeleted', { isDeleted: false })
+      .andWhere('charge.status = :status', { status: 'Active' })
+      .andWhere('charge.is_enabled = :isEnabled', { isEnabled: true })
+      .andWhere('LOWER(TRIM(charge.vehicle_type)) = :vehicleType', {
+        vehicleType,
+      })
+      .andWhere('charge.charge_category_id IS NOT NULL')
+      .andWhere('chargeCategory.is_deleted = :catDeleted', { catDeleted: false })
+      .andWhere('chargeCategory.status = :catStatus', { catStatus: 'Active' })
+      .orderBy('chargeCategory.vehicle_weight', 'ASC')
+      .addOrderBy('chargeCategory.engine_capacity', 'ASC')
+      .getMany();
+
+    const unique = new Map<string, ChargeCategory>();
+    for (const row of rows) {
+      if (row.chargeCategory) {
+        unique.set(row.chargeCategory.id, row.chargeCategory);
+      }
+    }
+    return [...unique.values()];
+  }
+
+  /**
+   * Distinct vehicle types from Active, enabled Charges Master rows.
+   */
+  async findDistinctActiveVehicleTypes(): Promise<string[]> {
+    const rows = await this.createQueryBuilder('charge')
+      .select('DISTINCT LOWER(TRIM(charge.vehicle_type))', 'vehicle_type')
+      .where('charge.is_deleted = :isDeleted', { isDeleted: false })
+      .andWhere('charge.status = :status', { status: 'Active' })
+      .andWhere('charge.is_enabled = :isEnabled', { isEnabled: true })
+      .andWhere("TRIM(charge.vehicle_type) <> ''")
+      .orderBy('vehicle_type', 'ASC')
+      .getRawMany<{ vehicle_type: string }>();
+
+    return rows
+      .map((row) => row.vehicle_type)
+      .filter((type): type is string => Boolean(type));
   }
 
   async findPaginated(

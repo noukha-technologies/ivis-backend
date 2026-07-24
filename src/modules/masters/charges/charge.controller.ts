@@ -21,6 +21,7 @@ import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { ParseSnowflakeIdPipe } from '../../../common/pipes/parse-snowflake-id.pipe';
 import {
+  CategoriesByVehicleTypeQueryDto,
   CreateChargeDto,
   UpdateChargeDto,
 } from '../../../common/dto/charge.dto';
@@ -69,6 +70,51 @@ export class ChargeController {
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.chargeService.findAll(query);
     return { message: 'Charges retrieved successfully', ...result };
+  }
+
+  @Get('vehicle-types')
+  @ApiOperation({
+    summary:
+      'List distinct Active vehicle types from Charges Master (for dropdowns)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Distinct vehicle types retrieved.',
+  })
+  async findVehicleTypes() {
+    const data = await this.chargeService.findVehicleTypes();
+    return {
+      message: 'Vehicle types retrieved successfully',
+      data,
+    };
+  }
+
+  @Get('categories-by-vehicle-type')
+  @ApiOperation({
+    summary:
+      'List Active charge categories mapped to a vehicle type (Charges Master)',
+  })
+  @ApiQuery({
+    name: 'type',
+    required: true,
+    type: String,
+    description: 'Vehicle type (matched case-insensitively)',
+    example: 'erc',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Mapped charge categories retrieved.',
+  })
+  async findCategoriesByVehicleType(
+    @Query() query: CategoriesByVehicleTypeQueryDto,
+  ) {
+    const data = await this.chargeService.findCategoriesByVehicleType(
+      query.type,
+    );
+    return {
+      message: 'Charge categories retrieved successfully',
+      data,
+    };
   }
 
   @Get(':id')

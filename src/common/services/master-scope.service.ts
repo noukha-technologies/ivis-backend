@@ -62,20 +62,31 @@ export class MasterScopeService {
     }
   }
 
-  async assertLinesHaveNoCamera(lineIds: string[], excludeCameraId?: string): Promise<void> {
+  async assertLinesHaveNoCamera(
+    lineIds: string[],
+    excludeCameraId?: string,
+  ): Promise<void> {
     if (!lineIds.length) {
       return;
     }
-    const conflicts = await this.cameraLineMappingDao.findActiveByLineIds(lineIds);
+    const conflicts =
+      await this.cameraLineMappingDao.findActiveByLineIds(lineIds);
     for (const mapping of conflicts) {
       if (excludeCameraId && mapping.camera_id === excludeCameraId) {
         continue;
       }
-      throw new DuplicateResourceException('Camera', 'line_id', mapping.line_id);
+      throw new DuplicateResourceException(
+        'Camera',
+        'line_id',
+        mapping.line_id,
+      );
     }
   }
 
-  async assertLineHasNoCamera(lineId: string, excludeCameraId?: string): Promise<void> {
+  async assertLineHasNoCamera(
+    lineId: string,
+    excludeCameraId?: string,
+  ): Promise<void> {
     await this.assertLinesHaveNoCamera([lineId], excludeCameraId);
   }
 

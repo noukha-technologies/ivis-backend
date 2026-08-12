@@ -1,3 +1,5 @@
+import { isDevelopment } from './env.config';
+
 const DEFAULT_DEV_ORIGINS = [
   'http://localhost:3000',
   'http://127.0.0.1:3000',
@@ -19,9 +21,11 @@ export function getCorsOrigins(): string[] {
 }
 
 export function buildCorsOptions() {
-  const isDev = process.env.NODE_ENV !== 'production';
+  // Only local development gets the permissive any-origin policy. Staging is
+  // a deployed environment reachable by others, so it uses the configured
+  // allowlist exactly as production does.
   return {
-    origin: isDev ? true : getCorsOrigins(),
+    origin: isDevelopment() ? true : getCorsOrigins(),
     credentials: true,
     methods: ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'user-current-view'],

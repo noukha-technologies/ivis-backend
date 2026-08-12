@@ -7,6 +7,7 @@ import {
   IsString,
   Matches,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import {
   ApiProperty,
@@ -72,6 +73,20 @@ export class CreateCentreDto {
   @IsOptional()
   @IsBoolean({ message: 'auto_submit must be a boolean' })
   auto_submit?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "The appointment provider's branch code for this centre, chosen from GET /masters/centres/branches. Distinct from `code` above, which is the IVIS centre code — both name the same physical centre. Send null or an empty string to clear the link.",
+    example: 'SBX',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== '')
+  @IsString({ message: 'provider_branch_code must be a string' })
+  @Matches(/^[A-Z0-9]{2,16}$/, {
+    message: 'provider_branch_code must be uppercase alphanumeric',
+  })
+  provider_branch_code?: string | null;
 }
 
 export class UpdateCentreDto extends PartialType(

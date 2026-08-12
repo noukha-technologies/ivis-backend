@@ -56,15 +56,26 @@ export class CentralSyncHttpClientService {
     return this.post('/sync/run/push', { runId, entityKey, chunkIndex, rows });
   }
 
-  async pullChunk(runId: string, entityKey: string, cursor?: string): Promise<SyncPullChunkResult> {
+  async pullChunk(
+    runId: string,
+    entityKey: string,
+    cursor?: string,
+  ): Promise<SyncPullChunkResult> {
     return this.post('/sync/run/pull', { runId, entityKey, cursor });
   }
 
-  async finishRun(runId: string, status: 'SUCCESS' | 'PARTIAL' | 'FAILED', error?: string): Promise<void> {
+  async finishRun(
+    runId: string,
+    status: 'SUCCESS' | 'PARTIAL' | 'FAILED',
+    error?: string,
+  ): Promise<void> {
     await this.post('/sync/run/finish', { runId, status, error });
   }
 
-  private async post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+  private async post<T>(
+    path: string,
+    body: Record<string, unknown>,
+  ): Promise<T> {
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl()}${path}`, {

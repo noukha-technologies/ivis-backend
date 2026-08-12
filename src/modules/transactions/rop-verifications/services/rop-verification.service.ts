@@ -276,7 +276,9 @@ export class RopVerificationService {
     );
     try {
       const ropVerification = await this.findOne(id);
-      const plateNumber = await this.resolvePlateNumber(ropVerification.anpr_capture_id);
+      const plateNumber = await this.resolvePlateNumber(
+        ropVerification.anpr_capture_id,
+      );
       const beforeState = snapshotRopVerification(ropVerification, plateNumber);
       const merged = this.ropVerificationDao.merge(ropVerification, {
         is_deleted: true,

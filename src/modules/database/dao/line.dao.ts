@@ -81,7 +81,7 @@ export class LineDao extends Repository<Line> implements ILineDao {
         'line.name',
         'line.code',
         'line.status',
-        'centre.name',
+        'centre.centre_name',
         'centre.code',
       ],
       allowedSortFields: [

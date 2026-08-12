@@ -58,7 +58,8 @@ function toLocalOmanDigits(value: string | undefined): string | undefined {
   if (!value) return undefined;
   let digits = value.replace(/\D/g, '');
   if (digits.startsWith('00968')) digits = digits.slice(5);
-  else if (digits.startsWith('968') && digits.length > 8) digits = digits.slice(3);
+  else if (digits.startsWith('968') && digits.length > 8)
+    digits = digits.slice(3);
   if (digits.length === 9 && digits.startsWith('0')) digits = digits.slice(1);
   return digits.length === 8 ? digits : undefined;
 }

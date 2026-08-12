@@ -138,11 +138,7 @@ export class DashboardDao implements IDashboardDao {
     const row = await this.dataSource
       .getRepository(Camera)
       .createQueryBuilder('camera')
-      .innerJoin(
-        'camera.lineMappings',
-        'mapping',
-        'mapping.is_deleted = false',
-      )
+      .innerJoin('camera.lineMappings', 'mapping', 'mapping.is_deleted = false')
       .innerJoin('mapping.line', 'line', 'line.is_deleted = false')
       .select('COUNT(DISTINCT camera.id)', 'total')
       .addSelect(
@@ -231,8 +227,12 @@ export class DashboardDao implements IDashboardDao {
       .select('COUNT(*)', 'total')
       .where('appointment.is_deleted = false')
       .andWhere('appointment.centre_id = :centreId', { centreId })
-      .andWhere('appointment.created_at >= :todayStart', { todayStart: windows.todayStart })
-      .andWhere('appointment.created_at < :todayEnd', { todayEnd: windows.todayEnd })
+      .andWhere('appointment.created_at >= :todayStart', {
+        todayStart: windows.todayStart,
+      })
+      .andWhere('appointment.created_at < :todayEnd', {
+        todayEnd: windows.todayEnd,
+      })
       .getRawOne<{ total: string }>();
 
     return Number(row?.total ?? 0);

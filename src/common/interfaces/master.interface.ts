@@ -1,11 +1,11 @@
 export interface ICentreMasterFields {
   id: string;
   centre_id: number;
-  name: string;
+  centre_name: string;
   code: string;
   description?: string;
-  auto_submit: boolean;
   status: string;
+  provider_branch_code?: string | null;
   created_by?: string;
   created_at: Date;
   updated_at: Date;

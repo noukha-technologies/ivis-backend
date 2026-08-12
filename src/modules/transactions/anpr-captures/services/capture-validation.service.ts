@@ -5,15 +5,17 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { generateIdNumber } from '../../../../common/shared/id-number.util';
 import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
 import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
+import { JobService } from '../../../jobs/services/job.service';
 
 import { LineDao } from '../../../database/dao/line.dao';
+import { CentreDao } from '../../../database/dao/centre.dao';
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
 import { ChargeDao } from '../../../database/dao/charge.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
-import { OnlineAppointmentApiClientService } from '../../../integrations/online-appointment/online-appointment-api-client.service';
+import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
@@ -41,7 +43,9 @@ export class CaptureValidationService {
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly onlineAppointmentApi: OnlineAppointmentApiClientService,
+    private readonly centreDao: CentreDao,
+    private readonly appointmentApi: AppointmentApiClientService,
+    private readonly jobService: JobService,
   ) {}
 
   /**
@@ -68,6 +72,77 @@ export class CaptureValidationService {
       `Capture ${capture.id} validated from ROP ${rop.id}`,
       CaptureValidationService.context,
     );
+
+    // ROP is the gate: only now, with the vehicle present AND verified, is an
+    // online booking eligible to become a job automatically.
+    await this.autoConvertPaidOnlineBooking(capture, createdBy);
+  }
+
+  /**
+   * Converts a paid online booking into a job once the vehicle has arrived and
+   * ROP has verified it.
+   *
+   * Payment removes the blocker, arrival provides the trigger: the booking is
+   * paid days in advance, but a job means a car is here now, so creating one at
+   * ingest time would produce jobs for vehicles that may never turn up — and
+   * the ROP same-day submission rule would already have expired them.
+   *
+   * Never throws. A conversion that cannot proceed leaves the appointment
+   * Queued for an operator to convert by hand; failing here would undo a
+   * capture validation that is otherwise correct.
+   */
+  private async autoConvertPaidOnlineBooking(
+    capture: AnprCapture,
+    createdBy: string,
+  ): Promise<void> {
+    try {
+      const appointment = await this.appointmentDao.findByAnprCaptureId(
+        capture.id,
+      );
+      if (!appointment) return;
+
+      // Walk-ins are converted by an operator — there is no upstream payment
+      // to trust, so nothing to auto-approve against.
+      if (!appointment.provider_booking_id) return;
+      if (appointment.status !== AppointmentStatus.QUEUED) return;
+
+      // FREE is a free re-inspection — equally "paid for" as far as the gate
+      // on job creation is concerned.
+      const paid =
+        appointment.provider_payment_status === 'PAID' ||
+        appointment.provider_payment_status === 'FREE';
+      if (!paid) {
+        this.logger.log(
+          `Appointment ${appointment.id} not auto-converted: provider payment status is ${appointment.provider_payment_status ?? 'unknown'}`,
+          CaptureValidationService.context,
+        );
+        return;
+      }
+
+      // Job creation requires a customer; the booking usually supplies one, but
+      // not when the provider sent no phone number.
+      if (!appointment.customer_id) {
+        this.logger.log(
+          `Appointment ${appointment.id} not auto-converted: no customer on the booking`,
+          CaptureValidationService.context,
+        );
+        return;
+      }
+
+      const job = await this.jobService.createFromAppointment(appointment.id, {
+        user: { id: createdBy, center_id: appointment.centre_id ?? undefined },
+      } as never);
+
+      this.logger.log(
+        `Auto-converted paid booking ${appointment.provider_booking_id} → job ${job?.id ?? '(created)'}`,
+        CaptureValidationService.context,
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Auto-convert skipped for capture ${capture.id}: ${(err as Error).message}`,
+        CaptureValidationService.context,
+      );
+    }
   }
 
   /**
@@ -94,23 +169,40 @@ export class CaptureValidationService {
       createdBy,
     );
 
-    // A walk-in may already have created a Queued appointment for this exact
-    // plate before the car physically arrived (no anpr_capture_id yet). If
-    // so, attach this capture to that same appointment instead of creating a
-    // duplicate — this is what makes "Convert to Job" appear on it.
-    const walkInMatch = await this.appointmentDao.findLatestQueuedByPlate(
+    // LOCAL FIRST. Two kinds of Queued appointment can already exist for this
+    // plate with no capture attached:
+    //   • an online booking ingested from the provider before the car arrived
+    //   • a walk-in an operator pre-created at the counter
+    // Either way, attach this capture to it rather than creating a duplicate —
+    // that is what makes "Convert to Job" appear on the existing row.
+    const captureLine = capture.line_id
+      ? await this.lineDao.findActiveById(capture.line_id)
+      : null;
+
+    const onlineMatch = await this.appointmentDao.findQueuedOnlineByPlate(
       capture.plate_number,
+      captureLine?.centre_id ?? null,
     );
+    const walkInMatch =
+      onlineMatch ??
+      (await this.appointmentDao.findLatestQueuedByPlate(capture.plate_number));
     if (walkInMatch) {
       const patch: {
         anpr_capture_id: string;
         vehicle_record_id?: string;
         customer_id?: string;
+        line_id?: string;
+        centre_id?: string;
       } = { anpr_capture_id: capture.id };
-      if (
-        vehicleRecord &&
-        walkInMatch.vehicle_record_id !== vehicleRecord.id
-      ) {
+      // An ingested booking knows its centre but not which lane the car would
+      // use — that is only known now, on arrival.
+      if (capture.line_id && !walkInMatch.line_id) {
+        patch.line_id = capture.line_id;
+      }
+      if (captureLine?.centre_id && !walkInMatch.centre_id) {
+        patch.centre_id = captureLine.centre_id;
+      }
+      if (vehicleRecord && walkInMatch.vehicle_record_id !== vehicleRecord.id) {
         patch.vehicle_record_id = vehicleRecord.id;
       }
       // Only fill customer if the walk-in doesn't already have one — never
@@ -149,15 +241,23 @@ export class CaptureValidationService {
 
     // Carry the capture's line (and its centre) onto the appointment so the
     // queue shows Centre / Line.
-    const line = capture.line_id
-      ? await this.lineDao.findActiveById(capture.line_id)
-      : null;
+    const line = captureLine;
 
-    // If the plate is a pre-booked online appointment, mark it Online; otherwise
-    // Walk-in. Returns null until the online-appointment integration is wired.
-    const online = await this.onlineAppointmentApi.findByPlate(
-      capture.plate_number,
-    );
+    // If the plate is a pre-booked online appointment, mark it Online;
+    // otherwise Walk-in. The lookup is per branch, so resolve the capture's
+    // centre first — an unlinked centre yields null, i.e. Walk-in.
+    // ANPR rarely reads plate type, hence the PRIVATE default, which covers
+    // the overwhelming majority of inspections.
+    const centre = line?.centre_id
+      ? await this.centreDao.findActiveById(line.centre_id)
+      : null;
+    const online = centre?.provider_branch_code
+      ? await this.appointmentApi.findByPlate(
+          centre.provider_branch_code,
+          capture.plate_type?.trim() || 'PRIVATE',
+          capture.plate_number,
+        )
+      : null;
 
     const appointment = this.appointmentDao.create({
       id: generateSnowflakeId(),

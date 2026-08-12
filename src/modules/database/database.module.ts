@@ -20,6 +20,7 @@ import { Customer } from './entity/customer.entity';
 import { Payments } from './entity/payments.entity';
 import { Permission } from './entity/permission.entity';
 import { Appointment } from './entity/appointment.entity';
+import { AppointmentBooking } from './entity/appointment-booking.entity';
 import { UserSession } from './entity/user-session.entity';
 import { AnprCapture } from './entity/anpr-capture.entity';
 import { PaymentType } from './entity/payment-type.entity';
@@ -52,6 +53,7 @@ import { PaymentsDao } from './dao/payments.dao';
 import { CustomerDao } from './dao/customer.dao';
 import { PermissionDao } from './dao/permission.dao';
 import { AppointmentDao } from './dao/appointment.dao';
+import { AppointmentBookingDao } from './dao/appointment-booking.dao';
 import { PaymentTypeDao } from './dao/payment-type.dao';
 import { AnprCaptureDao } from './dao/anpr-capture.dao';
 import { UserSessionsDao } from './dao/user-sessions.dao';
@@ -112,6 +114,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
       Job,
       JobImage,
       Appointment,
+      AppointmentBooking,
       Charge,
       ChargeCategory,
       PaymentType,
@@ -147,6 +150,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     JobImageDao,
     DashboardDao,
     AppointmentDao,
+    AppointmentBookingDao,
     ChargeDao,
     ChargeCategoryDao,
     PaymentTypeDao,
@@ -183,6 +187,7 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     JobImageDao,
     DashboardDao,
     AppointmentDao,
+    AppointmentBookingDao,
     ChargeDao,
     ChargeCategoryDao,
     PaymentTypeDao,
@@ -194,4 +199,4 @@ import { SchemaBootstrapService } from './service/schema-bootstrap.service';
     SchemaBootstrapService,
   ],
 })
-export class DatabaseModule { }
+export class DatabaseModule {}

@@ -1,4 +1,4 @@
-import { Appointment } from "src/modules/database/entity/appointment.entity";
+import { Appointment } from 'src/modules/database/entity/appointment.entity';
 
 export const whiteListingDomains = ['http://localhost:3000'];
 
@@ -44,7 +44,6 @@ export interface IConfigurationFields {
   is_deleted: boolean;
 }
 
-
 export interface PlateLookupResult {
   plate_number: string;
   owner_name: string | null;
@@ -79,3 +78,13 @@ export type AppointmentAuditEntity = Appointment &
   AppointmentAuditDetails & {
     __auditDetailBefore?: AppointmentAuditDetails;
   };
+
+export interface OnlineAppointmentResult {
+  plate_number: string;
+  customer_name?: string;
+  customer_phone?: string;
+  id_number?: string;
+  chassis_no?: string;
+  vehicle_type?: string;
+  appointment_at?: string;
+}

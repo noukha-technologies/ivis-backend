@@ -1,9 +1,4 @@
-import {
-  Column,
-  CreateDateColumn,
-  Entity,
-  UpdateDateColumn,
-} from 'typeorm';
+import { Column, CreateDateColumn, Entity, UpdateDateColumn } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';

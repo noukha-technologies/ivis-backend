@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
-import { DataSource, EntityManager, EntityTarget, ObjectLiteral } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  EntityTarget,
+  ObjectLiteral,
+} from 'typeorm';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
@@ -151,7 +156,10 @@ export class OnboardingService {
       );
       status = (await this.onboardingStatusDao.getStatus())!;
       if (!confirmOnboarding) {
-        return { status: 'FAILED', error: lastError ?? 'Onboarding sync failed' };
+        return {
+          status: 'FAILED',
+          error: lastError ?? 'Onboarding sync failed',
+        };
       }
     }
 
@@ -167,7 +175,12 @@ export class OnboardingService {
           centre: await this.reconfirmCentreInfo(email, password),
         };
       }
-      return this.confirmAndSync(status.id, email, password, selectedSuperAdminIds);
+      return this.confirmAndSync(
+        status.id,
+        email,
+        password,
+        selectedSuperAdminIds,
+      );
     }
 
     // status.status === 'PENDING' (fresh, or just reverted from an expiry)
@@ -208,10 +221,19 @@ export class OnboardingService {
     }
 
     if (confirmOnboarding) {
-      return this.confirmAndSync(status.id, email, password, selectedSuperAdminIds, confirmResult.pullToken);
+      return this.confirmAndSync(
+        status.id,
+        email,
+        password,
+        selectedSuperAdminIds,
+        confirmResult.pullToken,
+      );
     }
 
-    return { status: 'CONFIRMATION_REQUIRED', centre: this.toCentreInfo(confirmResult) };
+    return {
+      status: 'CONFIRMATION_REQUIRED',
+      centre: this.toCentreInfo(confirmResult),
+    };
   }
 
   private toCentreInfo(confirmResult: {
@@ -231,7 +253,10 @@ export class OnboardingService {
   }
 
   /** Re-confirming (idempotent re-hit before confirmOnboarding=true) needs a fresh call — the pullToken from the first /confirm may have expired. */
-  private async reconfirmCentreInfo(email: string, password: string): Promise<OnboardingCentreInfo> {
+  private async reconfirmCentreInfo(
+    email: string,
+    password: string,
+  ): Promise<OnboardingCentreInfo> {
     const confirmResult = await this.centralClient.confirm(email, password);
     return this.toCentreInfo(confirmResult);
   }
@@ -243,7 +268,11 @@ export class OnboardingService {
     selectedSuperAdminIds: string[] | undefined,
     knownPullToken?: string,
   ): Promise<EnsureOnboardedResult> {
-    const claimed = await this.onboardingStatusDao.tryClaim(statusId, ['PENDING_CONFIRMATION'], 'IN_PROGRESS');
+    const claimed = await this.onboardingStatusDao.tryClaim(
+      statusId,
+      ['PENDING_CONFIRMATION'],
+      'IN_PROGRESS',
+    );
     if (!claimed) {
       const fresh = await this.onboardingStatusDao.getStatus();
       if (fresh?.status === 'COMPLETED') return { status: 'COMPLETED' };
@@ -251,11 +280,18 @@ export class OnboardingService {
     }
 
     try {
-      const pullToken = knownPullToken ?? (await this.centralClient.confirm(email, password)).pullToken;
+      const pullToken =
+        knownPullToken ??
+        (await this.centralClient.confirm(email, password)).pullToken;
       await this.syncCentreScopedData(pullToken, selectedSuperAdminIds);
-      await this.onboardingStatusDao.tryClaim(statusId, ['IN_PROGRESS'], 'COMPLETED', {
-        data_synced_at: new Date(),
-      });
+      await this.onboardingStatusDao.tryClaim(
+        statusId,
+        ['IN_PROGRESS'],
+        'COMPLETED',
+        {
+          data_synced_at: new Date(),
+        },
+      );
       return { status: 'COMPLETED' };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -282,7 +318,10 @@ export class OnboardingService {
     pullToken: string,
     selectedSuperAdminIds: string[] | undefined,
   ): Promise<void> {
-    const { pullSessionId } = await this.centralClient.pullStart(pullToken, selectedSuperAdminIds ?? []);
+    const { pullSessionId } = await this.centralClient.pullStart(
+      pullToken,
+      selectedSuperAdminIds ?? [],
+    );
 
     const syncedRoleIds = new Set<string>();
     const syncedLineIds = new Set<string>();
@@ -294,7 +333,11 @@ export class OnboardingService {
       let total = 0;
 
       while (hasMore) {
-        const response = await this.centralClient.pullChunk(pullSessionId, entityKey, cursor);
+        const response = await this.centralClient.pullChunk(
+          pullSessionId,
+          entityKey,
+          cursor,
+        );
         if (!response.rows.length) break;
 
         // On-demand cross-centre FK top-up MUST happen before this chunk's
@@ -303,21 +346,31 @@ export class OnboardingService {
         // method did) is too late, since the FK violation already happened
         // by the time anything could be read back.
         if (entityKey === 'User') {
-          await this.topUpForeignRoles(pullSessionId, response.rows, syncedRoleIds);
+          await this.topUpForeignRoles(
+            pullSessionId,
+            response.rows,
+            syncedRoleIds,
+          );
         }
         if (entityKey === 'UserLineMapping') {
-          await this.topUpForeignLines(pullSessionId, response.rows, syncedLineIds);
+          await this.topUpForeignLines(
+            pullSessionId,
+            response.rows,
+            syncedLineIds,
+          );
         }
 
         await this.dataSource.transaction(async (manager) => {
-          await this.upsertRows(manager, entityClass, response.rows as ObjectLiteral[]);
+          await this.upsertRows(manager, entityClass, response.rows);
         });
 
         if (entityKey === 'Role') {
-          for (const row of response.rows) syncedRoleIds.add((row as { id: string }).id);
+          for (const row of response.rows)
+            syncedRoleIds.add((row as { id: string }).id);
         }
         if (entityKey === 'Line') {
-          for (const row of response.rows) syncedLineIds.add((row as { id: string }).id);
+          for (const row of response.rows)
+            syncedLineIds.add((row as { id: string }).id);
         }
 
         total += response.rows.length;
@@ -325,16 +378,20 @@ export class OnboardingService {
         hasMore = response.hasMore;
       }
 
-      this.logger.log(`Onboarding sync: ${total} ${entityKey} row(s)`, OnboardingService.context);
+      this.logger.log(
+        `Onboarding sync: ${total} ${entityKey} row(s)`,
+        OnboardingService.context,
+      );
     }
 
     // Re-scoped Super Admin rows — returned by pull/complete, written
     // locally here (central never owns a per-centre copy of these, see
     // onboarding-central.service.ts's pullComplete doc comment).
-    const { reScopedSuperAdmins } = await this.centralClient.pullComplete(pullSessionId);
+    const { reScopedSuperAdmins } =
+      await this.centralClient.pullComplete(pullSessionId);
     if (reScopedSuperAdmins.length) {
       await this.dataSource.transaction(async (manager) => {
-        await this.upsertRows(manager, User, reScopedSuperAdmins as ObjectLiteral[]);
+        await this.upsertRows(manager, User, reScopedSuperAdmins as unknown as User[]);
       });
       this.logger.log(
         `Onboarding sync: re-scoped ${reScopedSuperAdmins.length} Super Admin(s) locally`,
@@ -366,19 +423,31 @@ export class OnboardingService {
     ];
     if (!missingRoleIds.length) return;
 
-    const topUpRoles = await this.centralClient.pullByIds(pullSessionId, 'Role', missingRoleIds);
+    const topUpRoles = await this.centralClient.pullByIds(
+      pullSessionId,
+      'Role',
+      missingRoleIds,
+    );
     if (!topUpRoles.length) return;
 
     const permissionIds = [
-      ...new Set(topUpRoles.map((r) => (r as { permission_id?: string }).permission_id).filter(Boolean) as string[]),
+      ...new Set(
+        topUpRoles
+          .map((r) => (r as { permission_id?: string }).permission_id)
+          .filter(Boolean) as string[],
+      ),
     ];
     const topUpPermissions = permissionIds.length
-      ? await this.centralClient.pullByIds(pullSessionId, 'Permission', permissionIds)
+      ? await this.centralClient.pullByIds(
+          pullSessionId,
+          'Permission',
+          permissionIds,
+        )
       : [];
 
     await this.dataSource.transaction(async (manager) => {
-      await this.upsertRows(manager, Permission, topUpPermissions as ObjectLiteral[]);
-      await this.upsertRows(manager, Role, topUpRoles as ObjectLiteral[]);
+      await this.upsertRows(manager, Permission, topUpPermissions as unknown as Permission[]);
+      await this.upsertRows(manager, Role, topUpRoles as unknown as Role[]);
     });
     this.logger.log(
       `Onboarding sync: top-up ${topUpRoles.length} non-centre-owned role(s) referenced by synced users`,
@@ -406,21 +475,31 @@ export class OnboardingService {
     ];
     if (!missingLineIds.length) return;
 
-    const topUpLines = await this.centralClient.pullByIds(pullSessionId, 'Line', missingLineIds);
+    const topUpLines = await this.centralClient.pullByIds(
+      pullSessionId,
+      'Line',
+      missingLineIds,
+    );
     if (!topUpLines.length) return;
 
     const foreignCentreIds = [
       ...new Set(
-        topUpLines.map((l) => (l as { centre_id?: string }).centre_id).filter(Boolean) as string[],
+        topUpLines
+          .map((l) => (l as { centre_id?: string }).centre_id)
+          .filter(Boolean) as string[],
       ),
     ];
     const foreignCentres = foreignCentreIds.length
-      ? await this.centralClient.pullByIds(pullSessionId, 'Centre', foreignCentreIds)
+      ? await this.centralClient.pullByIds(
+          pullSessionId,
+          'Centre',
+          foreignCentreIds,
+        )
       : [];
 
     await this.dataSource.transaction(async (manager) => {
-      await this.upsertRows(manager, Centre, foreignCentres as ObjectLiteral[]);
-      await this.upsertRows(manager, Line, topUpLines as ObjectLiteral[]);
+      await this.upsertRows(manager, Centre, foreignCentres as unknown as Centre[]);
+      await this.upsertRows(manager, Line, topUpLines as unknown as Line[]);
     });
     this.logger.log(
       `Onboarding sync: top-up ${topUpLines.length} non-centre-owned line(s) (+ ${foreignCentres.length} owning centre(s)) referenced by synced users`,
@@ -439,7 +518,10 @@ export class OnboardingService {
     await this.dataSource.transaction(async (manager) => {
       await this.upsertRows(manager, User, [row as ObjectLiteral]);
     });
-    this.logger.log(`Onboarding: re-scoped Super Admin ${email} into centre ${centreId}`, OnboardingService.context);
+    this.logger.log(
+      `Onboarding: re-scoped Super Admin ${email} into centre ${centreId}`,
+      OnboardingService.context,
+    );
   }
 
   /** Insert-by-existing-PK, skip if already present — never overwrites a local row. */
@@ -449,6 +531,12 @@ export class OnboardingService {
     rows: T[],
   ): Promise<void> {
     if (!rows.length) return;
-    await manager.createQueryBuilder().insert().into(entity).values(rows).orIgnore().execute();
+    await manager
+      .createQueryBuilder()
+      .insert()
+      .into(entity)
+      .values(rows)
+      .orIgnore()
+      .execute();
   }
 }

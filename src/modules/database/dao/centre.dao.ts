@@ -30,7 +30,7 @@ export class CentreDao extends Repository<Centre> implements ICentreDao {
   /** Case-insensitive name lookup (for duplicate-name prevention). */
   async findByName(name: string): Promise<Centre | null> {
     return this.createQueryBuilder('centre')
-      .where('LOWER(centre.name) = LOWER(:name)', { name: name.trim() })
+      .where('LOWER(centre.centre_name) = LOWER(:name)', { name: name.trim() })
       .andWhere('centre.is_deleted = :isDeleted', { isDeleted: false })
       .getOne();
   }
@@ -39,14 +39,38 @@ export class CentreDao extends Repository<Centre> implements ICentreDao {
     return this.findOne({ where: { centre_id: centreId, is_deleted: false } });
   }
 
+  /**
+   * Case-insensitive lookup by the appointment provider's branch code, so a
+   * branch can only ever be linked to one centre.
+   */
+  async findByProviderBranchCode(
+    branchCode: string,
+  ): Promise<Centre | null> {
+    return this.createQueryBuilder('centre')
+      .where('UPPER(centre.provider_branch_code) = UPPER(:branchCode)', {
+        branchCode: branchCode.trim(),
+      })
+      .andWhere('centre.is_deleted = :isDeleted', { isDeleted: false })
+      .getOne();
+  }
+
+  /** Every centre linked to an appointment-provider branch. */
+  async findAllWithProviderBranchCode(): Promise<Centre[]> {
+    return this.createQueryBuilder('centre')
+      .where('centre.provider_branch_code IS NOT NULL')
+      .andWhere("TRIM(centre.provider_branch_code) <> ''")
+      .andWhere('centre.is_deleted = :isDeleted', { isDeleted: false })
+      .getMany();
+  }
+
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Centre>> {
     const options = buildTypeOrmPaginationOptions<Centre, Centre>(query, {
-      searchFields: ['name', 'code', 'status'],
+      searchFields: ['centre_name', 'code', 'status'],
       allowedSortFields: [
         'centre_id',
-        'name',
+        'centre_name',
         'code',
         'status',
         'created_at',

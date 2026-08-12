@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 9;
+export const ALTER_SCHEMA_VERSION = 16;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -693,6 +693,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "out_file_path" varchar(512)`,
     );
 
+    // lines: the appointment provider's lane id (L1, L2, ...) for this line —
+    // distinct from the IVIS "code" column. Populated from GET /branches when
+    // the parent centre is linked. Databases created before the rename carry
+    // this as "appointment_lane_id"; the rename block further down migrates
+    // them, and this ADD covers a fresh database.
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "provider_lane_id" character varying(16)`,
+    );
+
     // admin_pcs: drop legacy line_id column and add centre_id (migration 1780120000000),
     // then drop centre_id and restore line_id via admin_pc_line_mappings (1780170000000 / 1781174000000)
     await queryRunner.query(
@@ -1058,6 +1067,61 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "auto_submit" boolean NOT NULL DEFAULT false`,
     );
 
+    // centres: appointment-provider branch identifier + per-branch API key.
+    // The branch code is the provider's id for this centre, distinct from the
+    // IVIS "code" column. Legacy databases carry it as
+    // "appointment_branch_code" — see the rename block below.
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "provider_branch_code" character varying`,
+    );
+    // The appointment provider is authenticated with a single GLOBAL key held
+    // in the server environment (APPOINTMENT_API_KEY), not a per-branch key —
+    // so this column is dropped. Doing it here rather than leaving it orphaned
+    // means no live credential lingers in the database.
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "appointment_api_key"`,
+    );
+
+    // centres.name → centre_name, and appointment_* → provider_* on both
+    // centres and lines. Renames are guarded on the OLD column still existing
+    // and the NEW one not, so re-running is a no-op on an already-migrated DB.
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='name')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='centre_name') THEN
+          ALTER TABLE "master"."centres" RENAME COLUMN "name" TO "centre_name";
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='appointment_branch_code')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='provider_branch_code') THEN
+          ALTER TABLE "master"."centres" RENAME COLUMN "appointment_branch_code" TO "provider_branch_code";
+        END IF;
+
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='lines' AND column_name='appointment_lane_id')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='lines' AND column_name='provider_lane_id') THEN
+          ALTER TABLE "master"."lines" RENAME COLUMN "appointment_lane_id" TO "provider_lane_id";
+        END IF;
+      END $$;
+    `);
+
+    // Cover a fresh database where the old columns never existed.
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "centre_name" character varying`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "provider_branch_code" character varying`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" ADD COLUMN IF NOT EXISTS "provider_lane_id" character varying(16)`,
+    );
+
     // Code uniqueness must ignore soft-deleted rows: replace ALL plain UNIQUE
     // constraints/indexes on `code` with a PARTIAL unique index
     // (WHERE is_deleted = false), so a `code` can be reused after its owning row
@@ -1225,6 +1289,106 @@ export class AlterSchema1782010000000 implements MigrationInterface {
           ALTER TABLE "transaction"."job_images"
             ADD CONSTRAINT "FK_job_images_job_id"
             FOREIGN KEY ("job_id") REFERENCES "transaction"."jobs"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+
+    // appointments: link back to the provider booking this row was promoted
+    // from, plus the plate carried directly on the row.
+    //
+    // An ingested booking exists before the vehicle arrives, so it has no
+    // vehicle_record to join through — plate_number here is what lets the ANPR
+    // capture find its pre-created appointment. The unique index on
+    // provider_booking_id makes promotion idempotent across polls.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_booking_id" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "plate_number" character varying(16)`,
+    );
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_APPOINTMENT_PROVIDER_BOOKING_ID" ON "transaction"."appointments" ("provider_booking_id") WHERE "provider_booking_id" IS NOT NULL`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_PLATE_NUMBER" ON "transaction"."appointments" ("plate_number")`,
+    );
+
+    // appointments: the provider's own view of the booking, kept alongside (not
+    // merged into) the IVIS columns. provider_status is their lifecycle;
+    // status is ours. The payment fields record what they say was paid — job
+    // creation reads them, but no Payment row is written until a job exists.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_status" character varying(24)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_payment_status" character varying(16)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_fee_amount" numeric(10,3)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_payment_method" character varying(32)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "provider_payment_reference" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "is_reinspection" boolean NOT NULL DEFAULT false`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "assigned_lane" character varying(16)`,
+    );
+
+    // appointment_bookings — the ingest landing table. Every booking the
+    // provider returns is stored verbatim here, keyed by their booking_id,
+    // then promoted to a local appointment. Rows are never deleted when a
+    // booking disappears upstream: is_withdrawn records that instead, because
+    // downstream work may already reference it.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "transaction"."appointment_bookings" (
+        "id"                    bigint                NOT NULL,
+        "booking_id"            character varying(64) NOT NULL,
+        "centre_id"             bigint                NOT NULL,
+        "provider_branch_code"  character varying(16) NOT NULL,
+        "booking_date"          date                  NOT NULL,
+        "booking_time"          character varying(8),
+        "plate_number"          character varying(16) NOT NULL,
+        "plate_type"            character varying(24) NOT NULL,
+        "provider_status"       character varying(24) NOT NULL,
+        "payload"               jsonb                 NOT NULL,
+        "appointment_id"        bigint,
+        "is_withdrawn"          boolean               NOT NULL DEFAULT false,
+        "first_seen_at"         TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "last_seen_at"          TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "created_at"            TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"            TIMESTAMP             NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_appointment_bookings_id" PRIMARY KEY ("id")
+      )
+    `);
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_APPT_BOOKING_BOOKING_ID" ON "transaction"."appointment_bookings" ("booking_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_APPT_BOOKING_CENTRE_DATE" ON "transaction"."appointment_bookings" ("centre_id", "booking_date")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_APPT_BOOKING_PLATE" ON "transaction"."appointment_bookings" ("plate_number", "plate_type")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_appointment_bookings_centre_id') THEN
+          ALTER TABLE "transaction"."appointment_bookings"
+            ADD CONSTRAINT "FK_appointment_bookings_centre_id"
+            FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE CASCADE;
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_appointment_bookings_appointment_id') THEN
+          ALTER TABLE "transaction"."appointment_bookings"
+            ADD CONSTRAINT "FK_appointment_bookings_appointment_id"
+            FOREIGN KEY ("appointment_id") REFERENCES "transaction"."appointments"("id") ON DELETE SET NULL;
         END IF;
       END $$;
     `);
@@ -1696,6 +1860,34 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `DROP TABLE IF EXISTS "transaction"."job_images" CASCADE`,
     );
     await queryRunner.query(
+      `DROP TABLE IF EXISTS "transaction"."appointment_bookings"`,
+    );
+    for (const col of [
+      'provider_status',
+      'provider_payment_status',
+      'provider_fee_amount',
+      'provider_payment_method',
+      'provider_payment_reference',
+      'is_reinspection',
+      'assigned_lane',
+    ]) {
+      await queryRunner.query(
+        `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "${col}"`,
+      );
+    }
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_PROVIDER_BOOKING_ID"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_PLATE_NUMBER"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "provider_booking_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "plate_number"`,
+    );
+    await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "booking_type"`,
     );
     await queryRunner.query(
@@ -1866,6 +2058,28 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(`DROP TABLE IF EXISTS "master"."payment_types"`);
 
+    // Reverse the renames applied in up(), then drop. Guarded so a database at
+    // either naming generation rolls back cleanly.
+    await queryRunner.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='centre_name')
+           AND NOT EXISTS (SELECT 1 FROM information_schema.columns
+                   WHERE table_schema='master' AND table_name='centres' AND column_name='name') THEN
+          ALTER TABLE "master"."centres" RENAME COLUMN "centre_name" TO "name";
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "appointment_api_key"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "provider_branch_code"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "appointment_branch_code"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "auto_submit"`,
     );
@@ -1989,6 +2203,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "master"."IDX_LINE_CENTRE_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" DROP COLUMN IF EXISTS "provider_lane_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."lines" DROP COLUMN IF EXISTS "appointment_lane_id"`,
     );
     await queryRunner.query(
       `ALTER TABLE "master"."lines" DROP COLUMN IF EXISTS "centre_id"`,

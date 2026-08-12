@@ -46,11 +46,16 @@ export class SyncCentralService {
       );
     }
 
-    const accepted = await upsertWithUpdate(this.dataSource.manager, definition.entityClass, rows, {
-      conditional: definition.conditional,
-      conflictColumns: definition.conflictColumns,
-      conflictIndexPredicate: definition.conflictIndexPredicate,
-    });
+    const accepted = await upsertWithUpdate(
+      this.dataSource.manager,
+      definition.entityClass,
+      rows,
+      {
+        conditional: definition.conditional,
+        conflictColumns: definition.conflictColumns,
+        conflictIndexPredicate: definition.conflictIndexPredicate,
+      },
+    );
 
     await this.syncRunLogDao.recordChunk(runId, 'pushed', entityKey, accepted);
 
@@ -66,7 +71,11 @@ export class SyncCentralService {
     centreId: string,
     entityKey: string,
     cursorIso?: string,
-  ): Promise<{ rows: Record<string, unknown>[]; hasMore: boolean; nextCursor: string | null }> {
+  ): Promise<{
+    rows: Record<string, unknown>[];
+    hasMore: boolean;
+    nextCursor: string | null;
+  }> {
     const definition = SYNC_ENTITY_MAP[entityKey];
     if (!definition?.pull) {
       throw new ErrorException(
@@ -77,18 +86,32 @@ export class SyncCentralService {
 
     const cursor = cursorIso ? new Date(cursorIso) : EPOCH;
     const rows = await definition.pull(this.dataSource, centreId, cursor);
-    await this.syncRunLogDao.recordChunk(runId, 'pulled', entityKey, rows.length);
+    await this.syncRunLogDao.recordChunk(
+      runId,
+      'pulled',
+      entityKey,
+      rows.length,
+    );
 
     const hasMore = rows.length === CHUNK_SIZE;
     const nextCursor = rows.length
-      ? (rows[rows.length - 1] as { updated_at?: Date }).updated_at?.toISOString() ?? null
-      : cursorIso ?? null;
+      ? ((
+          rows[rows.length - 1] as { updated_at?: Date }
+        ).updated_at?.toISOString() ?? null)
+      : (cursorIso ?? null);
     return { rows, hasMore, nextCursor };
   }
 
-  async finishRun(runId: string, status: 'SUCCESS' | 'PARTIAL' | 'FAILED', error?: string): Promise<void> {
+  async finishRun(
+    runId: string,
+    status: 'SUCCESS' | 'PARTIAL' | 'FAILED',
+    error?: string,
+  ): Promise<void> {
     await this.syncRunLogDao.finishRun(runId, status, error ?? null);
-    this.logger.log(`Sync run ${runId} finished: ${status}`, SyncCentralService.context);
+    this.logger.log(
+      `Sync run ${runId} finished: ${status}`,
+      SyncCentralService.context,
+    );
   }
 
   async recentRuns(limit = 20) {

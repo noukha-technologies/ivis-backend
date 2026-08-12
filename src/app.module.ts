@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 
+import { envFilePaths } from './common/config/env.config';
 import { AppService } from './app.service';
 import { AppController } from './app.controller';
 
@@ -10,35 +11,35 @@ import { AuthGuard } from './guards/auth.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 
 import swaggerConfig from './common/swagger/swagger.config';
-import { LoggerModule } from './common/logger/logger.module';
-import { MasterScopeModule } from './common/services/master-scope.module';
+import databaseConfig from './modules/database/database.config';
 import { LoggerMiddleware } from './common/middlewares/logger.middleware';
 import { AuditContextMiddleware } from './common/audit/audit-context.middleware';
-import { PaginationModule } from './common/shared/pagination/pagination.module';
 
 import { JobsModule } from './modules/jobs/jobs.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AnprModule } from './modules/anpr/anpr.module';
+import { SyncModule } from './modules/sync/sync.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
-import databaseConfig from './modules/database/database.config';
+import { LoggerModule } from './common/logger/logger.module';
 import { MastersModule } from './modules/masters/masters.module';
 import { DatabaseModule } from './modules/database/database.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
+import { MasterScopeModule } from './common/services/master-scope.module';
 import { PermissionsModule } from './modules/permissions/permissions.module';
+import { IntegrationsModule } from './common/integrations/integrations.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
-import { IntegrationsModule } from './modules/integrations/integrations.module';
+import { PaginationModule } from './common/shared/pagination/pagination.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
-import { SyncModule } from './modules/sync/sync.module';
-import { AuditLogsModule } from './modules/audit-logs/audit-logs.module';
-import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       load: [databaseConfig, swaggerConfig],
-      envFilePath: ['.env'],
+      envFilePath: envFilePaths(),
     }),
     ScheduleModule.forRoot(),
     LoggerModule,

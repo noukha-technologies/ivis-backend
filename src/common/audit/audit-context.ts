@@ -36,16 +36,13 @@ export type AuditRequestContext = {
   ropVerificationAuditDetailsBefore?: Record<string, unknown> | null;
 };
 
-export const auditContextStorage =
-  new AsyncLocalStorage<AuditRequestContext>();
+export const auditContextStorage = new AsyncLocalStorage<AuditRequestContext>();
 
 export function getAuditContext(): AuditRequestContext | undefined {
   return auditContextStorage.getStore();
 }
 
-export function patchAuditContext(
-  patch: Partial<AuditRequestContext>,
-): void {
+export function patchAuditContext(patch: Partial<AuditRequestContext>): void {
   const store = auditContextStorage.getStore();
   if (!store) {
     return;

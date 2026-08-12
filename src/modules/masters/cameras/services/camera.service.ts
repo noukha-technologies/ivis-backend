@@ -23,9 +23,7 @@ import { CameraLineMappingDao } from '../../../database/dao/camera-line-mapping.
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
 import { patchAuditContext } from '../../../../common/audit/audit-context';
 
-function asAuditBag(
-  entity: object,
-): Record<string, unknown> {
+function asAuditBag(entity: object): Record<string, unknown> {
   return entity as unknown as Record<string, unknown>;
 }
 
@@ -57,7 +55,10 @@ export class CameraService {
     private readonly masterScope: MasterScopeService,
   ) {}
 
-  private normalizeLineIds(dto: { line_ids?: string[]; line_id?: string }): string[] {
+  private normalizeLineIds(dto: {
+    line_ids?: string[];
+    line_id?: string;
+  }): string[] {
     const ids = dto.line_ids ?? (dto.line_id ? [dto.line_id] : []);
     return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
   }
@@ -68,7 +69,8 @@ export class CameraService {
     const left = norm(a);
     const right = norm(b);
     return (
-      left.length === right.length && left.every((id, index) => id === right[index])
+      left.length === right.length &&
+      left.every((id, index) => id === right[index])
     );
   }
 
@@ -141,7 +143,9 @@ export class CameraService {
         `Camera created with ID: ${savedCamera.id}`,
         CameraService.context,
       );
-      return (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera;
+      return (
+        (await this.cameraDao.findActiveById(savedCamera.id)) ?? savedCamera
+      );
     } catch (error) {
       if (error instanceof DuplicateResourceException) {
         throw error;

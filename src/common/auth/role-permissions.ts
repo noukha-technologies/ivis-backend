@@ -391,7 +391,11 @@ export function normalizeRoleAccessMatrix(
 // ── Grid labels (mirrors admin PERMISSION_GRID_MODULES) ─────────────────────
 
 type GridSubmodule = { key: string; label: string };
-type GridModule = { key: string; label: string; submodules: GridSubmodule[] | null };
+type GridModule = {
+  key: string;
+  label: string;
+  submodules: GridSubmodule[] | null;
+};
 
 const PERMISSION_GRID_MODULES: GridModule[] = [
   { key: 'dashboard', label: 'Dashboard', submodules: null },
@@ -451,7 +455,7 @@ export function resolveAccessModuleLabels(flatKeys: string[]): string[] {
     if (!entry) continue;
 
     if (!mod.submodules) {
-      const flat = entry as FlatModulePermissionMap;
+      const flat = entry;
       if (
         [...flat.view, ...flat.create, ...flat.edit].some((k) => permSet.has(k))
       ) {
@@ -491,7 +495,9 @@ export function resolveAccessModuleLabels(flatKeys: string[]): string[] {
 }
 
 /** Role access matrix → comma-separated module labels for audit snapshots. */
-export function formatAccessModulesLabel(matrix: RoleAccessMatrix): string | null {
+export function formatAccessModulesLabel(
+  matrix: RoleAccessMatrix,
+): string | null {
   const labels = resolveAccessModuleLabels(
     resolveFlatPermissionsFromMatrix(matrix),
   );

@@ -44,11 +44,17 @@ export class SyncGateway {
 
   broadcastSyncActivity(payload: SyncActivityPayload): void {
     if (!this.server) return;
-    this.server.emit('sync:activity', { ...payload, timestamp: new Date().toISOString() });
+    this.server.emit('sync:activity', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
   }
 
   broadcastSyncRunComplete(payload: SyncRunCompletePayload): void {
     if (!this.server) return;
-    this.server.emit('sync:complete', { ...payload, timestamp: new Date().toISOString() });
+    this.server.emit('sync:complete', {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

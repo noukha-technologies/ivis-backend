@@ -120,7 +120,7 @@ export class UsersDao extends Repository<User> implements IUserDao {
         'user_name',
         'email',
         'user_code',
-        'centre.name',
+        'centre.centre_name',
         'line.name',
       ],
       allowedSortFields: [

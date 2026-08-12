@@ -627,7 +627,7 @@ export class UsersService implements IUsersService {
     let centerName: string | null = null;
     if (input.centerId) {
       const centre = await this.centreDao.findActiveById(input.centerId);
-      centerName = centre?.name ?? null;
+      centerName = centre?.centre_name ?? null;
     }
 
     const lineIds = input.lineIds?.length ? [...input.lineIds] : null;
@@ -636,15 +636,6 @@ export class UsersService implements IUsersService {
       role_name: roleName,
       center_name: centerName,
       line_ids: lineIds,
-    };
-  }
-
-  private buildUserAuditDetailsFromEntity(user: User): UserAuditDetails {
-    const lineIds = this.extractLineIds(user);
-    return {
-      role_name: user.role?.role_name ?? null,
-      center_name: user.assignedCentre?.name ?? null,
-      line_ids: lineIds.length ? lineIds : null,
     };
   }
 }

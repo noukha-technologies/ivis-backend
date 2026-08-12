@@ -37,14 +37,14 @@ export function mapUserToResponse(user: User): UserResponse {
         }
       : undefined,
     center_id: user.center_id ?? null,
-    center: centre?.name,
-    centre_name: centre?.name ?? null,
+    center: centre?.centre_name,
+    centre_name: centre?.centre_name ?? null,
     line: lines[0]?.name,
     assignedCentre: centre
       ? {
           id: centre.id,
           centre_id: centre.centre_id,
-          name: centre.name,
+          name: centre.centre_name,
           code: centre.code,
         }
       : undefined,

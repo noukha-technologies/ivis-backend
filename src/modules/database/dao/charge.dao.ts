@@ -86,7 +86,9 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
         vehicleType,
       })
       .andWhere('charge.charge_category_id IS NOT NULL')
-      .andWhere('chargeCategory.is_deleted = :catDeleted', { catDeleted: false })
+      .andWhere('chargeCategory.is_deleted = :catDeleted', {
+        catDeleted: false,
+      })
       .andWhere('chargeCategory.status = :catStatus', { catStatus: 'Active' })
       .orderBy('chargeCategory.vehicle_weight', 'ASC')
       .addOrderBy('chargeCategory.engine_capacity', 'ASC')
@@ -132,7 +134,7 @@ export class ChargeDao extends Repository<Charge> implements IChargeDao {
         'charge.category',
         'charge.vehicle_type',
         'charge.status',
-        'centre.name',
+        'centre.centre_name',
         'chargeCategory.vehicle_weight',
         'chargeCategory.engine_capacity',
       ],

@@ -372,9 +372,7 @@ export class PaymentsService {
       vehicle_type: vehicle?.vehicle_type ?? null,
       payment_mode: paymentType?.name ?? null,
       payment_kind: Number(input.grandTotal) > 0 ? 'Paid' : 'FOC',
-      job_label: job
-        ? `#J${String(job.job_id).padStart(2, '0')}`
-        : null,
+      job_label: job ? `#J${String(job.job_id).padStart(2, '0')}` : null,
     };
   }
 

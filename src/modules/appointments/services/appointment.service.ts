@@ -6,11 +6,14 @@ import { RopVerificationStatus } from '../../../common/enums/common.enums';
 import {
   AppointmentAuditDetails,
   AppointmentAuditEntity,
-  PlateLookupResult
+  PlateLookupResult,
 } from 'src/common/interfaces/common.interfaces';
 import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
-import { CreateAppointmentDto, UpdateAppointmentDto } from '../../../common/dto/appointment.dto';
+import {
+  CreateAppointmentDto,
+  UpdateAppointmentDto,
+} from '../../../common/dto/appointment.dto';
 
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getCreatedById } from '../../../common/utils/created-by.util';
@@ -20,7 +23,7 @@ import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneratio
 import {
   DatabaseException,
   DuplicateResourceException,
-  ResourceNotFoundException
+  ResourceNotFoundException,
 } from '../../../common/exceptions/custom.exception';
 
 import { LineDao } from '../../database/dao/line.dao';
@@ -33,7 +36,7 @@ import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
 import { Appointment } from '../../database/entity/appointment.entity';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../database/dao/rop-verification.dao';
-import { RopApiClientService } from '../../integrations/rop/rop-api-client.service';
+import { RopApiClientService } from '../../../common/integrations/rop/rop-api-client.service';
 
 @Injectable()
 export class AppointmentService {
@@ -51,7 +54,7 @@ export class AppointmentService {
     private readonly ropApiClient: RopApiClientService,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly ropVerificationDao: RopVerificationDao,
-  ) { }
+  ) {}
 
   async resolveByPlate(plate: string): Promise<PlateLookupResult | null> {
     const p = plate?.trim();
@@ -65,7 +68,8 @@ export class AppointmentService {
         rop = await this.ropVerificationDao.save(
           this.ropVerificationDao.create({
             id: generateSnowflakeId(),
-            rop_verification_id: await this.ropVerificationDao.getNextRopVerificationId(),
+            rop_verification_id:
+              await this.ropVerificationDao.getNextRopVerificationId(),
             anpr_capture_id: null,
             owner_name: ropResult.owner_name,
             owner_phone: ropResult.owner_phone,
@@ -113,7 +117,10 @@ export class AppointmentService {
       mulkiya_id: customer?.mulkiya_id ?? rop?.mulkiya_id ?? null,
       id_number: customer?.id_number ?? customer?.mulkiya_id ?? null,
       plate_color:
-        latestCapture?.plate_color ?? record?.plate_color ?? rop?.plate_color ?? null,
+        latestCapture?.plate_color ??
+        record?.plate_color ??
+        rop?.plate_color ??
+        null,
       vehicle_color: record?.vehicle_color ?? rop?.vehicle_color ?? null,
       vehicle_type:
         record?.vehicle_type ??
@@ -223,8 +230,7 @@ export class AppointmentService {
         mulkiya_id: createDto.mulkiya_id ?? null,
         plate_number: plateNumber ?? null,
         plate_color: createDto.plate_color ?? capture?.plate_color ?? null,
-        vehicle_type:
-          createDto.vehicle_type ?? capture?.vehicle_type ?? null,
+        vehicle_type: createDto.vehicle_type ?? capture?.vehicle_type ?? null,
         charge_category_id: createDto.charge_category_id ?? null,
         chassis_no: createDto.chassis_no ?? null,
       };
@@ -311,14 +317,14 @@ export class AppointmentService {
     const customerId =
       updateDto.sync_customer !== false
         ? await this.ensureCustomer(
-          {
-            ...updateDto,
-            customer_id:
-              updateDto.customer_id ?? appointment.customer_id ?? undefined,
-          },
-          vehicleRecordId,
-          actor,
-        )
+            {
+              ...updateDto,
+              customer_id:
+                updateDto.customer_id ?? appointment.customer_id ?? undefined,
+            },
+            vehicleRecordId,
+            actor,
+          )
         : (appointment.customer_id ?? undefined);
 
     // Only the appointment's own columns are merged — booking_type is left

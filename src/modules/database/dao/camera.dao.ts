@@ -49,7 +49,11 @@ export class CameraDao extends Repository<Camera> {
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Camera>> {
     const qb = this.createQueryBuilder('camera')
-      .leftJoinAndSelect('camera.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect(
+        'camera.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = false',
+      )
       .leftJoinAndSelect('lineMapping.line', 'line')
       .leftJoinAndSelect('line.centre', 'centre')
       .where('camera.is_deleted = :is_deleted', { is_deleted: false });
@@ -61,7 +65,7 @@ export class CameraDao extends Repository<Camera> {
         'camera.status',
         'line.name',
         'line.code',
-        'centre.name',
+        'centre.centre_name',
         'centre.code',
       ],
       allowedSortFields: [

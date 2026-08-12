@@ -16,7 +16,11 @@ import { CentralOnboardingHttpClientService } from './service/central-onboarding
 // (@Global()), same as every other DAO.
 @Module({
   controllers: [OnboardingController],
-  providers: [OnboardingService, OnboardingCentralService, CentralOnboardingHttpClientService],
+  providers: [
+    OnboardingService,
+    OnboardingCentralService,
+    CentralOnboardingHttpClientService,
+  ],
   exports: [OnboardingService, CentralOnboardingHttpClientService],
 })
 export class OnboardingModule {}

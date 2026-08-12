@@ -12,6 +12,10 @@ export interface ICentreService {
   findAll(query: PaginationQueryDto): Promise<PaginatedResult<Centre>>;
   findOne(id: string): Promise<Centre>;
   findByCode(code: string): Promise<Centre | null>;
-  update(id: string, updateCentreDto: UpdateCentreDto): Promise<Centre>;
+  update(
+    id: string,
+    updateCentreDto: UpdateCentreDto,
+    actor?: UserContext,
+  ): Promise<Centre>;
   remove(id: string): Promise<void>;
 }

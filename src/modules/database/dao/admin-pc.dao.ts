@@ -86,7 +86,7 @@ export class AdminPcDao extends Repository<AdminPc> {
         'adminPc.status',
         'line.name',
         'line.code',
-        'centre.name',
+        'centre.centre_name',
         'centre.code',
       ],
       allowedSortFields: [

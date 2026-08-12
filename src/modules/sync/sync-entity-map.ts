@@ -24,7 +24,12 @@ import { Appointment } from '../database/entity/appointment.entity';
 import { Job } from '../database/entity/job.entity';
 import { Payments } from '../database/entity/payments.entity';
 
-export const SYNC_DIRECTION_VALUES = ['READ_ONLY', 'WRITE_ONLY', 'BIDIRECTIONAL', 'NOT_SYNCED'] as const;
+export const SYNC_DIRECTION_VALUES = [
+  'READ_ONLY',
+  'WRITE_ONLY',
+  'BIDIRECTIONAL',
+  'NOT_SYNCED',
+] as const;
 export type SyncDirection = (typeof SYNC_DIRECTION_VALUES)[number];
 
 export const CHUNK_SIZE = 500;
@@ -52,7 +57,11 @@ export interface SyncEntityDefinition {
   /** true = most-recent-updated_at-wins (bucket C); false = blind overwrite (bucket A) or no-conflict (bucket B). */
   conditional: boolean;
   /** Central-side: fetch up to CHUNK_SIZE rows for this centre, updated after cursor. Present for READ_ONLY/BIDIRECTIONAL only. */
-  pull?: (dataSource: DataSource, centreId: string, cursor: Date) => Promise<ObjectLiteral[]>;
+  pull?: (
+    dataSource: DataSource,
+    centreId: string,
+    cursor: Date,
+  ) => Promise<ObjectLiteral[]>;
   /**
    * Centre-side: fetch up to CHUNK_SIZE local rows updated after cursor, to
    * push up. No centre filter needed — a centre's own local DB only ever
@@ -60,7 +69,10 @@ export interface SyncEntityDefinition {
    * (this is a single-tenant local box, unlike central). Present for
    * WRITE_ONLY/BIDIRECTIONAL only.
    */
-  pushLocal?: (dataSource: DataSource, cursor: Date) => Promise<ObjectLiteral[]>;
+  pushLocal?: (
+    dataSource: DataSource,
+    cursor: Date,
+  ) => Promise<ObjectLiteral[]>;
   /** Non-PK conflict target for upsert (e.g. RoleCentreMapping's (role_id, centre_id) partial unique index). */
   conflictColumns?: string[];
   conflictIndexPredicate?: string;
@@ -105,7 +117,9 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'READ_ONLY',
     conditional: false,
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(Centre).createQueryBuilder('e')
+      ds
+        .getRepository(Centre)
+        .createQueryBuilder('e')
         .where('e.id = :centreId', { centreId })
         .andWhere('e.updated_at > :cursor', { cursor })
         .limit(CHUNK_SIZE)
@@ -117,8 +131,15 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'READ_ONLY',
     conditional: false,
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(Role).createQueryBuilder('e')
-        .innerJoin(RoleCentreMapping, 'rcm', 'rcm.role_id = e.id AND rcm.centre_id = :centreId AND rcm.is_deleted = false', { centreId })
+      ds
+        .getRepository(Role)
+        .createQueryBuilder('e')
+        .innerJoin(
+          RoleCentreMapping,
+          'rcm',
+          'rcm.role_id = e.id AND rcm.centre_id = :centreId AND rcm.is_deleted = false',
+          { centreId },
+        )
         .andWhere('e.updated_at > :cursor', { cursor })
         .orderBy('e.updated_at', 'ASC')
         .limit(CHUNK_SIZE)
@@ -139,7 +160,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     conditional: false,
     conflictColumns: ['role_id', 'centre_id'],
     conflictIndexPredicate: 'is_deleted = false',
-    pull: async (ds, centreId, cursor) => pullSimple(ds, RoleCentreMapping, 'centre_id', centreId, cursor),
+    pull: async (ds, centreId, cursor) =>
+      pullSimple(ds, RoleCentreMapping, 'centre_id', centreId, cursor),
   },
   PaymentType: {
     entityKey: 'PaymentType',
@@ -170,7 +192,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'BIDIRECTIONAL',
     conditional: true,
     // Global (no centre_id) — every centre sees the same category list.
-    pull: async (ds, _centreId, cursor) => pullGlobal(ds, ChargeCategory, cursor),
+    pull: async (ds, _centreId, cursor) =>
+      pullGlobal(ds, ChargeCategory, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, ChargeCategory, cursor),
   },
   Line: {
@@ -178,7 +201,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Line,
     direction: 'BIDIRECTIONAL',
     conditional: true,
-    pull: async (ds, centreId, cursor) => pullSimple(ds, Line, 'centre_id', centreId, cursor),
+    pull: async (ds, centreId, cursor) =>
+      pullSimple(ds, Line, 'centre_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, Line, cursor),
   },
   Camera: {
@@ -188,9 +212,20 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     conditional: true,
     // Camera has no centre_id of its own — scoped via CameraLineMapping -> Line.centre_id.
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(Camera).createQueryBuilder('e')
-        .innerJoin(CameraLineMapping, 'clm', 'clm.camera_id = e.id AND clm.is_deleted = false')
-        .innerJoin(Line, 'l', 'l.id = clm.line_id AND l.centre_id = :centreId', { centreId })
+      ds
+        .getRepository(Camera)
+        .createQueryBuilder('e')
+        .innerJoin(
+          CameraLineMapping,
+          'clm',
+          'clm.camera_id = e.id AND clm.is_deleted = false',
+        )
+        .innerJoin(
+          Line,
+          'l',
+          'l.id = clm.line_id AND l.centre_id = :centreId',
+          { centreId },
+        )
         .andWhere('e.updated_at > :cursor', { cursor })
         .orderBy('e.updated_at', 'ASC')
         .limit(CHUNK_SIZE)
@@ -203,8 +238,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'BIDIRECTIONAL',
     conditional: true,
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(CameraLineMapping).createQueryBuilder('e')
-        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+      ds
+        .getRepository(CameraLineMapping)
+        .createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', {
+          centreId,
+        })
         .andWhere('e.updated_at > :cursor', { cursor })
         .orderBy('e.updated_at', 'ASC')
         .limit(CHUNK_SIZE)
@@ -216,7 +255,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: AdminPc,
     direction: 'BIDIRECTIONAL',
     conditional: true,
-    pull: async (ds, centreId, cursor) => pullSimple(ds, AdminPc, 'center_id', centreId, cursor),
+    pull: async (ds, centreId, cursor) =>
+      pullSimple(ds, AdminPc, 'center_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, AdminPc, cursor),
   },
   AdminPcLineMapping: {
@@ -225,8 +265,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'BIDIRECTIONAL',
     conditional: true,
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(AdminPcLineMapping).createQueryBuilder('e')
-        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+      ds
+        .getRepository(AdminPcLineMapping)
+        .createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', {
+          centreId,
+        })
         .andWhere('e.updated_at > :cursor', { cursor })
         .orderBy('e.updated_at', 'ASC')
         .limit(CHUNK_SIZE)
@@ -238,7 +282,8 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Charge,
     direction: 'BIDIRECTIONAL',
     conditional: true,
-    pull: async (ds, centreId, cursor) => pullSimple(ds, Charge, 'centre_id', centreId, cursor),
+    pull: async (ds, centreId, cursor) =>
+      pullSimple(ds, Charge, 'centre_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, Charge, cursor),
   },
   User: {
@@ -254,7 +299,9 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // centre can log a synced user in offline; this is unrelated to
     // verify-central's separate "never send a plaintext password" rule.
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(User).createQueryBuilder('e')
+      ds
+        .getRepository(User)
+        .createQueryBuilder('e')
         .addSelect('e.password')
         .where('e.center_id = :centreId', { centreId })
         .andWhere('e.updated_at > :cursor', { cursor })
@@ -265,7 +312,9 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // that row shares the real central Super Admin's PK; pushing it would
     // corrupt their role_id/center_id centrally. See onboarding-central.service.ts.
     pushLocal: async (ds, cursor) =>
-      ds.getRepository(User).createQueryBuilder('e')
+      ds
+        .getRepository(User)
+        .createQueryBuilder('e')
         .addSelect('e.password')
         .where('e.updated_at > :cursor', { cursor })
         .andWhere('e.requires_central_revalidation = false')
@@ -279,8 +328,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     direction: 'BIDIRECTIONAL',
     conditional: true,
     pull: async (ds, centreId, cursor) =>
-      ds.getRepository(UserLineMapping).createQueryBuilder('e')
-        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', { centreId })
+      ds
+        .getRepository(UserLineMapping)
+        .createQueryBuilder('e')
+        .innerJoin(Line, 'l', 'l.id = e.line_id AND l.centre_id = :centreId', {
+          centreId,
+        })
         .andWhere('e.updated_at > :cursor', { cursor })
         .orderBy('e.updated_at', 'ASC')
         .limit(CHUNK_SIZE)

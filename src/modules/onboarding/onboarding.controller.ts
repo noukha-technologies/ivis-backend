@@ -36,65 +36,109 @@ export class OnboardingController {
   @Post('verify-central')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: password check only (NOT the pull handshake) — used by Super Admin auth flows' })
+  @ApiOperation({
+    summary:
+      'Central: password check only (NOT the pull handshake) — used by Super Admin auth flows',
+  })
   @ApiOkResponse({ type: VerifyCentralResponseDto })
-  async verifyCentral(@Body() body: VerifyCentralRequestDto): Promise<VerifyCentralResponseDto> {
+  async verifyCentral(
+    @Body() body: VerifyCentralRequestDto,
+  ): Promise<VerifyCentralResponseDto> {
     return this.onboardingCentral.verifyCentral(body.email, body.password);
   }
 
   @Post('resolve-rescoped-row')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: on-demand re-scope row for a Super Admin logging into an already-onboarded centre' })
+  @ApiOperation({
+    summary:
+      'Central: on-demand re-scope row for a Super Admin logging into an already-onboarded centre',
+  })
   @ApiOkResponse({ type: ResolveReScopedRowResponseDto })
   async resolveReScopedRow(
     @Body() body: ResolveReScopedRowRequestDto,
   ): Promise<ResolveReScopedRowResponseDto> {
-    const row = await this.onboardingCentral.resolveReScopedRow(body.email, body.centreId);
+    const row = await this.onboardingCentral.resolveReScopedRow(
+      body.email,
+      body.centreId,
+    );
     return { row };
   }
 
   @Post('confirm')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: verify a centre user\'s credentials, return centre info + pullToken' })
+  @ApiOperation({
+    summary:
+      "Central: verify a centre user's credentials, return centre info + pullToken",
+  })
   @ApiOkResponse({ type: OnboardingConfirmResponseDto })
-  async confirm(@Body() body: OnboardingConfirmRequestDto): Promise<OnboardingConfirmResponseDto> {
+  async confirm(
+    @Body() body: OnboardingConfirmRequestDto,
+  ): Promise<OnboardingConfirmResponseDto> {
     return this.onboardingCentral.confirm(body.email, body.password);
   }
 
   @Post('pull/start')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: exchange a pullToken for a pullSessionId' })
+  @ApiOperation({
+    summary: 'Central: exchange a pullToken for a pullSessionId',
+  })
   @ApiOkResponse({ type: OnboardingPullStartResponseDto })
-  async pullStart(@Body() body: OnboardingPullStartRequestDto): Promise<OnboardingPullStartResponseDto> {
-    return this.onboardingCentral.pullStart(body.pullToken, body.selectedSuperAdminIds);
+  async pullStart(
+    @Body() body: OnboardingPullStartRequestDto,
+  ): Promise<OnboardingPullStartResponseDto> {
+    return this.onboardingCentral.pullStart(
+      body.pullToken,
+      body.selectedSuperAdminIds,
+    );
   }
 
   @Post('pull/chunk')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: return the next chunk of one entity for this centre\'s initial pull' })
+  @ApiOperation({
+    summary:
+      "Central: return the next chunk of one entity for this centre's initial pull",
+  })
   @ApiOkResponse({ type: OnboardingPullChunkResponseDto })
-  async pullChunk(@Body() body: OnboardingPullChunkRequestDto): Promise<OnboardingPullChunkResponseDto> {
-    return this.onboardingCentral.pullChunk(body.pullSessionId, body.entityKey, body.cursor);
+  async pullChunk(
+    @Body() body: OnboardingPullChunkRequestDto,
+  ): Promise<OnboardingPullChunkResponseDto> {
+    return this.onboardingCentral.pullChunk(
+      body.pullSessionId,
+      body.entityKey,
+      body.cursor,
+    );
   }
 
   @Post('pull/by-ids')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: fetch specific rows by id (cross-centre FK top-up, no centre-scoping)' })
+  @ApiOperation({
+    summary:
+      'Central: fetch specific rows by id (cross-centre FK top-up, no centre-scoping)',
+  })
   @ApiOkResponse({ type: OnboardingPullByIdsResponseDto })
-  async pullByIds(@Body() body: OnboardingPullByIdsRequestDto): Promise<OnboardingPullByIdsResponseDto> {
-    const rows = await this.onboardingCentral.pullByIds(body.pullSessionId, body.entityKey, body.ids);
+  async pullByIds(
+    @Body() body: OnboardingPullByIdsRequestDto,
+  ): Promise<OnboardingPullByIdsResponseDto> {
+    const rows = await this.onboardingCentral.pullByIds(
+      body.pullSessionId,
+      body.entityKey,
+      body.ids,
+    );
     return { rows };
   }
 
   @Post('pull/complete')
   @Public()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: finish the pull session, mint + return this centre\'s API key' })
+  @ApiOperation({
+    summary:
+      "Central: finish the pull session, mint + return this centre's API key",
+  })
   @ApiOkResponse({ type: OnboardingPullCompleteResponseDto })
   async pullComplete(
     @Body() body: OnboardingPullCompleteRequestDto,

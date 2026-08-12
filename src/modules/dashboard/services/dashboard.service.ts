@@ -27,9 +27,12 @@ export class DashboardService {
     private readonly centreDao: CentreDao,
     private readonly masterScope: MasterScopeService,
     private readonly dataSource: DataSource,
-  ) { }
+  ) {}
 
-  async getOverview(actor: UserContext, queryCentreId?: string): Promise<DashboardOverviewResponseDto> {
+  async getOverview(
+    actor: UserContext,
+    queryCentreId?: string,
+  ): Promise<DashboardOverviewResponseDto> {
     const centreId = await this.resolveCentreId(actor, queryCentreId);
     const windows = this.getMuscatDayWindows();
 

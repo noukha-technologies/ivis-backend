@@ -276,8 +276,9 @@ export class AdminPcService {
       });
       if (linesChanged) {
         mergedAdminPc.line_ids = nextLineIds;
-        (mergedAdminPc as unknown as Record<string, unknown>).__auditLineIdsBefore =
-          lineIdsBefore;
+        (
+          mergedAdminPc as unknown as Record<string, unknown>
+        ).__auditLineIdsBefore = lineIdsBefore;
       } else {
         delete mergedAdminPc.line_ids;
         delete mergedAdminPc.lines;
@@ -347,7 +348,8 @@ export class AdminPcService {
     const left = norm(a);
     const right = norm(b);
     return (
-      left.length === right.length && left.every((id, index) => id === right[index])
+      left.length === right.length &&
+      left.every((id, index) => id === right[index])
     );
   }
 

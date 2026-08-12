@@ -1,3 +1,12 @@
+// Must run before any other import reads process.env — the module-scope
+// constants below (PORT, API_PREFIX, CORS_ORIGINS) are evaluated at load time.
+import {
+  currentEnv,
+  loadEnv,
+  resolvedEnvFiles,
+} from './common/config/env.config';
+loadEnv();
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -11,13 +20,17 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { buildValidationException } from './common/utils/validation-error.util.js';
 import { getUploadRoot } from './common/utils/file-storage.util';
+import {
+  writableNonProductionBranches,
+  appointmentBaseUrl,
+} from './common/integrations/appointments/appointment.constants';
 
 // Canonical timezone: store/serve timestamps in UTC regardless of host machine.
 // The admin panel renders them in Oman time (Asia/Muscat). Override via .env if needed.
 process.env.TZ = process.env.TZ || 'UTC';
 process.env.PGTZ = process.env.PGTZ || 'UTC';
 
-const NODE_ENV: string | undefined = process.env.NODE_ENV;
+const NODE_ENV: string = currentEnv();
 const isDevelopment: boolean = NODE_ENV === 'development';
 const isProduction: boolean = NODE_ENV === 'production';
 const port: number = Number(process.env.PORT);
@@ -149,7 +162,14 @@ async function bootstrap() {
     await app.listen(port);
 
     logger.log(`Server: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
-    logger.log(`Environment: ${NODE_ENV}`, 'Bootstrap');
+    logger.log(
+      `Environment: ${NODE_ENV} (env files: ${resolvedEnvFiles().join(', ') || 'none — using process env only'})`,
+      'Bootstrap',
+    );
+    logger.log(
+      `Appointment API: ${appointmentBaseUrl()} (writable branches: ${isProduction ? 'all (production)' : writableNonProductionBranches().join(', ')})`,
+      'Bootstrap',
+    );
 
     process.on('SIGTERM', async () => {
       logger.log('SIGTERM received, shutting down', 'Bootstrap');

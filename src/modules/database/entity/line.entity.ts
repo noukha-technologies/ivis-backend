@@ -9,13 +9,13 @@ import {
   OneToOne,
   UpdateDateColumn,
 } from 'typeorm';
-import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
-import { Centre } from './centre.entity';
-import { Camera } from './camera.entity';
-import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
-import { UserLineMapping } from './user-line-mapping.entity';
 import { ILineMasterFields } from '../../../common/interfaces/master.interface';
+import { bigintAsStringTransformer } from '../../../common/utils/bigint-string.transformer';
+
+import { Centre } from './centre.entity';
+import { UserLineMapping } from './user-line-mapping.entity';
+import { AdminPcLineMapping } from './admin-pc-line-mapping.entity';
 
 @Entity({ name: 'lines', schema: 'master' })
 export class Line implements ILineMasterFields {
@@ -32,6 +32,9 @@ export class Line implements ILineMasterFields {
   @Column({ type: 'varchar', nullable: false })
   @Index('IDX_LINE_CODE', { unique: true, where: '"is_deleted" = false' })
   code!: string;
+
+  @Column({ type: 'varchar', length: 16, nullable: true })
+  provider_lane_id?: string | null;
 
   @Column({
     type: 'bigint',
@@ -51,7 +54,6 @@ export class Line implements ILineMasterFields {
   @Column({ type: 'varchar', nullable: true })
   description?: string;
 
-  // Per-line IN/OUT folder paths for file-driven processing.
   @Column({ type: 'varchar', length: 512, nullable: true })
   in_file_path?: string | null;
 
@@ -60,6 +62,12 @@ export class Line implements ILineMasterFields {
 
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
+
+  @OneToMany(() => UserLineMapping, (mapping) => mapping.line)
+  userMappings?: UserLineMapping[];
+
+  @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.line)
+  adminPcMappings?: AdminPcLineMapping[];
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
@@ -72,10 +80,4 @@ export class Line implements ILineMasterFields {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
-
-  @OneToMany(() => UserLineMapping, (mapping) => mapping.line)
-  userMappings?: UserLineMapping[];
-
-  @OneToMany(() => AdminPcLineMapping, (mapping) => mapping.line)
-  adminPcMappings?: AdminPcLineMapping[];
 }

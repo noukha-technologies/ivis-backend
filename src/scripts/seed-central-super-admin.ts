@@ -21,7 +21,7 @@
  */
 
 import 'reflect-metadata';
-import * as dotenv from 'dotenv';
+import { loadEnv } from '../common/config/env.config';
 import { DataSource } from 'typeorm';
 import { Permission } from '../modules/database/entity/permission.entity';
 import { Role } from '../modules/database/entity/role.entity';
@@ -36,7 +36,9 @@ import {
   type ModuleCrudFlags,
 } from '../common/types/role-access.types';
 
-dotenv.config();
+// Same per-environment resolution the app uses, so a script and the running
+// app can never disagree about which database they target.
+loadEnv();
 
 function requireEnv(name: string): string {
   const value = process.env[name]?.trim();

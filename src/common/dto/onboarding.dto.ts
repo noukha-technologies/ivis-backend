@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsEmail,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 /**
  * Machine-to-machine wire protocol between a centre (client) and central
@@ -90,16 +96,22 @@ export class OnboardingConfirmResponseDto {
   @ApiProperty()
   centreCode!: string;
 
-  @ApiProperty({ description: 'Availability of an is_center_admin role centrally.' })
+  @ApiProperty({
+    description: 'Availability of an is_center_admin role centrally.',
+  })
   centreAdminRoleExists!: boolean;
 
   @ApiProperty({
     type: [OnboardingSuperAdminCandidateDto],
-    description: 'Central Super Admin accounts eligible for re-scoping into this centre.',
+    description:
+      'Central Super Admin accounts eligible for re-scoping into this centre.',
   })
   availableSuperAdmins!: OnboardingSuperAdminCandidateDto[];
 
-  @ApiProperty({ description: 'Short-lived token authorizing the subsequent /onboarding/pull/* calls for this centre.' })
+  @ApiProperty({
+    description:
+      'Short-lived token authorizing the subsequent /onboarding/pull/* calls for this centre.',
+  })
   pullToken!: string;
 }
 
@@ -180,7 +192,10 @@ export class OnboardingPullCompleteRequestDto {
 }
 
 export class OnboardingPullCompleteResponseDto {
-  @ApiProperty({ description: 'Plaintext API key — returned exactly once, never stored anywhere in plaintext.' })
+  @ApiProperty({
+    description:
+      'Plaintext API key — returned exactly once, never stored anywhere in plaintext.',
+  })
   apiKey!: string;
 
   @ApiProperty({
@@ -188,7 +203,7 @@ export class OnboardingPullCompleteResponseDto {
     items: { type: 'object' },
     description:
       'Re-scoped User rows for any selected Super Admins — same PK as the real central account, ' +
-      'pointed at this centre\'s own centre-admin role, requires_central_revalidation: true. The ' +
+      "pointed at this centre's own centre-admin role, requires_central_revalidation: true. The " +
       'centre writes these locally alongside its normal User pull chunk.',
   })
   reScopedSuperAdmins!: Record<string, unknown>[];

@@ -28,7 +28,9 @@ export const EMPTY_ROP_VERIFICATION_AUDIT: RopVerificationAuditSnapshot = {
   fetch_status: null,
 };
 
-function formatRegExpiry(value: Date | string | null | undefined): string | null {
+function formatRegExpiry(
+  value: Date | string | null | undefined,
+): string | null {
   if (value == null || value === '') return null;
   if (value instanceof Date) {
     return value.toISOString().slice(0, 10);

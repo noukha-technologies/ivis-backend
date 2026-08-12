@@ -2,7 +2,12 @@ import { Column, CreateDateColumn, Entity, Index } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 
-export const SYNC_RUN_STATUS_VALUES = ['IN_PROGRESS', 'SUCCESS', 'PARTIAL', 'FAILED'] as const;
+export const SYNC_RUN_STATUS_VALUES = [
+  'IN_PROGRESS',
+  'SUCCESS',
+  'PARTIAL',
+  'FAILED',
+] as const;
 export type SyncRunStatusValue = (typeof SYNC_RUN_STATUS_VALUES)[number];
 
 /**

@@ -96,6 +96,40 @@ export class AppointmentDao
     return toPaginatedResult(response);
   }
 
+  /**
+   * A queued appointment for this plate at this centre that no vehicle has
+   * arrived against yet — i.e. an ingested online booking waiting for its car.
+   *
+   * Deliberately does NOT join vehicleRecord (unlike findLatestQueuedByPlate):
+   * a booking ingested before arrival has no vehicle record, so joining would
+   * exclude exactly the rows this is meant to find. It matches on the plate
+   * carried directly on the appointment instead.
+   */
+  async findQueuedOnlineByPlate(
+    plate: string,
+    centreId: string | null,
+  ): Promise<Appointment | null> {
+    const qb = this.createQueryBuilder('appointment')
+      .where('appointment.is_deleted = false')
+      .andWhere('appointment.status = :status', {
+        status: AppointmentStatus.QUEUED,
+      })
+      .andWhere('appointment.anpr_capture_id IS NULL')
+      .andWhere('UPPER(appointment.plate_number) = UPPER(:plate)', { plate });
+
+    if (centreId) {
+      qb.andWhere('appointment.centre_id = :centreId', { centreId });
+    }
+
+    return qb.orderBy('appointment.appointment_at', 'ASC').getOne();
+  }
+
+  findByProviderBookingId(bookingId: string): Promise<Appointment | null> {
+    return this.findOne({
+      where: { provider_booking_id: bookingId, is_deleted: false },
+    });
+  }
+
   async findLatestQueuedByPlate(plate: string): Promise<Appointment | null> {
     return this.createQueryBuilder('appointment')
       .innerJoin('appointment.vehicleRecord', 'vehicleRecord')

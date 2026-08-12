@@ -44,7 +44,9 @@ export class Camera implements ICameraMasterFields {
 
   @AfterLoad()
   populateLineFields(): void {
-    const activeMappings = (this.lineMappings ?? []).filter((m) => !m.is_deleted);
+    const activeMappings = (this.lineMappings ?? []).filter(
+      (m) => !m.is_deleted,
+    );
     this.line_ids = activeMappings.map((m) => m.line_id);
     this.lines = activeMappings
       .map((m) => m.line)
@@ -57,7 +59,7 @@ export class Camera implements ICameraMasterFields {
         centre: line.centre
           ? {
               id: line.centre.id,
-              name: line.centre.name,
+              name: line.centre.centre_name,
               code: line.centre.code,
             }
           : undefined,

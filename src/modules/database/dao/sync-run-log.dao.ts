@@ -6,7 +6,10 @@ import { SyncRunLog, SyncRunStatusValue } from '../entity/sync-run-log.entity';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 
 @Injectable()
-export class SyncRunLogDao extends Repository<SyncRunLog> implements ISyncRunLogDao {
+export class SyncRunLogDao
+  extends Repository<SyncRunLog>
+  implements ISyncRunLogDao
+{
   constructor(private readonly dataSource: DataSource) {
     super(SyncRunLog, dataSource.createEntityManager());
   }
@@ -43,7 +46,11 @@ export class SyncRunLogDao extends Repository<SyncRunLog> implements ISyncRunLog
       .execute();
   }
 
-  async finishRun(id: string, status: SyncRunStatusValue, error?: string | null): Promise<void> {
+  async finishRun(
+    id: string,
+    status: SyncRunStatusValue,
+    error?: string | null,
+  ): Promise<void> {
     await this.createQueryBuilder()
       .update(SyncRunLog)
       .set({ status, finished_at: new Date(), error: error ?? null })

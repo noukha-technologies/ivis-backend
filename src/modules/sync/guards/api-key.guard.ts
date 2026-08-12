@@ -24,12 +24,18 @@ export class ApiKeyGuard implements CanActivate {
     const authHeader = req.headers.authorization;
 
     if (!authHeader?.startsWith('Bearer ')) {
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'API key missing');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'API key missing',
+      );
     }
 
     const presentedKey = authHeader.slice('Bearer '.length).trim();
     if (!presentedKey) {
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'API key missing');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'API key missing',
+      );
     }
 
     const activeKeys = await this.centreApiKeyDao.findAllActive();

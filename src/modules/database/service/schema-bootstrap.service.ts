@@ -86,7 +86,9 @@ export class SchemaBootstrapService {
   }
 
   private async runMigration(
-    migration: { up: (queryRunner: import('typeorm').QueryRunner) => Promise<void> },
+    migration: {
+      up: (queryRunner: import('typeorm').QueryRunner) => Promise<void>;
+    },
     guardEnvVar: 'RUN_CREATE_SCHEMA' | 'RUN_ALTER_SCHEMA',
   ): Promise<void> {
     const previousValue = process.env[guardEnvVar];

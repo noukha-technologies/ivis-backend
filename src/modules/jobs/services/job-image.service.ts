@@ -8,7 +8,10 @@ import { getUploadRoot } from '../../../common/utils/file-storage.util';
 import { ResourceNotFoundException } from '../../../common/exceptions/custom.exception';
 import { JobDao } from '../../database/dao/job.dao';
 import { JobImageDao } from '../../database/dao/job-image.dao';
-import { JobImage, JobImageSource } from '../../database/entity/job-image.entity';
+import {
+  JobImage,
+  JobImageSource,
+} from '../../database/entity/job-image.entity';
 
 const JOB_IMAGES_SUBDIR = 'job-images';
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;

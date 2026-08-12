@@ -111,7 +111,11 @@ export class AnprCaptureService {
       if (options?.skipAudit) {
         patchAuditContext({ suppressAnprCaptureAudit: true });
       } else {
-        await this.applyAnprCaptureAuditContext(merged.id, beforeState, afterState);
+        await this.applyAnprCaptureAuditContext(
+          merged.id,
+          beforeState,
+          afterState,
+        );
       }
       try {
         const result = await this.anprCaptureDao.save(merged);
@@ -160,7 +164,11 @@ export class AnprCaptureService {
       }
       const merged = this.anprCaptureDao.merge(capture, imagePatch);
       const afterState = this.snapshotCaptureState(merged);
-      await this.applyAnprCaptureAuditContext(merged.id, beforeState, afterState);
+      await this.applyAnprCaptureAuditContext(
+        merged.id,
+        beforeState,
+        afterState,
+      );
       try {
         const result = await this.anprCaptureDao.save(merged);
         this.logger.log(
@@ -345,7 +353,11 @@ export class AnprCaptureService {
           : {}),
       });
       const afterState = this.snapshotCaptureState(merged);
-      await this.applyAnprCaptureAuditContext(merged.id, beforeState, afterState);
+      await this.applyAnprCaptureAuditContext(
+        merged.id,
+        beforeState,
+        afterState,
+      );
       try {
         const saved = await this.anprCaptureDao.save(merged);
         this.logger.log(
@@ -413,15 +425,16 @@ export class AnprCaptureService {
       });
       if (
         media &&
-        (media.plate ||
-          media.scene ||
-          media.removePlate ||
-          media.removeScene)
+        (media.plate || media.scene || media.removePlate || media.removeScene)
       ) {
         merged = await this.applyImageChanges(merged, media);
       }
       const afterState = this.snapshotCaptureState(merged);
-      await this.applyAnprCaptureAuditContext(merged.id, beforeState, afterState);
+      await this.applyAnprCaptureAuditContext(
+        merged.id,
+        beforeState,
+        afterState,
+      );
 
       let saved: AnprCapture;
       try {

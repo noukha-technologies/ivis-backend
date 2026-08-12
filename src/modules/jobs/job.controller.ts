@@ -184,7 +184,11 @@ export class JobController {
   @Delete(':id/images/:imageId')
   @ApiOperation({ summary: 'Remove a job image' })
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
-  @ApiParam({ name: 'imageId', type: String, description: 'Job image snowflake ID' })
+  @ApiParam({
+    name: 'imageId',
+    type: String,
+    description: 'Job image snowflake ID',
+  })
   async deleteImage(
     @Param('id', ParseSnowflakeIdPipe) id: string,
     @Param('imageId', ParseSnowflakeIdPipe) imageId: string,

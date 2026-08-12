@@ -84,7 +84,7 @@ export class AdminPc implements IAdminPcMasterFields {
         centre: line.centre
           ? {
               id: line.centre.id,
-              name: line.centre.name,
+              name: line.centre.centre_name,
               code: line.centre.code,
             }
           : undefined,

@@ -53,10 +53,16 @@ export class DashboardLineStatusDto {
 }
 
 export class DashboardCameraStatusDto {
-  @ApiProperty({ description: 'Cameras with health_status ONLINE', example: 10 })
+  @ApiProperty({
+    description: 'Cameras with health_status ONLINE',
+    example: 10,
+  })
   active!: number;
 
-  @ApiProperty({ description: 'Total non-deleted cameras for the centre', example: 15 })
+  @ApiProperty({
+    description: 'Total non-deleted cameras for the centre',
+    example: 15,
+  })
   total!: number;
 }
 
@@ -73,30 +79,54 @@ export class DashboardInProgressJobDto {
   @ApiPropertyOptional({ example: 'Line 1', nullable: true })
   line_name!: string | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'When the job entered In Progress' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'When the job entered In Progress',
+  })
   started_at!: Date | null;
 }
 
 export class DashboardSystemHealthDto {
-  @ApiProperty({ description: 'Whether the API server has a live DB connection' })
+  @ApiProperty({
+    description: 'Whether the API server has a live DB connection',
+  })
   database_connected!: boolean;
 
-  @ApiProperty({ description: 'Cameras with health_status ONLINE', example: 10 })
+  @ApiProperty({
+    description: 'Cameras with health_status ONLINE',
+    example: 10,
+  })
   anpr_cameras_active!: number;
 
-  @ApiProperty({ description: 'Total non-deleted cameras for the centre', example: 15 })
+  @ApiProperty({
+    description: 'Total non-deleted cameras for the centre',
+    example: 15,
+  })
   anpr_cameras_total!: number;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Timestamp of the most recent ANPR capture for this centre' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Timestamp of the most recent ANPR capture for this centre',
+  })
   last_anpr_capture_at!: Date | null;
 
-  @ApiPropertyOptional({ nullable: true, description: 'Timestamp of the most recent appointment created for this centre' })
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Timestamp of the most recent appointment created for this centre',
+  })
   last_appointment_at!: Date | null;
 
-  @ApiProperty({ description: 'Appointments created today for this centre', example: 12 })
+  @ApiProperty({
+    description: 'Appointments created today for this centre',
+    example: 12,
+  })
   appointments_today!: number;
 
-  @ApiProperty({ description: 'Jobs created today for this centre', example: 8 })
+  @ApiProperty({
+    description: 'Jobs created today for this centre',
+    example: 8,
+  })
   jobs_today!: number;
 }
 

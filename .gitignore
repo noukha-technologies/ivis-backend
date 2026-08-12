@@ -39,7 +39,13 @@ lerna-debug.log*
 !.vscode/extensions.json
 
 # dotenv environment variable files
+#
+# Per-environment templates (.env.staging / .env.production) are committed with
+# BLANK secrets — they document the required keys. Anything carrying a real
+# value stays out of git: `.env` (local overrides) and `.env.development`,
+# which holds working local credentials.
 .env
+.env.development
 .env.development.local
 .env.test.local
 .env.production.local

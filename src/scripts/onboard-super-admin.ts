@@ -23,7 +23,7 @@
  */
 
 import 'reflect-metadata';
-import * as dotenv from 'dotenv';
+import { loadEnv } from '../common/config/env.config';
 import { AppDataSource } from '../modules/database/data-source';
 import { Permission } from '../modules/database/entity/permission.entity';
 import { Role } from '../modules/database/entity/role.entity';
@@ -38,7 +38,9 @@ import {
   type ModuleCrudFlags,
 } from '../common/types/role-access.types';
 
-dotenv.config();
+// Same per-environment resolution the app uses, so a script and the running
+// app can never disagree about which database they target.
+loadEnv();
 
 // Ensure the schema creation and alteration migrations are allowed to run during onboarding
 process.env.RUN_CREATE_SCHEMA = 'true';

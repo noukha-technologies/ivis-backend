@@ -6,11 +6,11 @@ import {
   OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
+import { Line } from './line.entity';
+import { User } from './user.entity';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
 import { ICentreMasterFields } from '../../../common/interfaces/master.interface';
 
-import { Line } from './line.entity';
-import { User } from './user.entity';
 @Entity({ name: 'centres', schema: 'master' })
 export class Centre implements ICentreMasterFields {
   @SnowflakePrimaryColumn()
@@ -21,7 +21,7 @@ export class Centre implements ICentreMasterFields {
   centre_id!: number;
 
   @Column({ type: 'varchar', nullable: false })
-  name!: string;
+  centre_name!: string;
 
   @Column({ type: 'varchar', unique: true, nullable: false })
   @Index('IDX_CENTRE_CODE', { unique: true })
@@ -30,11 +30,17 @@ export class Centre implements ICentreMasterFields {
   @Column({ type: 'varchar', nullable: true })
   description?: string;
 
-  @Column({ type: 'boolean', default: false })
-  auto_submit!: boolean;
-
   @Column({ type: 'varchar', default: 'Active', nullable: false })
   status!: string;
+
+  @OneToMany(() => Line, (line) => line.centre)
+  lines?: Line[];
+
+  @OneToMany(() => User, (user) => user.assignedCentre)
+  assignedUsers?: User[];
+
+  @Column({ type: 'varchar', nullable: true })
+  provider_branch_code?: string | null;
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
@@ -47,10 +53,4 @@ export class Centre implements ICentreMasterFields {
 
   @Column({ type: 'boolean', default: false })
   is_deleted!: boolean;
-
-  @OneToMany(() => Line, (line) => line.centre)
-  lines?: Line[];
-
-  @OneToMany(() => User, (user) => user.assignedCentre)
-  assignedUsers?: User[];
 }

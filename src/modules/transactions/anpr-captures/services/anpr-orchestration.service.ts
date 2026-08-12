@@ -8,7 +8,7 @@ import { VehicleDao } from '../../../database/dao/vehicle.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
-import { RopApiClientService } from '../../../integrations/rop/rop-api-client.service';
+import { RopApiClientService } from '../../../../common/integrations/rop/rop-api-client.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { CaptureValidationService } from './capture-validation.service';

@@ -91,7 +91,9 @@ export class RolesService {
       return { scope: 'global', centreIds: [] };
     }
     const centreIds = [
-      ...new Set((payloadCentreIds ?? []).map((id) => id.trim()).filter(Boolean)),
+      ...new Set(
+        (payloadCentreIds ?? []).map((id) => id.trim()).filter(Boolean),
+      ),
     ];
     if (!centreIds.length) {
       throw new BadRequestException(
@@ -266,7 +268,10 @@ export class RolesService {
     return this.toDto(row, mappings, actor);
   }
 
-  async findByRoleName(roleName: string, actor?: UserContext): Promise<RoleDto> {
+  async findByRoleName(
+    roleName: string,
+    actor?: UserContext,
+  ): Promise<RoleDto> {
     const row = await this.roleDao.findByRoleName(roleName);
     if (!row) {
       throw new ResourceNotFoundException('Role', roleName);
@@ -299,9 +304,8 @@ export class RolesService {
     // (Super Admin) can set/change them; a centre actor stays locked to
     // their one centre.
     const effectiveScope = dto.access_scope ?? row.access_scope;
-    const existingMappings = await this.roleCentreMappingDao.findActiveByRoleId(
-      id,
-    );
+    const existingMappings =
+      await this.roleCentreMappingDao.findActiveByRoleId(id);
     const centreIdsBefore = existingMappings.map((m) => m.centre_id);
     let nextCentreIds = [...centreIdsBefore];
 
@@ -386,9 +390,8 @@ export class RolesService {
       is_center_admin: nextIsCenterAdmin,
     });
 
-    const linkedPermission = await this.permissionDao.findActiveById(
-      permissionIdBefore,
-    );
+    const linkedPermission =
+      await this.permissionDao.findActiveById(permissionIdBefore);
     if (!linkedPermission) {
       throw new ResourceNotFoundException('Permission', permissionIdBefore);
     }
@@ -412,8 +415,7 @@ export class RolesService {
 
     const shouldUpdatePermissionProfile =
       dto.access !== undefined ||
-      (dto.role_name !== undefined &&
-        dto.role_name.trim() !== roleNameBefore);
+      (dto.role_name !== undefined && dto.role_name.trim() !== roleNameBefore);
 
     if (shouldUpdatePermissionProfile) {
       const nextAccess =
@@ -527,13 +529,17 @@ export class RolesService {
 
   private async loadMappingsByRoleId(
     roleIds: string[],
-  ): Promise<Map<string, { id: string; centre_id: string; centre?: { name: string } }[]>> {
-    const mappings = await this.roleCentreMappingDao.findActiveByRoleIds(
-      roleIds,
-    );
+  ): Promise<
+    Map<
+      string,
+      { id: string; centre_id: string; centre?: { centre_name: string } }[]
+    >
+  > {
+    const mappings =
+      await this.roleCentreMappingDao.findActiveByRoleIds(roleIds);
     const byRole = new Map<
       string,
-      { id: string; centre_id: string; centre?: { name: string } }[]
+      { id: string; centre_id: string; centre?: { centre_name: string } }[]
     >();
     for (const mapping of mappings) {
       const list = byRole.get(mapping.role_id) ?? [];
@@ -563,8 +569,8 @@ export class RolesService {
     const names: string[] = [];
     for (const centreId of centreIds) {
       const centre = await this.centreDao.findActiveById(centreId);
-      if (centre?.name) {
-        names.push(centre.name);
+      if (centre?.centre_name) {
+        names.push(centre.centre_name);
       }
     }
     return names.length ? names.join(', ') : 'Global';
@@ -614,12 +620,16 @@ export class RolesService {
    */
   private toDto(
     row: Role,
-    mappings: { id: string; centre_id: string; centre?: { name: string } }[],
+    mappings: {
+      id: string;
+      centre_id: string;
+      centre?: { centre_name: string };
+    }[],
     actor?: UserContext,
   ): RoleDto {
     const actorCentre =
       actor && !isGlobalScope(actor.user.access_scope)
-        ? actor.user.center_id ?? null
+        ? (actor.user.center_id ?? null)
         : null;
     const visibleMappings = actorCentre
       ? mappings.filter((m) => m.centre_id === actorCentre)
@@ -635,7 +645,7 @@ export class RolesService {
       is_center_admin: row.is_center_admin,
       centres: visibleMappings.map((m) => ({
         id: m.centre_id,
-        name: m.centre?.name ?? '',
+        name: m.centre?.centre_name ?? '',
       })),
       created_by: row.created_by,
       created_at: row.created_at,

@@ -83,10 +83,14 @@ export class AnprCaptureController {
     @UploadedFiles()
     files: { plate?: UploadedImage[]; scene?: UploadedImage[] },
   ) {
-    const data = await this.anprCaptureService.attachImages(id, {
-      plate: files?.plate?.[0]?.buffer,
-      scene: files?.scene?.[0]?.buffer,
-    }, { skipAudit: skipAudit === 'true' });
+    const data = await this.anprCaptureService.attachImages(
+      id,
+      {
+        plate: files?.plate?.[0]?.buffer,
+        scene: files?.scene?.[0]?.buffer,
+      },
+      { skipAudit: skipAudit === 'true' },
+    );
     return { message: 'ANPR capture images uploaded successfully', data };
   }
 

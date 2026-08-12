@@ -1,7 +1,7 @@
-import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import { randomUUID } from 'crypto';
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { ErrorException } from '../../../common/errors/custom-error.exception';
 import {
   AuthUserDto,
@@ -12,37 +12,24 @@ import {
   TokenPair,
   UserContext,
 } from '../../../common/dto/auth.dto';
-import {
-  matrixFromFlatPermissions,
-  resolveFlatPermissionsFromMatrix,
-} from '../../../common/auth/role-permissions';
-import { ALL_PERMISSION_KEYS, PermissionKeys } from '../../../common/constants/permissions';
-import {
-  DEFAULT_ACCESS_SCOPE,
-  isGlobalScope,
-} from '../../../common/constants/access-scope';
+import { AppLogger } from '../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
-import { PermissionDao } from '../../database/dao/permission.dao';
+import { decrypt, encrypt, hashRefreshTokenKey } from '../../../common/utils/crypto.util';
+import { ALL_PERMISSION_KEYS, PermissionKeys } from '../../../common/constants/permissions';
+import { DEFAULT_ACCESS_SCOPE, isGlobalScope } from '../../../common/constants/access-scope';
+import { signAccessToken, signRefreshToken, verifyRefreshToken } from '../../../common/utils/jwt.util';
+import { matrixFromFlatPermissions, resolveFlatPermissionsFromMatrix } from '../../../common/auth/role-permissions';
+
 import { RoleDao } from '../../database/dao/role.dao';
-import {
-  decrypt,
-  encrypt,
-  hashRefreshTokenKey,
-} from '../../../common/utils/crypto.util';
-import {
-  signAccessToken,
-  signRefreshToken,
-  verifyRefreshToken,
-} from '../../../common/utils/jwt.util';
-import { RequestMetadata } from '../../../common/utils/request-metadata.util';
 import { UsersDao } from '../../database/dao/users.dao';
-import { User } from '../../database/entity/user.entity';
+import { PermissionDao } from '../../database/dao/permission.dao';
 import { UserSessionsDao } from '../../database/dao/user-sessions.dao';
 import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
+
+import { IAuthService } from './auth-service.interface';
+import { User } from '../../database/entity/user.entity';
 import { OnboardingService } from '../../onboarding/service/onboarding.service';
 import { CentralOnboardingHttpClientService } from '../../onboarding/service/central-onboarding-http-client.service';
-import { AppLogger } from '../../../common/logger/app.logger';
-import { IAuthService } from './auth-service.interface';
 
 @Injectable()
 export class AuthService implements IAuthService {
@@ -56,11 +43,15 @@ export class AuthService implements IAuthService {
   constructor(
     private readonly usersDao: UsersDao,
     private readonly userSessionsDao: UserSessionsDao,
+
     private readonly roleDao: RoleDao,
     private readonly permissionDao: PermissionDao,
-    private readonly onboardingStatusDao: OnboardingStatusDao,
+
     private readonly onboardingService: OnboardingService,
+    private readonly onboardingStatusDao: OnboardingStatusDao,
+
     private readonly centralOnboardingClient: CentralOnboardingHttpClientService,
+
     private readonly logger: AppLogger,
     private readonly configService: ConfigService,
   ) {
@@ -98,7 +89,9 @@ export class AuthService implements IAuthService {
     if (localUser?.password) {
       this.logger.log(
         `login: ${request.email} found locally` +
-          (localUser.requires_central_revalidation ? ' (requires central revalidation)' : ' (local-only)'),
+        (localUser.requires_central_revalidation
+          ? ' (requires central revalidation)'
+          : ' (local-only)'),
         'AuthService',
       );
       return localUser.requires_central_revalidation
@@ -140,11 +133,13 @@ export class AuthService implements IAuthService {
   ): Promise<LoginResponseDto> {
     let verifyResult: { valid: boolean } | null = null;
     try {
-      verifyResult = await this.centralOnboardingClient.verifyCentral(localUser.email, password);
+      verifyResult = await this.centralOnboardingClient.verifyCentral(
+        localUser.email,
+        password,
+      );
     } catch (error) {
       this.logger.warn(
-        `Central unreachable while re-validating Super Admin ${localUser.email} — falling back to local credentials: ${
-          error instanceof Error ? error.message : String(error)
+        `Central unreachable while re-validating Super Admin ${localUser.email} — falling back to local credentials: ${error instanceof Error ? error.message : String(error)
         }`,
         'AuthService',
       );
@@ -166,11 +161,13 @@ export class AuthService implements IAuthService {
   ): Promise<LoginResponseDto> {
     let verifyResult;
     try {
-      verifyResult = await this.centralOnboardingClient.verifyCentral(request.email, request.password);
+      verifyResult = await this.centralOnboardingClient.verifyCentral(
+        request.email,
+        request.password,
+      );
     } catch (error) {
       this.logger.error(
-        `Central unreachable during login for ${request.email}: ${
-          error instanceof Error ? error.message : String(error)
+        `Central unreachable during login for ${request.email}: ${error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,
         'AuthService',
@@ -180,7 +177,9 @@ export class AuthService implements IAuthService {
 
     this.logger.log(
       `verify-central result for ${request.email}: valid=${verifyResult.valid}` +
-        (verifyResult.valid ? `, isGlobalScope=${verifyResult.isGlobalScope}` : ''),
+      (verifyResult.valid
+        ? `, isGlobalScope=${verifyResult.isGlobalScope}`
+        : ''),
       'AuthService',
     );
 
@@ -213,9 +212,7 @@ export class AuthService implements IAuthService {
         );
       case 'COMPLETED': {
         // Local DB is now populated — re-run today's normal local flow.
-        const user = await this.usersDao.findByEmailWithPassword(
-          request.email,
-        );
+        const user = await this.usersDao.findByEmailWithPassword(request.email);
         if (!user?.password) {
           throw new ErrorException('INVALID_USER');
         }
@@ -249,11 +246,13 @@ export class AuthService implements IAuthService {
     }
 
     try {
-      await this.onboardingService.syncReScopedSuperAdmin(email, status.centre_id);
+      await this.onboardingService.syncReScopedSuperAdmin(
+        email,
+        status.centre_id,
+      );
     } catch (error) {
       this.logger.error(
-        `Failed to re-scope Super Admin ${email} into centre ${status.centre_id}: ${
-          error instanceof Error ? error.message : String(error)
+        `Failed to re-scope Super Admin ${email} into centre ${status.centre_id}: ${error instanceof Error ? error.message : String(error)
         }`,
         error instanceof Error ? error.stack : undefined,
         'AuthService',
@@ -490,7 +489,9 @@ export class AuthService implements IAuthService {
           user.role_id,
         );
         if (role?.permission?.access && role.permission.is_active) {
-          permissions = resolveFlatPermissionsFromMatrix(role.permission.access);
+          permissions = resolveFlatPermissionsFromMatrix(
+            role.permission.access,
+          );
         } else {
           permissions = [];
         }
@@ -576,7 +577,7 @@ export class AuthService implements IAuthService {
       role_access_id: user.role_id,
       access_scope: user.role?.access_scope ?? DEFAULT_ACCESS_SCOPE,
       is_center_admin: user.role?.is_center_admin ?? false,
-      center: user.assignedCentre?.name,
+      center: user.assignedCentre?.centre_name,
       line: lines[0]?.name,
       center_id: user.center_id ?? undefined,
       line_ids: activeMappings.map((m) => m.line_id),

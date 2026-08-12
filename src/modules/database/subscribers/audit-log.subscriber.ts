@@ -60,7 +60,7 @@ export class AuditLogSubscriber implements EntitySubscriberInterface {
 
   afterUpdate(event: UpdateEvent<unknown>): void {
     let before = event.databaseEntity as Record<string, unknown> | undefined;
-    let after = event.entity as Record<string, unknown> | undefined;
+    let after = event.entity;
     if (this.isCameraHealthOnlyUpdate(event.metadata.name, before, after)) {
       return;
     }
@@ -68,14 +68,7 @@ export class AuditLogSubscriber implements EntitySubscriberInterface {
     if (ctx?.suppressAnprCaptureAudit) {
       return;
     }
-    if (
-      this.isAnprCaptureBackgroundUpdate(
-        event,
-        before,
-        after,
-        ctx,
-      )
-    ) {
+    if (this.isAnprCaptureBackgroundUpdate(event, before, after, ctx)) {
       return;
     }
     this.enrichVirtualLineIds(before, after);
@@ -102,10 +95,7 @@ export class AuditLogSubscriber implements EntitySubscriberInterface {
 
     const action = this.resolveUpdateAction(before, after);
     const entityName = event.metadata.name;
-    const entityId = resolveEntityId(
-      (after as Record<string, unknown> | undefined) ??
-        (before as Record<string, unknown> | undefined),
-    );
+    const entityId = resolveEntityId(after ?? before);
     const stashed = takeAuditEntityDetails(entityName, entityId);
     const merged = this.mergeAppointmentAuditSnapshots(
       entityName,
@@ -195,9 +185,7 @@ export class AuditLogSubscriber implements EntitySubscriberInterface {
     // QueryBuilder AfterUpdate may only pass the valuesSet as "entity".
     if (!before && after) {
       const afterKeys = Object.keys(after).filter((k) => k !== 'id');
-      return (
-        afterKeys.length > 0 && afterKeys.every((k) => healthKeys.has(k))
-      );
+      return afterKeys.length > 0 && afterKeys.every((k) => healthKeys.has(k));
     }
     if (!before || !after) {
       return false;
@@ -209,9 +197,7 @@ export class AuditLogSubscriber implements EntitySubscriberInterface {
         key !== 'lines' &&
         key !== 'lineMappings',
     );
-    return (
-      changed.length > 0 && changed.every((key) => healthKeys.has(key))
-    );
+    return changed.length > 0 && changed.every((key) => healthKeys.has(key));
   }
 
   /**

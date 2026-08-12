@@ -62,8 +62,14 @@ export class DatabaseSyncService {
 
   async runSync(): Promise<SyncRunResult> {
     const onboarding = await this.onboardingStatusDao.getStatus();
-    if (!onboarding || onboarding.status !== 'COMPLETED' || !onboarding.centre_id) {
-      throw new Error('Database Sync can only run once this centre has completed Onboarding Sync.');
+    if (
+      !onboarding ||
+      onboarding.status !== 'COMPLETED' ||
+      !onboarding.centre_id
+    ) {
+      throw new Error(
+        'Database Sync can only run once this centre has completed Onboarding Sync.',
+      );
     }
 
     const localRun = await this.syncRunLogDao.startRun();
@@ -82,7 +88,12 @@ export class DatabaseSyncService {
         error instanceof Error ? error.stack : undefined,
         DatabaseSyncService.context,
       );
-      const result: SyncRunResult = { status: 'FAILED', pulled: {}, pushed: {}, error: message };
+      const result: SyncRunResult = {
+        status: 'FAILED',
+        pulled: {},
+        pushed: {},
+        error: message,
+      };
       this.syncGateway.broadcastSyncRunComplete(result);
       return result;
     }
@@ -116,9 +127,14 @@ export class DatabaseSyncService {
       );
     }
 
-    result.status = pushOk && pullOk ? 'SUCCESS' : pushOk || pullOk ? 'PARTIAL' : 'FAILED';
+    result.status =
+      pushOk && pullOk ? 'SUCCESS' : pushOk || pullOk ? 'PARTIAL' : 'FAILED';
 
-    await this.syncRunLogDao.finishRun(localRun.id, result.status, result.error ?? null);
+    await this.syncRunLogDao.finishRun(
+      localRun.id,
+      result.status,
+      result.error ?? null,
+    );
     try {
       await this.centralClient.finishRun(runId, result.status, result.error);
     } catch (error) {
@@ -169,7 +185,12 @@ export class DatabaseSyncService {
           if (!rows.length) break;
 
           const plainRows = rows as unknown as Record<string, unknown>[];
-          const ack = await this.centralClient.pushChunk(runId, entityKey, chunkIndex, plainRows);
+          const ack = await this.centralClient.pushChunk(
+            runId,
+            entityKey,
+            chunkIndex,
+            plainRows,
+          );
           totalPushed += ack.accepted;
           chunkIndex = ack.nextChunkIndex;
 
@@ -196,7 +217,10 @@ export class DatabaseSyncService {
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        this.logger.warn(`Database Sync push: ${entityKey} failed — ${message}`, DatabaseSyncService.context);
+        this.logger.warn(
+          `Database Sync push: ${entityKey} failed — ${message}`,
+          DatabaseSyncService.context,
+        );
         this.syncGateway.broadcastSyncActivity({
           phase: 'push',
           entityKey,
@@ -217,7 +241,10 @@ export class DatabaseSyncService {
   private async pullPhase(runId: string, result: SyncRunResult): Promise<void> {
     for (const entityKey of PULL_ORDER) {
       const definition = SYNC_ENTITY_MAP[entityKey];
-      if (definition?.direction !== 'READ_ONLY' && definition?.direction !== 'BIDIRECTIONAL') {
+      if (
+        definition?.direction !== 'READ_ONLY' &&
+        definition?.direction !== 'BIDIRECTIONAL'
+      ) {
         continue;
       }
 
@@ -233,16 +260,29 @@ export class DatabaseSyncService {
       let hasMore = true;
 
       while (hasMore) {
-        const response = await this.centralClient.pullChunk(runId, entityKey, cursor);
+        const response = await this.centralClient.pullChunk(
+          runId,
+          entityKey,
+          cursor,
+        );
         if (!response.rows.length) break;
 
         await this.dataSource.transaction(async (manager) => {
-          const count = await this.withMissingColumnHealing(manager, definition.entityClass, entityKey, () =>
-            upsertWithUpdate(manager, definition.entityClass, response.rows as ObjectLiteral[], {
-              conditional: definition.conditional,
-              conflictColumns: definition.conflictColumns,
-              conflictIndexPredicate: definition.conflictIndexPredicate,
-            }),
+          const count = await this.withMissingColumnHealing(
+            manager,
+            definition.entityClass,
+            entityKey,
+            () =>
+              upsertWithUpdate(
+                manager,
+                definition.entityClass,
+                response.rows as ObjectLiteral[],
+                {
+                  conditional: definition.conditional,
+                  conflictColumns: definition.conflictColumns,
+                  conflictIndexPredicate: definition.conflictIndexPredicate,
+                },
+              ),
           );
           totalPulled += count;
         });
@@ -290,7 +330,8 @@ export class DatabaseSyncService {
     } catch (error) {
       if (
         !(error instanceof QueryFailedError) ||
-        (error as { code?: string }).code !== DatabaseSyncService.POSTGRES_UNDEFINED_COLUMN
+        (error as { code?: string }).code !==
+          DatabaseSyncService.POSTGRES_UNDEFINED_COLUMN
       ) {
         throw error;
       }
@@ -311,7 +352,10 @@ export class DatabaseSyncService {
         DatabaseSyncService.context,
       );
 
-      const columnOptions = TableUtils.createTableColumnOptions(columnMetadata, manager.connection.driver);
+      const columnOptions = TableUtils.createTableColumnOptions(
+        columnMetadata,
+        manager.connection.driver,
+      );
       await manager.queryRunner!.addColumn(
         `${metadata.schema}.${metadata.tableName}`,
         new TableColumn(columnOptions),

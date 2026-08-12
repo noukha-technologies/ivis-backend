@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 
@@ -25,7 +34,10 @@ function assertCanUseSync(userContext: UserContext): void {
   const isSuperAdmin = access_scope === 'global';
   const isCentreAdmin = access_scope === 'centre' && is_center_admin === true;
   if (!isSuperAdmin && !isCentreAdmin) {
-    throw new ErrorException('FORBIDDEN_REQUEST', 'Not authorized to use Database Sync');
+    throw new ErrorException(
+      'FORBIDDEN_REQUEST',
+      'Not authorized to use Database Sync',
+    );
   }
 }
 
@@ -47,7 +59,9 @@ export class SyncController {
   ) {}
 
   @Post('trigger')
-  @ApiOperation({ summary: 'Centre: manually trigger a Database Sync run (Sync Now button)' })
+  @ApiOperation({
+    summary: 'Centre: manually trigger a Database Sync run (Sync Now button)',
+  })
   @ApiOkResponse({ type: SyncRunLogDto })
   async trigger(@CurrentUser() userContext: UserContext) {
     assertCanUseSync(userContext);
@@ -55,12 +69,17 @@ export class SyncController {
   }
 
   @Get('status')
-  @ApiOperation({ summary: 'Centre: this box\'s own last sync run, for the Sync Log tab status line' })
+  @ApiOperation({
+    summary:
+      "Centre: this box's own last sync run, for the Sync Log tab status line",
+  })
   @ApiOkResponse({ type: SyncRunLogDto })
-  async status(@CurrentUser() userContext: UserContext): Promise<SyncRunLogDto | null> {
+  async status(
+    @CurrentUser() userContext: UserContext,
+  ): Promise<SyncRunLogDto | null> {
     assertCanUseSync(userContext);
     const [latest] = await this.syncRunLogDao.findRecent(1);
-    return (latest as unknown as SyncRunLogDto) ?? null;
+    return latest ?? null;
   }
 
   @Post('run/start')
@@ -77,7 +96,9 @@ export class SyncController {
   @Public()
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: accept one chunk of rows pushed from a centre' })
+  @ApiOperation({
+    summary: 'Central: accept one chunk of rows pushed from a centre',
+  })
   @ApiOkResponse({ type: SyncPushChunkResponseDto })
   async pushChunk(
     @Req() req: Request,
@@ -96,24 +117,43 @@ export class SyncController {
   @Public()
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: return the next chunk of rows for a centre to pull' })
+  @ApiOperation({
+    summary: 'Central: return the next chunk of rows for a centre to pull',
+  })
   @ApiOkResponse({ type: SyncPullChunkResponseDto })
   async pullChunk(
     @Req() req: Request,
     @Body() body: SyncPullChunkDto,
   ): Promise<SyncPullChunkResponseDto> {
-    return this.syncCentralService.pullChunk(body.runId, req.centreId!, body.entityKey, body.cursor);
+    return this.syncCentralService.pullChunk(
+      body.runId,
+      req.centreId!,
+      body.entityKey,
+      body.cursor,
+    );
   }
 
   @Post('run/finish')
   @Public()
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Central: mark a sync run finished (called by the centre once both phases complete)' })
+  @ApiOperation({
+    summary:
+      'Central: mark a sync run finished (called by the centre once both phases complete)',
+  })
   async finishRun(
-    @Body() body: { runId: string; status: 'SUCCESS' | 'PARTIAL' | 'FAILED'; error?: string },
+    @Body()
+    body: {
+      runId: string;
+      status: 'SUCCESS' | 'PARTIAL' | 'FAILED';
+      error?: string;
+    },
   ): Promise<{ ok: true }> {
-    await this.syncCentralService.finishRun(body.runId, body.status, body.error);
+    await this.syncCentralService.finishRun(
+      body.runId,
+      body.status,
+      body.error,
+    );
     return { ok: true };
   }
 

@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import {
   CreateCentreDto,
   UpdateCentreDto,
@@ -13,10 +17,12 @@ import {
 import { AppLogger } from '../../../../common/logger/app.logger';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
+import { isGlobalScope } from '../../../../common/constants/access-scope';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { generateCentreCode } from '../../../../common/utils/generate-centre-code.util';
 import { Centre } from '../../../database/entity/centre.entity';
 import { CentreDao } from '../../../database/dao/centre.dao';
+import { AppointmentBranchLinkService } from '../../../../common/integrations/appointments/appointment-branch-link.service';
 import { ICentreService } from './centre.service.interface';
 
 @Injectable()
@@ -25,6 +31,7 @@ export class CentreService implements ICentreService {
 
   constructor(
     private readonly centreDao: CentreDao,
+    private readonly branchLinkService: AppointmentBranchLinkService,
     private readonly logger: AppLogger,
   ) {}
 
@@ -36,6 +43,8 @@ export class CentreService implements ICentreService {
       `Creating centre: ${createCentreDto.name}`,
       CentreService.context,
     );
+
+    this.assertMayAssignBranch(createCentreDto.provider_branch_code, actor);
 
     try {
       // Duplicate centre names are not allowed (case-insensitive).
@@ -71,9 +80,19 @@ export class CentreService implements ICentreService {
         throw new DuplicateResourceException('Centre', 'code', code);
       }
 
+      // Applied via the link service below, not written directly — see update().
+      // `name` is the API field; the column is `centre_name`, so it is mapped
+      // explicitly rather than spread — a spread would silently drop it.
+      const {
+        provider_branch_code: branchCode,
+        name,
+        ...centreFields
+      } = createCentreDto;
+
       const centre = this.centreDao.create({
         id: generateSnowflakeId(),
-        ...createCentreDto,
+        ...centreFields,
+        centre_name: name,
         centre_id,
         code,
         status: createCentreDto.status || 'Active',
@@ -81,13 +100,21 @@ export class CentreService implements ICentreService {
       });
       const savedCentre = await this.centreDao.save(centre);
 
+      if (branchCode) {
+        await this.branchLinkService.link(savedCentre.id, branchCode);
+      }
+
       this.logger.log(
         `Centre created with ID: ${savedCentre.id}`,
         CentreService.context,
       );
-      return savedCentre;
+      return branchCode ? await this.findOne(savedCentre.id) : savedCentre;
     } catch (error) {
-      if (error instanceof DuplicateResourceException) {
+      if (
+        error instanceof DuplicateResourceException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
+      ) {
         throw error;
       }
       this.logger.error(
@@ -97,6 +124,29 @@ export class CentreService implements ICentreService {
       );
       throw new DatabaseException('Failed to create centre. Please try again.');
     }
+  }
+
+  /**
+   * The appointment branch identifies this centre to an external provider and
+   * decides whose bookings and inspection results flow through it, so only a
+   * global-scope (Super Admin) user may assign or change it. A centre-scoped
+   * user — including a Centre Admin — can edit everything else about a centre
+   * but not its provider identity.
+   *
+   * `actor` is optional so internal, non-request callers (seeding, sync) are
+   * not blocked; every HTTP path supplies it.
+   */
+  private assertMayAssignBranch(
+    branchCode: string | null | undefined,
+    actor?: UserContext,
+  ): void {
+    if (branchCode === undefined) return;
+    if (!actor) return;
+    if (isGlobalScope(actor.user?.access_scope)) return;
+
+    throw new ForbiddenException(
+      "Only a Super Admin can set or change a centre's appointment branch.",
+    );
   }
 
   async findAll(query: PaginationQueryDto): Promise<PaginatedResult<Centre>> {
@@ -154,16 +204,32 @@ export class CentreService implements ICentreService {
     }
   }
 
-  async update(id: string, updateCentreDto: UpdateCentreDto): Promise<Centre> {
+  async update(
+    id: string,
+    updateCentreDto: UpdateCentreDto,
+    actor?: UserContext,
+  ): Promise<Centre> {
     this.logger.log(`Updating centre ID: ${id}`, CentreService.context);
 
     try {
       const centre = await this.findOne(id);
 
+      if (
+        updateCentreDto.provider_branch_code !== undefined &&
+        (updateCentreDto.provider_branch_code || null) !==
+          (centre.provider_branch_code || null)
+      ) {
+        this.assertMayAssignBranch(
+          updateCentreDto.provider_branch_code,
+          actor,
+        );
+      }
+
       // Prevent renaming to an existing centre name (case-insensitive).
       if (
         updateCentreDto.name &&
-        updateCentreDto.name.trim().toLowerCase() !== centre.name.toLowerCase()
+        updateCentreDto.name.trim().toLowerCase() !==
+          centre.centre_name.toLowerCase()
       ) {
         const existingName = await this.centreDao.findByName(
           updateCentreDto.name,
@@ -178,9 +244,37 @@ export class CentreService implements ICentreService {
       }
 
       // Code is derived from centre_id (immutable) — never changes on update.
-      const { code: _ignoredCode, ...updateFields } = updateCentreDto;
-      const mergedCentre = this.centreDao.merge(centre, updateFields);
+      // `name` maps onto the `centre_name` column, so it is applied explicitly.
+      const { code: _ignoredCode, name, ...updateFields } = updateCentreDto;
+      const namedFields =
+        name !== undefined
+          ? { ...updateFields, centre_name: name }
+          : updateFields;
+
+      // The branch code is validated against the provider's live directory and
+      // applied through the link service, so choosing a branch also maps its
+      // lanes onto this centre's lines. Letting it through as a plain column
+      // write would save an unverified code and leave every lane unmapped.
+      const branchChanged =
+        namedFields.provider_branch_code !== undefined &&
+        (namedFields.provider_branch_code || null) !==
+          (centre.provider_branch_code || null);
+      const nextBranchCode = namedFields.provider_branch_code;
+      // Stripped before merge: the column is written by the link service, and
+      // its nullable type does not fit TypeORM's DeepPartial anyway.
+      const { provider_branch_code: _branch, ...columnFields } = namedFields;
+
+      const mergedCentre = this.centreDao.merge(centre, columnFields);
       const savedCentre = await this.centreDao.save(mergedCentre);
+
+      if (branchChanged) {
+        if (nextBranchCode) {
+          await this.branchLinkService.link(id, nextBranchCode);
+        } else {
+          await this.branchLinkService.unlink(id);
+        }
+        return this.findOne(id);
+      }
 
       this.logger.log(
         `Centre updated ID: ${savedCentre.id}`,
@@ -190,7 +284,9 @@ export class CentreService implements ICentreService {
     } catch (error) {
       if (
         error instanceof ResourceNotFoundException ||
-        error instanceof DuplicateResourceException
+        error instanceof DuplicateResourceException ||
+        error instanceof ForbiddenException ||
+        error instanceof BadRequestException
       ) {
         throw error;
       }

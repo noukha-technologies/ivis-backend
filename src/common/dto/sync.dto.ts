@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsInt, IsObject, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsDateString,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 /** One entity's chunk of rows being pushed centre → central. See Database_sync_arch_replan.md §3a/§7. */
 export class SyncPushChunkDto {
@@ -42,7 +49,9 @@ export class SyncPullChunkDto {
   @IsString()
   entityKey!: string;
 
-  @ApiPropertyOptional({ description: 'ISO timestamp cursor — rows strictly newer than this.' })
+  @ApiPropertyOptional({
+    description: 'ISO timestamp cursor — rows strictly newer than this.',
+  })
   @IsOptional()
   @IsDateString()
   cursor?: string;

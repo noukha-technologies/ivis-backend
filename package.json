@@ -8,10 +8,11 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
-    "start": "nest start",
-    "start:dev": "nest start --watch",
-    "start:debug": "nest start --debug --watch",
-    "start:prod": "node dist/main",
+    "start": "cross-env NODE_ENV=development nest start",
+    "start:dev": "cross-env NODE_ENV=development nest start --watch",
+    "start:debug": "cross-env NODE_ENV=development nest start --debug --watch",
+    "start:prod:build": "npm run build && cross-env NODE_ENV=production node dist/main",
+    "start:prod": "cross-env NODE_ENV=production node dist/main",
     "db:up": "sh -c \"docker start ivis-backend-postgres 2>/dev/null || docker run -d --name ivis-backend-postgres --env-file .env -p 5433:5432 --mount source=ivis_backend_postgres_data,target=/var/lib/postgresql/data postgres:16-alpine\"",
     "db:down": "sh -c \"docker stop ivis-backend-postgres 2>/dev/null || true\"",
     "db:reset": "sh -c \"docker rm -f ivis-backend-postgres 2>/dev/null || true && docker volume rm ivis_backend_postgres_data 2>/dev/null || true\"",
@@ -34,7 +35,9 @@
     "test:api": "bash scripts/run-api-tests.sh",
     "test:lifecycle": "node scripts/lifecycle-test.mjs",
     "db:erd": "cross-env NODE_OPTIONS=\"-r ts-node/register -r tsconfig-paths/register\" erdia build -d src/modules/database/data-source.ts -o docs --format md",
-    "db:erd:html": "cross-env NODE_OPTIONS=\"-r ts-node/register -r tsconfig-paths/register\" erdia build -d src/modules/database/data-source.ts -o docs --format html"
+    "db:erd:html": "cross-env NODE_OPTIONS=\"-r ts-node/register -r tsconfig-paths/register\" erdia build -d src/modules/database/data-source.ts -o docs --format html",
+    "migration:alter:prod": "cross-env NODE_ENV=production RUN_ALTER_SCHEMA=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts AlterSchema1782010000000",
+    "env:check": "ts-node -r tsconfig-paths/register src/scripts/check-env.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

@@ -39,9 +39,7 @@ export function scrubSensitiveFields(
       Array.isArray(entry) &&
       entry.some(
         (item) =>
-          item !== null &&
-          typeof item === 'object' &&
-          !(item instanceof Date),
+          item !== null && typeof item === 'object' && !(item instanceof Date),
       )
     ) {
       continue;
@@ -64,7 +62,10 @@ export function markSensitiveFieldChanges(
   after: Record<string, unknown> | null,
   rawBefore?: unknown,
   rawAfter?: unknown,
-): { before: Record<string, unknown> | null; after: Record<string, unknown> | null } {
+): {
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+} {
   const beforeOut = before ? { ...before } : {};
   const afterOut = after ? { ...after } : {};
   if (!after && !before) {

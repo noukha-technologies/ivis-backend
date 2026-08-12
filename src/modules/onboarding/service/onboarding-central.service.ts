@@ -128,7 +128,10 @@ export class OnboardingCentralService {
     }
     const centre = await this.centreDao.findActiveById(user.center_id);
     if (!centre) {
-      throw new ErrorException('FORBIDDEN_REQUEST', 'Centre not found for this account');
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'Centre not found for this account',
+      );
     }
 
     const centreAdminRole = await this.dataSource
@@ -160,7 +163,7 @@ export class OnboardingCentralService {
     return {
       status: 'CONFIRMATION_REQUIRED' as const,
       centreId: user.center_id,
-      centreName: centre.name,
+      centreName: centre.centre_name,
       centreCode: centre.code,
       centreAdminRoleExists: centreAdminRole,
       availableSuperAdmins: availableSuperAdmins.map((u) => ({
@@ -172,11 +175,17 @@ export class OnboardingCentralService {
     };
   }
 
-  pullStart(pullToken: string, selectedSuperAdminIds: string[] = []): { pullSessionId: string } {
+  pullStart(
+    pullToken: string,
+    selectedSuperAdminIds: string[] = [],
+  ): { pullSessionId: string } {
     const entry = this.pullTokens.get(pullToken);
     if (!entry || entry.expiresAt < Date.now()) {
       this.pullTokens.delete(pullToken);
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Pull token expired or invalid');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'Pull token expired or invalid',
+      );
     }
     this.pullTokens.delete(pullToken); // one-time use
 
@@ -189,7 +198,11 @@ export class OnboardingCentralService {
     return { pullSessionId };
   }
 
-  async pullChunk(pullSessionId: string, entityKey: string, cursorIso?: string) {
+  async pullChunk(
+    pullSessionId: string,
+    entityKey: string,
+    cursorIso?: string,
+  ) {
     const session = this.getSession(pullSessionId);
     const definition = SYNC_ENTITY_MAP[entityKey];
     if (!definition?.pull) {
@@ -199,11 +212,17 @@ export class OnboardingCentralService {
       );
     }
     const cursor = cursorIso ? new Date(cursorIso) : EPOCH;
-    const rows = await definition.pull(this.dataSource, session.centreId, cursor);
+    const rows = await definition.pull(
+      this.dataSource,
+      session.centreId,
+      cursor,
+    );
     const hasMore = rows.length === CHUNK_SIZE;
     const nextCursor = rows.length
-      ? (rows[rows.length - 1] as { updated_at?: Date }).updated_at?.toISOString() ?? null
-      : cursorIso ?? null;
+      ? ((
+          rows[rows.length - 1] as { updated_at?: Date }
+        ).updated_at?.toISOString() ?? null)
+      : (cursorIso ?? null);
     return { rows, hasMore, nextCursor };
   }
 
@@ -220,15 +239,22 @@ export class OnboardingCentralService {
    * typed calls rather than a mixed-type response, consistent with every
    * other endpoint in this protocol always returning one entity type.
    */
-  async pullByIds(pullSessionId: string, entityKey: string, ids: string[]): Promise<Record<string, unknown>[]> {
+  async pullByIds(
+    pullSessionId: string,
+    entityKey: string,
+    ids: string[],
+  ): Promise<Record<string, unknown>[]> {
     this.getSession(pullSessionId); // validates + keeps the session semantics consistent with pullChunk
     if (!ids.length) return [];
     if (!(entityKey in BY_IDS_ENTITIES)) {
-      throw new ErrorException('FORBIDDEN_REQUEST', `${entityKey} is not a valid by-ids entity`);
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        `${entityKey} is not a valid by-ids entity`,
+      );
     }
     const entity = BY_IDS_ENTITIES[entityKey as ByIdsEntityKey];
     return (await this.dataSource
-      .getRepository(entity as never)
+      .getRepository(entity)
       .createQueryBuilder('e')
       .where('e.id IN (:...ids)', { ids })
       .getMany()) as unknown as Record<string, unknown>[];
@@ -254,7 +280,10 @@ export class OnboardingCentralService {
     const reScopedSuperAdmins: Record<string, unknown>[] = [];
     for (const superAdminId of session.selectedSuperAdminIds) {
       try {
-        const row = await this.buildReScopedSuperAdminRow(superAdminId, session.centreId);
+        const row = await this.buildReScopedSuperAdminRow(
+          superAdminId,
+          session.centreId,
+        );
         reScopedSuperAdmins.push(row);
       } catch (error) {
         this.logger.warn(
@@ -285,7 +314,10 @@ export class OnboardingCentralService {
    * selected, during that centre's original pull). No pullSessionId
    * required — this is a standalone call, independent of any pull session.
    */
-  async resolveReScopedRow(email: string, centreId: string): Promise<Record<string, unknown>> {
+  async resolveReScopedRow(
+    email: string,
+    centreId: string,
+  ): Promise<Record<string, unknown>> {
     const user = await this.usersDao.findByEmail(email);
     if (!user) {
       throw new ErrorException('INVALID_USER', 'User not found');
@@ -338,7 +370,10 @@ export class OnboardingCentralService {
     const session = this.pullSessions.get(pullSessionId);
     if (!session || session.expiresAt < Date.now()) {
       this.pullSessions.delete(pullSessionId);
-      throw new ErrorException('INVALID_AUTHORISATION_TOKEN', 'Pull session expired or invalid');
+      throw new ErrorException(
+        'INVALID_AUTHORISATION_TOKEN',
+        'Pull session expired or invalid',
+      );
     }
     return session;
   }

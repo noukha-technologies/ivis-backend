@@ -54,7 +54,11 @@ export class AnprCaptureDao
   ): Promise<PaginatedResult<AnprCapture>> {
     const qb = this.createQueryBuilder('anprCapture')
       .leftJoinAndSelect('anprCapture.camera', 'camera')
-      .leftJoinAndSelect('camera.lineMappings', 'lineMapping', 'lineMapping.is_deleted = false')
+      .leftJoinAndSelect(
+        'camera.lineMappings',
+        'lineMapping',
+        'lineMapping.is_deleted = false',
+      )
       .leftJoinAndSelect('lineMapping.line', 'cameraLine')
       .leftJoinAndSelect('cameraLine.centre', 'cameraCentre')
       .leftJoinAndSelect(

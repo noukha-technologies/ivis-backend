@@ -104,7 +104,8 @@ export const ERROR_CODES: Record<string, ErrorDetails> = {
   CENTRE_NOT_ONBOARDED: {
     code: '019',
     statusCode: HttpStatus.FORBIDDEN,
-    message: 'This centre hasn\'t been set up yet — a Centre Admin must log in first.',
+    message:
+      "This centre hasn't been set up yet — a Centre Admin must log in first.",
   },
 };
 

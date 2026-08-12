@@ -1,9 +1,11 @@
 import 'reflect-metadata';
-import * as dotenv from 'dotenv';
+import { loadEnv } from '../common/config/env.config';
 import { AppDataSource } from '../modules/database/data-source';
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-dotenv.config();
+// Same per-environment resolution the app uses, so a script and the running
+// app can never disagree about which database they target.
+loadEnv();
 
 /**
  * Runs a single named migration directly, bypassing TypeORM's pending-migration

@@ -15,10 +15,7 @@ import {
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { AuditLogQueryDto } from '../../audit-logs/dto/audit-log-query.dto';
-import {
-  AuditActionValue,
-  AuditLog,
-} from '../entity/audit-log.entity';
+import { AuditActionValue, AuditLog } from '../entity/audit-log.entity';
 
 export type CreateAuditLogInput = {
   user_id?: string | null;
@@ -154,12 +151,7 @@ export class AuditLogDao extends Repository<AuditLog> {
           'audit_log.entity_id',
           'audit_log.action',
         ],
-        allowedSortFields: [
-          'created_at',
-          'action',
-          'entity_type',
-          'user_name',
-        ],
+        allowedSortFields: ['created_at', 'action', 'entity_type', 'user_name'],
         defaultSort: { created_at: 'DESC' },
       },
     );
@@ -192,6 +184,6 @@ export class AuditLogDao extends Repository<AuditLog> {
     if (!row) return null;
     const snap = row.after ?? row.before;
     if (!snap || typeof snap !== 'object' || Array.isArray(snap)) return null;
-    return snap as Record<string, unknown>;
+    return snap;
   }
 }

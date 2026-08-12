@@ -13,6 +13,12 @@ import { SyncGateway } from './sync.gateway';
 // (CentralSyncHttpClientService), not on anything Onboarding-specific.
 @Module({
   controllers: [SyncController],
-  providers: [SyncCentralService, DatabaseSyncService, CentralSyncHttpClientService, ApiKeyGuard, SyncGateway],
+  providers: [
+    SyncCentralService,
+    DatabaseSyncService,
+    CentralSyncHttpClientService,
+    ApiKeyGuard,
+    SyncGateway,
+  ],
 })
 export class SyncModule {}

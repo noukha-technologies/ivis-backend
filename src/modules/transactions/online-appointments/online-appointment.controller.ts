@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiOperation,
   ApiParam,
@@ -16,9 +24,12 @@ import {
 import { OnlineAppointmentService } from './services/online-appointment.service';
 
 /**
- * Live read-only view of the appointment provider's bookings for a centre.
- * Nothing is persisted locally — each call passes through to the provider, so
- * the screen shows current state rather than a stale copy.
+ * Read-only view of the appointment provider's bookings for a centre.
+ *
+ * The list is served from the local mirror the ingest maintains — the provider
+ * has no range endpoint, so reading it live cost one request per day and could
+ * not be searched or paged. The single-booking and by-plate lookups stay live,
+ * since those are point queries where freshness matters most.
  */
 @ApiTags('Transactions / Online Appointments')
 @Controller('transactions/online-appointments')
@@ -30,9 +41,9 @@ export class OnlineAppointmentController {
   @Get('centres/:centreId')
   @Permissions(PermissionKeys.APPOINTMENTS_VIEW)
   @ApiOperation({
-    summary: "One centre's online bookings for a day",
+    summary: "One centre's online bookings over a date range",
     description:
-      'Live pass-through to the provider, ordered by appointment time. Includes CONFIRMED, CHECKED_IN, IN_PROGRESS and COMPLETED. An empty day is a healthy result with total 0.',
+      "Served from the local mirror the ingest keeps up to date, so any span is a single query with search, sort and pagination done in SQL. Rows carry the provider's own status. Use POST refresh to pull from the provider on demand.",
   })
   @ApiParam({ name: 'centreId', description: 'Centre snowflake id' })
   @ApiQuery({
@@ -51,11 +62,30 @@ export class OnlineAppointmentController {
     @Param('centreId', ParseSnowflakeIdPipe) centreId: string,
     @Query() query: OnlineAppointmentQueryDto,
   ) {
-    const data = await this.onlineAppointmentService.findAll(
-      centreId,
-      query.date,
-    );
+    const data = await this.onlineAppointmentService.findAll(centreId, query);
     return { message: 'Online appointments retrieved successfully', data };
+  }
+
+  @Post('centres/:centreId/refresh')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PermissionKeys.APPOINTMENTS_VIEW)
+  @ApiOperation({
+    summary: 'Pull this centre from the provider now',
+    description:
+      'Runs the ingest immediately for the whole forward window instead of waiting for the poll, then returns. Backs the Refresh button — the list is served from the mirror, so it must be brought up to date first.',
+  })
+  @ApiParam({ name: 'centreId', description: 'Centre snowflake id' })
+  @ApiResponse({ status: 200, description: 'Mirror refreshed.' })
+  @ApiResponse({
+    status: 400,
+    description: 'Centre is not linked to an appointment branch.',
+  })
+  async refresh(@Param('centreId', ParseSnowflakeIdPipe) centreId: string) {
+    await this.onlineAppointmentService.refresh(centreId);
+    return {
+      message: 'Online appointments refreshed successfully',
+      data: null,
+    };
   }
 
   @Get('centres/:centreId/by-plate/:plateNumber')

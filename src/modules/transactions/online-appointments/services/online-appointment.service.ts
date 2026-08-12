@@ -8,14 +8,20 @@ import { CentreDao } from '../../../database/dao/centre.dao';
 import { Centre } from '../../../database/entity/centre.entity';
 import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
 import { AppointmentBooking } from '../../../../common/integrations/appointments/appointment.types';
+import { AppointmentBookingDao } from '../../../database/dao/appointment-booking.dao';
+import { AppointmentIngestService } from './appointment-ingest.service';
+import { OnlineAppointmentQueryDto } from '../../../../common/dto/online-appointment.dto';
+import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 
 export interface OnlineAppointmentListResult {
   centre_id: string;
   centre_code: string;
   branch_code: string;
-  date: string | null;
+  date_from: string;
+  date_to: string;
   appointments: AppointmentBooking[];
   total: number;
+  meta: PaginatedResult<unknown>['meta'];
 }
 
 /**
@@ -37,36 +43,70 @@ export class OnlineAppointmentService {
   constructor(
     private readonly centreDao: CentreDao,
     private readonly appointmentApi: AppointmentApiClientService,
+    private readonly bookingDao: AppointmentBookingDao,
+    private readonly ingestService: AppointmentIngestService,
     private readonly logger: AppLogger,
   ) {}
 
-  /** One centre's bookings for one day, as the provider currently holds them. */
+  /**
+   * One centre's bookings over a date range, read from the local mirror.
+   *
+   * Deliberately NOT a live call: the provider serves a single branch-day per
+   * request, so a twelve-day range would cost twelve round trips and still
+   * arrive unsearchable and unpaginated. The ingest already mirrors every
+   * booking, so this is one indexed query — any span, searched and paged in
+   * SQL — and the rows carry the provider's own status, which is what the
+   * screen displays.
+   */
   async findAll(
     centreId: string,
-    date?: string,
+    query: OnlineAppointmentQueryDto,
   ): Promise<OnlineAppointmentListResult> {
     const centre = await this.requireLinkedCentre(centreId);
 
-    const appointments = await this.appointmentApi.fetchAppointments(
-      centre.provider_branch_code!,
-      date,
-    );
+    const today = this.todayInOman();
+    const dateFrom = query.date_from ?? query.date ?? today;
+    const dateTo = query.date_to ?? query.date ?? dateFrom;
 
-    if (!appointments) {
-      this.logger.warn(
-        `Appointment provider returned no result for centre ${centre.code}${date ? ` on ${date}` : ''}`,
-        OnlineAppointmentService.context,
-      );
-    }
+    const result = await this.bookingDao.findPaginatedForCentre(
+      centre.id,
+      dateFrom,
+      dateTo,
+      query,
+    );
 
     return {
       centre_id: centre.id,
       centre_code: centre.code,
       branch_code: centre.provider_branch_code!,
-      date: date ?? null,
-      appointments: appointments ?? [],
-      total: appointments?.length ?? 0,
+      date_from: dateFrom,
+      date_to: dateTo,
+      // The stored payload IS the provider's response shape, so the client
+      // keeps the same contract it had when this was a live pass-through.
+      appointments: result.data.map(
+        (booking) => booking.payload as unknown as AppointmentBooking,
+      ),
+      total: result.meta.total,
+      meta: result.meta,
     };
+  }
+
+  /**
+   * Pulls the provider now, outside the poll cycle — what the Refresh button
+   * calls. Returns once the mirror is up to date, so the caller can re-read.
+   */
+  async refresh(centreId: string): Promise<void> {
+    const centre = await this.requireLinkedCentre(centreId);
+    await this.ingestService.refreshNow(centre);
+  }
+
+  private todayInOman(): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Muscat',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
   }
 
   /**

@@ -27,15 +27,16 @@ export class CreateCentreDto {
   centre_id?: number;
 
   @ApiProperty({
-    description: 'Centre name (alphabets only)',
-    example: 'Muscat',
+    description:
+      'Centre name. Matches the entity column `centre_name` — distinct from `code`, which is the generated IVIS centre code.',
+    example: 'Muscat Vehicle Inspection Center',
   })
-  @IsString({ message: 'name must be a string' })
-  @IsNotEmpty({ message: 'name is required' })
+  @IsString({ message: 'centre_name must be a string' })
+  @IsNotEmpty({ message: 'centre_name is required' })
   @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'name must contain only alphabets',
+    message: 'centre_name must contain only alphabets',
   })
-  name!: string;
+  centre_name!: string;
 
   @ApiPropertyOptional({
     description:

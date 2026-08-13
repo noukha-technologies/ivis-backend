@@ -40,7 +40,7 @@ export class CentreService implements ICentreService {
     actor: UserContext,
   ): Promise<Centre> {
     this.logger.log(
-      `Creating centre: ${createCentreDto.name}`,
+      `Creating centre: ${createCentreDto.centre_name}`,
       CentreService.context,
     );
 
@@ -49,13 +49,13 @@ export class CentreService implements ICentreService {
     try {
       // Duplicate centre names are not allowed (case-insensitive).
       const existingName = await this.centreDao.findByName(
-        createCentreDto.name,
+        createCentreDto.centre_name,
       );
       if (existingName) {
         throw new DuplicateResourceException(
           'Centre',
-          'name',
-          createCentreDto.name,
+          'centre_name',
+          createCentreDto.centre_name,
         );
       }
 
@@ -81,18 +81,12 @@ export class CentreService implements ICentreService {
       }
 
       // Applied via the link service below, not written directly — see update().
-      // `name` is the API field; the column is `centre_name`, so it is mapped
-      // explicitly rather than spread — a spread would silently drop it.
-      const {
-        provider_branch_code: branchCode,
-        name,
-        ...centreFields
-      } = createCentreDto;
+      const { provider_branch_code: branchCode, ...centreFields } =
+        createCentreDto;
 
       const centre = this.centreDao.create({
         id: generateSnowflakeId(),
         ...centreFields,
-        centre_name: name,
         centre_id,
         code,
         status: createCentreDto.status || 'Active',
@@ -227,29 +221,24 @@ export class CentreService implements ICentreService {
 
       // Prevent renaming to an existing centre name (case-insensitive).
       if (
-        updateCentreDto.name &&
-        updateCentreDto.name.trim().toLowerCase() !==
+        updateCentreDto.centre_name &&
+        updateCentreDto.centre_name.trim().toLowerCase() !==
           centre.centre_name.toLowerCase()
       ) {
         const existingName = await this.centreDao.findByName(
-          updateCentreDto.name,
+          updateCentreDto.centre_name,
         );
         if (existingName && existingName.id !== id) {
           throw new DuplicateResourceException(
             'Centre',
-            'name',
-            updateCentreDto.name,
+            'centre_name',
+            updateCentreDto.centre_name,
           );
         }
       }
 
       // Code is derived from centre_id (immutable) — never changes on update.
-      // `name` maps onto the `centre_name` column, so it is applied explicitly.
-      const { code: _ignoredCode, name, ...updateFields } = updateCentreDto;
-      const namedFields =
-        name !== undefined
-          ? { ...updateFields, centre_name: name }
-          : updateFields;
+      const { code: _ignoredCode, ...namedFields } = updateCentreDto;
 
       // The branch code is validated against the provider's live directory and
       // applied through the link service, so choosing a branch also maps its

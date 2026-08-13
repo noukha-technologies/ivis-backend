@@ -44,7 +44,7 @@ export function mapUserToResponse(user: User): UserResponse {
       ? {
           id: centre.id,
           centre_id: centre.centre_id,
-          name: centre.centre_name,
+          centre_name: centre.centre_name,
           code: centre.code,
         }
       : undefined,

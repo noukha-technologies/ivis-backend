@@ -43,9 +43,7 @@ export class CentreDao extends Repository<Centre> implements ICentreDao {
    * Case-insensitive lookup by the appointment provider's branch code, so a
    * branch can only ever be linked to one centre.
    */
-  async findByProviderBranchCode(
-    branchCode: string,
-  ): Promise<Centre | null> {
+  async findByProviderBranchCode(branchCode: string): Promise<Centre | null> {
     return this.createQueryBuilder('centre')
       .where('UPPER(centre.provider_branch_code) = UPPER(:branchCode)', {
         branchCode: branchCode.trim(),

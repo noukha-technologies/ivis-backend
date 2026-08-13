@@ -274,7 +274,35 @@ export class JobService {
       this.appointmentDao.merge(appt, { status: AppointmentStatus.CONVERTED }),
     );
 
+    // An online booking already carries a settled payment, recorded at ingest
+    // with no job attached. Link that row rather than creating another — the
+    // unique index on payments.job_id enforces one payment per job.
+    await this.linkExistingPaymentToJob(appt.id, job.id);
+
     return job;
+  }
+
+  /**
+   * Attaches an appointment's pre-existing payment to the job it became.
+   *
+   * Only online bookings have one: the provider settles payment days ahead, so
+   * the payment exists before the vehicle arrives. Walk-ins are unaffected —
+   * their payment is still created by the operator at job time.
+   */
+  private async linkExistingPaymentToJob(
+    appointmentId: string,
+    jobId: string,
+  ): Promise<void> {
+    const payment = await this.paymentsDao.findOne({
+      where: { appointment_id: appointmentId, is_deleted: false },
+    });
+    if (!payment || payment.job_id) return;
+
+    await this.paymentsDao.update(payment.id, { job_id: jobId });
+    this.logger.log(
+      `Linked existing payment ${payment.payment_id} to job ${jobId}`,
+      JobService.context,
+    );
   }
 
   /**

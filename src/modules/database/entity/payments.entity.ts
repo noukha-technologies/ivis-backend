@@ -137,8 +137,24 @@ export class Payments implements IPaymentsFields {
   @Column({ type: 'varchar', length: 32, default: 'Paid', nullable: false })
   status!: PaymentStatusEnum;
 
-  @Column({ type: 'numeric', precision: 12, scale: 2, default: 0 })
+  // Three decimals: the appointment provider quotes fees as "5.000"/"10.000",
+  // and rounding to 2dp would silently alter a value like 7.125.
+  @Column({ type: 'numeric', precision: 12, scale: 3, default: 0 })
   grand_total!: number;
+
+  /* ---- Online-booking payments ----
+   * The appointment provider is the payment source for online bookings —
+   * there is no separate payment API — so these carry what they told us.
+   */
+
+  /** Their payment reference. Unique, so re-polling cannot duplicate a payment. */
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  provider_payment_reference?: string | null;
+
+  /** Raw method (ONLINE_CARD, OFFLINE_CARD). payment_type_id holds the mapped
+   *  master row; this keeps the original value for audit. */
+  @Column({ type: 'varchar', length: 32, nullable: true })
+  provider_payment_method?: string | null;
 
   @Column({ type: 'timestamp', nullable: true })
   pay_date?: Date | null;

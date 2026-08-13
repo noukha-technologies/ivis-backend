@@ -11,6 +11,10 @@ import { AppointmentDao } from '../../../database/dao/appointment.dao';
 import { AppointmentBookingDao } from '../../../database/dao/appointment-booking.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
+import { PaymentsDao } from '../../../database/dao/payments.dao';
+import { PaymentTypeDao } from '../../../database/dao/payment-type.dao';
+import { PaymentStatusEnum } from '../../../../common/enums/payment.enums';
+import { toLocalOmanDigits } from '../../../../common/utils/oman-phone.util';
 import { AppointmentBooking } from '../../../database/entity/appointment-booking.entity';
 import { Centre } from '../../../database/entity/centre.entity';
 import { Appointment } from '../../../database/entity/appointment.entity';
@@ -66,6 +70,8 @@ export class AppointmentIngestService {
     private readonly bookingDao: AppointmentBookingDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly customerDao: CustomerDao,
+    private readonly paymentsDao: PaymentsDao,
+    private readonly paymentTypeDao: PaymentTypeDao,
     private readonly appointmentApi: AppointmentApiClientService,
     private readonly logger: AppLogger,
   ) {}
@@ -278,6 +284,14 @@ export class AppointmentIngestService {
     booking.appointment_id = saved.id;
     await this.bookingDao.save(booking);
 
+    await this.ensurePayment(
+      booking,
+      payload,
+      saved,
+      customerId,
+      vehicleRecordId,
+    );
+
     this.logger.log(
       `Promoted booking ${booking.booking_id} (${booking.plate_number}) → appointment ${saved.id}`,
       AppointmentIngestService.context,
@@ -338,7 +352,10 @@ export class AppointmentIngestService {
     vehicleRecordId: string | null,
   ): Promise<string | null> {
     const name = payload?.customer?.name?.trim();
-    const phone = payload?.customer?.phone?.trim();
+    // The provider quotes E.164 (+96894567890); IVIS stores and validates the
+    // bare 8-digit local number, so normalise here rather than leaving an
+    // operator to hand-edit a number that arrived perfectly valid.
+    const phone = toLocalOmanDigits(payload?.customer?.phone);
     if (!name || !phone || !vehicleRecordId) return null;
 
     const existing =
@@ -358,6 +375,83 @@ export class AppointmentIngestService {
       }),
     );
     return created.id;
+  }
+
+  /**
+   * Records the provider's payment for this booking.
+   *
+   * The appointment provider is the payment source for online bookings — there
+   * is no separate payment API — so a paid booking produces a real Payments
+   * row at ingest, not at job creation. `job_id` stays null until the vehicle
+   * arrives and the appointment converts, at which point the SAME row is
+   * linked rather than a second one created.
+   *
+   * Written through the DAO rather than PaymentsService.create, because that
+   * path auto-creates a job when paid — which must not happen for a car that
+   * has not arrived.
+   */
+  private async ensurePayment(
+    booking: AppointmentBooking,
+    payload: ProviderBooking | undefined,
+    appointment: Appointment,
+    customerId: string | null,
+    vehicleRecordId: string | null,
+  ): Promise<void> {
+    const reference = payload?.payment_reference?.trim();
+    // Payments require a customer and a vehicle record; a booking without a
+    // usable phone yields no customer, so there is nothing to attach money to.
+    if (!reference || !customerId || !vehicleRecordId) return;
+
+    const existing = await this.paymentsDao.findByProviderReference(reference);
+    if (existing) return;
+
+    const feeAmount = Number(payload?.fee_amount ?? 0);
+    const method = payload?.payment_method?.trim() ?? null;
+
+    await this.paymentsDao.save(
+      this.paymentsDao.create({
+        id: generateSnowflakeId(),
+        payment_id: await this.paymentsDao.getNextPaymentsId(),
+        appointment_id: appointment.id,
+        customer_id: customerId,
+        vehicle_record_id: vehicleRecordId,
+        centre_id: booking.centre_id,
+        // Filled when the vehicle arrives and the appointment becomes a job.
+        job_id: null,
+        payment_type_id: await this.resolvePaymentTypeId(method),
+        provider_payment_reference: reference,
+        provider_payment_method: method,
+        // PAID and FREE are both settled as far as IVIS is concerned; FREE is a
+        // free re-inspection, which surfaces as FOC via grand_total = 0.
+        status: PaymentStatusEnum.PAID,
+        grand_total: feeAmount,
+        // The provider sends no payment timestamp, so the moment we learned of
+        // it is the closest honest value.
+        pay_date: new Date(),
+        created_by: 'appointment-ingest',
+      }),
+    );
+
+    this.logger.log(
+      `Recorded payment ${reference} (${feeAmount} OMR) for booking ${booking.booking_id}`,
+      AppointmentIngestService.context,
+    );
+  }
+
+  /**
+   * Maps a provider payment method onto the local payment-types master.
+   * ONLINE_CARD and OFFLINE_CARD are both card payments. An unrecognised
+   * method leaves the FK null rather than inventing a master row — the raw
+   * value is still kept on provider_payment_method.
+   */
+  private async resolvePaymentTypeId(
+    method: string | null,
+  ): Promise<string | null> {
+    if (!method) return null;
+    if (!/CARD/i.test(method)) return null;
+
+    const cardType = await this.paymentTypeDao.findByName('Card');
+    return cardType?.id ?? null;
   }
 
   /**
@@ -435,6 +529,10 @@ export class AppointmentIngestService {
       await this.appointmentDao.update(appointment.id, {
         status: AppointmentStatus.CANCELLED,
       });
+      // The payment follows the booking. Cancelled rather than any notion of
+      // refunded: the provider only stops returning the booking, and never
+      // tells us money moved back — asserting a refund would be a guess.
+      await this.cancelPaymentFor(booking);
       this.logger.log(
         `Auto-cancelled appointment ${appointment.id} — booking ${booking.booking_id} withdrawn upstream`,
         AppointmentIngestService.context,
@@ -444,6 +542,24 @@ export class AppointmentIngestService {
 
     this.logger.warn(
       `Booking ${booking.booking_id} withdrawn upstream but appointment ${appointment.id} has already been acted on (status ${appointment.status}, capture ${appointment.anpr_capture_id ?? 'none'}) — left for an operator to resolve`,
+      AppointmentIngestService.context,
+    );
+  }
+
+  /** Cancels the payment recorded for a withdrawn booking, if there is one. */
+  private async cancelPaymentFor(booking: AppointmentBooking): Promise<void> {
+    const reference = (booking.payload as unknown as ProviderBooking)
+      ?.payment_reference;
+    if (!reference) return;
+
+    const payment = await this.paymentsDao.findByProviderReference(reference);
+    if (!payment || payment.status === PaymentStatusEnum.CANCELLED) return;
+
+    await this.paymentsDao.update(payment.id, {
+      status: PaymentStatusEnum.CANCELLED,
+    });
+    this.logger.log(
+      `Cancelled payment ${reference} — booking ${booking.booking_id} withdrawn upstream`,
       AppointmentIngestService.context,
     );
   }

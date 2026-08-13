@@ -39,6 +39,13 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     });
   }
 
+  /** Dedup lookup for provider-sourced payments. */
+  findByProviderReference(reference: string): Promise<Payments | null> {
+    return this.findOne({
+      where: { provider_payment_reference: reference, is_deleted: false },
+    });
+  }
+
   async findByPaymentsId(paymentsId: number): Promise<Payments | null> {
     return this.findOne({
       where: { payment_id: paymentsId, is_deleted: false },

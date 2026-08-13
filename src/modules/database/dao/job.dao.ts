@@ -37,6 +37,23 @@ export class JobDao extends Repository<Job> implements IJobDao {
     });
   }
 
+  /**
+   * Jobs still tied to a line's lane. Pending counts as active: its IN file has
+   * already been written against the current lane, so changing the lane id
+   * would leave that file — and the OUT file that answers it — pointing at the
+   * wrong lane.
+   */
+  findActiveByLineId(lineId: string): Promise<Job[]> {
+    return this.createQueryBuilder('job')
+      .where('job.line_id = :lineId', { lineId })
+      .andWhere('job.is_deleted = false')
+      .andWhere('job.status IN (:...statuses)', {
+        statuses: ['Pending', 'In Progress'],
+      })
+      .orderBy('job.created_at', 'DESC')
+      .getMany();
+  }
+
   async findByJobId(jobId: number): Promise<Job | null> {
     return this.findOne({
       where: { job_id: jobId, is_deleted: false },

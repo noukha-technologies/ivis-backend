@@ -34,6 +34,7 @@ import {
   VerifyBranchDto,
 } from '../../../common/dto/appointment-branch.dto';
 import { AppointmentBranchLinkService } from '../../../common/integrations/appointments/appointment-branch-link.service';
+import { AppointmentLaneAssignmentService } from '../../../common/integrations/appointments/appointment-lane-assignment.service';
 
 @ApiTags('Masters / Centres')
 @Controller('masters/centres')
@@ -41,6 +42,7 @@ export class CentreController {
   constructor(
     private readonly centreService: CentreService,
     private readonly branchLinkService: AppointmentBranchLinkService,
+    private readonly laneAssignmentService: AppointmentLaneAssignmentService,
   ) {}
 
   @Get('branches')
@@ -132,6 +134,21 @@ export class CentreController {
   async unlinkBranch(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.branchLinkService.unlink(id);
     return { message: 'Centre unlinked from appointment branch', data: null };
+  }
+
+  @Get(':id/lanes')
+  @Permissions(PermissionKeys.MASTERS_VIEW)
+  @ApiOperation({
+    summary: "The lanes this centre's branch offers",
+    description:
+      "Read live from the provider's branch directory, annotated with the line currently holding each lane and whether that line is locked by an active job. Backs the lane dropdown in Line Master. An unlinked centre returns an empty list rather than an error.",
+  })
+  @ApiParam({ name: 'id', description: 'Centre snowflake id' })
+  @ApiResponse({ status: 200, description: 'Lanes retrieved.' })
+  @ApiResponse({ status: 404, description: 'Centre not found.' })
+  async lanes(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.laneAssignmentService.listLanes(id);
+    return { message: 'Lanes retrieved successfully', data };
   }
 
   @Get(':id/branch-status')

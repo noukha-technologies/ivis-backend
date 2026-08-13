@@ -3,6 +3,7 @@ import { RopApiClientService } from './rop/rop-api-client.service';
 import { PaymentApiClientService } from './payment/payment-api-client.service';
 import { AppointmentApiClientService } from './appointments/appointment-api-client.service';
 import { AppointmentBranchLinkService } from './appointments/appointment-branch-link.service';
+import { AppointmentLaneAssignmentService } from './appointments/appointment-lane-assignment.service';
 
 @Global()
 @Module({
@@ -11,12 +12,14 @@ import { AppointmentBranchLinkService } from './appointments/appointment-branch-
     PaymentApiClientService,
     AppointmentApiClientService,
     AppointmentBranchLinkService,
+    AppointmentLaneAssignmentService,
   ],
   exports: [
     RopApiClientService,
     PaymentApiClientService,
     AppointmentApiClientService,
     AppointmentBranchLinkService,
+    AppointmentLaneAssignmentService,
   ],
 })
 export class IntegrationsModule {}

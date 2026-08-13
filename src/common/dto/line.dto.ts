@@ -1,10 +1,13 @@
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
+  Matches,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import {
   ApiProperty,
@@ -52,6 +55,29 @@ export class CreateLineDto {
   @IsNotEmpty({ message: 'display order is required' })
   @Min(1, { message: 'display order must be at least 1' })
   display_order!: number;
+
+  @ApiPropertyOptional({
+    description:
+      "The appointment provider's lane id for this line (L1, L2, ...), as returned by GET /branches for the centre's branch. Distinct from `code` above, which is the IVIS line code. Normally set automatically when the centre is linked; set it here to correct a mismatch. Send null or an empty string to clear it.",
+    example: 'L1',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== '')
+  @IsString({ message: 'provider_lane_id must be a string' })
+  @Matches(/^[A-Z0-9]{1,16}$/i, {
+    message: 'provider_lane_id must be alphanumeric, e.g. L1',
+  })
+  provider_lane_id?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Set true to accept swapping lanes with the line that currently holds the requested lane. Without it, a taken lane returns 409 with the holder so the client can confirm.',
+    example: false,
+  })
+  @IsOptional()
+  @IsBoolean({ message: 'confirm_lane_swap must be a boolean' })
+  confirm_lane_swap?: boolean;
 
   @ApiPropertyOptional({
     description: 'Line details description',

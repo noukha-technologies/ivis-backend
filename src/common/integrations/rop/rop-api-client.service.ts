@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AppLogger } from '../../../common/logger/app.logger';
+import { toLocalOmanDigits } from '../../utils/oman-phone.util';
 
 export interface RopApiResult {
   owner_name?: string;
@@ -45,23 +46,6 @@ interface RopMockApiResponse {
   success: boolean;
   message?: string;
   data?: RopMockApiVehicle;
-}
-
-/**
- * Strip a phone number down to its bare 8-digit Oman local form (drops the
- * 968/00968 country code and any leading 0) — the format the walk-in form's
- * Owner/Driver phone fields validate against. Returns undefined if the
- * result isn't a valid 8-digit number, so the field is left for the operator
- * to fill instead of silently prefilling something that can't pass validation.
- */
-function toLocalOmanDigits(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  let digits = value.replace(/\D/g, '');
-  if (digits.startsWith('00968')) digits = digits.slice(5);
-  else if (digits.startsWith('968') && digits.length > 8)
-    digits = digits.slice(3);
-  if (digits.length === 9 && digits.startsWith('0')) digits = digits.slice(1);
-  return digits.length === 8 ? digits : undefined;
 }
 
 @Injectable()

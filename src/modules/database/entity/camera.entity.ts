@@ -39,7 +39,7 @@ export class Camera implements ICameraMasterFields {
     line_id: number;
     name: string;
     code: string;
-    centre?: { id: string; name: string; code: string };
+    centre?: { id: string; centre_name: string; code: string };
   }>;
 
   @AfterLoad()
@@ -59,7 +59,9 @@ export class Camera implements ICameraMasterFields {
         centre: line.centre
           ? {
               id: line.centre.id,
-              name: line.centre.centre_name,
+              // Same key as every other centre payload — the frontend reads
+              // centre_name everywhere.
+              centre_name: line.centre.centre_name,
               code: line.centre.code,
             }
           : undefined,

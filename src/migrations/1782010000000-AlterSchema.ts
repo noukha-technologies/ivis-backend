@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 16;
+export const ALTER_SCHEMA_VERSION = 17;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -2372,6 +2372,38 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       );
     }
 
+    // payments: provider payment facts for online bookings.
+    //
+    // The appointment provider is the payment source for online bookings —
+    // there is no separate payment API — so their reference becomes the
+    // dedup key. Unconditional (outside the create-table branch above) so an
+    // existing database picks these up too.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."payments" ADD COLUMN IF NOT EXISTS "provider_payment_reference" character varying(64)`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."payments" ADD COLUMN IF NOT EXISTS "provider_payment_method" character varying(32)`,
+    );
+
+    // Provider fees carry three decimals (5.000, 10.000). The column was 2dp,
+    // which would silently round a value like 7.125 — widen before any such
+    // fee arrives.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."payments" ALTER COLUMN "grand_total" TYPE numeric(12,3)`,
+    );
+
+    // Re-polling the same booking must never create a second payment. Partial,
+    // because manually-entered payments have no provider reference.
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PAYMENT_PROVIDER_REFERENCE" ON "transaction"."payments" ("provider_payment_reference") WHERE "provider_payment_reference" IS NOT NULL`,
+    );
+
+    // One payment per job. This was previously convention only — nothing
+    // stopped a second payment being attached to the same job.
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_PAYMENT_JOB_ID_UNIQUE" ON "transaction"."payments" ("job_id") WHERE "job_id" IS NOT NULL`,
+    );
+
     // appointments → payments link (intake flow)
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "payment_id" bigint`,
@@ -2409,6 +2441,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "payment_id"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_PROVIDER_REFERENCE"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_PAYMENT_JOB_ID_UNIQUE"`,
     );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."payments" CASCADE`,

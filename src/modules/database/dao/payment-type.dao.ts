@@ -26,6 +26,15 @@ export class PaymentTypeDao
     return this.findOne({ where: { id, is_deleted: false } });
   }
 
+  /** Case-insensitive name lookup — used to map a provider payment method
+   *  (ONLINE_CARD) onto the local master row ("Card"). */
+  findByName(name: string): Promise<PaymentType | null> {
+    return this.createQueryBuilder('pt')
+      .where('LOWER(pt.name) = LOWER(:name)', { name: name.trim() })
+      .andWhere('pt.is_deleted = false')
+      .getOne();
+  }
+
   async findByCode(code: string): Promise<PaymentType | null> {
     return this.findOne({ where: { code, is_deleted: false } });
   }

@@ -18,6 +18,7 @@ import { UserLineMappingDao } from '../../../database/dao/user-line-mapping.dao'
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { MasterScopeService } from '../../../../common/services/master-scope.service';
 import { getCreatedById } from '../../../../common/utils/created-by.util';
+import { AppointmentLaneAssignmentService } from '../../../../common/integrations/appointments/appointment-lane-assignment.service';
 import { ILineService } from './line.service.interface';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class LineService implements ILineService {
 
   constructor(
     private readonly lineDao: LineDao,
+    private readonly laneAssignment: AppointmentLaneAssignmentService,
     private readonly centreDao: CentreDao,
     private readonly cameraDao: CameraDao,
     private readonly adminPcDao: AdminPcDao,
@@ -217,8 +219,26 @@ export class LineService implements ILineService {
         }
       }
 
-      const mergedLine = this.lineDao.merge(line, updateLineDto);
+      // The provider lane is not a plain column write: it decides which lane a
+      // job's result is pushed against, so it goes through the assignment
+      // service, which refuses the change under a live job and swaps rather
+      // than overwrites when another line already holds the lane.
+      const { provider_lane_id: nextLane, ...columnFields } = updateLineDto;
+      const laneChanged =
+        nextLane !== undefined &&
+        (nextLane || null) !== (line.provider_lane_id || null);
+
+      const mergedLine = this.lineDao.merge(line, columnFields);
       const savedLine = await this.lineDao.save(mergedLine);
+
+      if (laneChanged) {
+        await this.laneAssignment.assignLane(
+          id,
+          nextLane ?? null,
+          updateLineDto.confirm_lane_swap === true,
+        );
+        return (await this.lineDao.findActiveById(id)) ?? savedLine;
+      }
 
       this.logger.log(`Line updated ID: ${savedLine.id}`, LineService.context);
       return savedLine;

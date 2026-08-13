@@ -40,9 +40,18 @@ export class WipeData1782020000000 implements MigrationInterface {
     // — NOT "master", despite a same-named legacy/unrelated master.payments
     // table also existing in some databases).
     '"transaction"."payments"',
+    // job_images.job_id → jobs, so images go before their jobs
+    '"transaction"."job_images"',
     // jobs.appointment_id → appointments, so jobs must be deleted first
     '"transaction"."jobs"',
+    // appointment_bookings.appointment_id → appointments (the ingest mirror of
+    // the provider's bookings), so it is deleted before the appointments it
+    // points at.
+    '"transaction"."appointment_bookings"',
     '"transaction"."appointments"',
+    // Outbound webhook queue — no FKs, but it is transactional data and must
+    // not survive a wipe or it would replay against a fresh database.
+    '"transaction"."tajdeed_outbox"',
     '"transaction"."rop_verifications"',
     '"transaction"."anpr_captures"',
     '"transaction"."customers"',

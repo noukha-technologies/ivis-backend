@@ -1,7 +1,9 @@
 export interface UserCentreSummary {
   id: string;
   centre_id: number;
-  name: string;
+  /** Matches the Centre entity's column, so every centre payload in the API
+   *  uses the same field name. */
+  centre_name: string;
   code: string;
 }
 

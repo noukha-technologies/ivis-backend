@@ -55,12 +55,12 @@ function cliArg(name: string): string | undefined {
 const SUPER_ADMIN_EMAIL = (
   cliArg('email') ||
   process.env.SEED_SUPER_ADMIN_EMAIL ||
-  'superadmin@opalivis.in'
+  'ranjeeth@opalgcc.com'
 )
   .trim()
   .toLowerCase();
 const SUPER_ADMIN_PASSWORD =
-  cliArg('password') || process.env.SEED_SUPER_ADMIN_PASSWORD || 'SuperAdmin@123';
+  cliArg('password') || process.env.SEED_SUPER_ADMIN_PASSWORD || 'Admin@123';
 const SUPER_ADMIN_USER_CODE = 'SUPERADMIN';
 const SUPER_ADMIN_USER_NAME = 'Super Admin';
 const SUPER_ADMIN_ROLE_NAME = 'Super Admin';
@@ -164,11 +164,23 @@ async function main(): Promise<void> {
 
     /* ── Step 4: Super Admin user (center_id: null) ─────────────────── */
     log(`Seeding Super Admin user "${SUPER_ADMIN_EMAIL}"...`);
+    // Matched on user_code, not email: the code is the stable identity for
+    // this account, so changing the configured email updates the existing
+    // Super Admin rather than seeding a second one alongside it.
     const existing = await userRepo.findOne({
-      where: { email: SUPER_ADMIN_EMAIL, is_deleted: false },
+      where: { user_code: SUPER_ADMIN_USER_CODE, is_deleted: false },
     });
     if (existing) {
-      log(`  Already exists (user_id: ${existing.user_id}) — skipping.`);
+      if (existing.email !== SUPER_ADMIN_EMAIL) {
+        const previous = existing.email;
+        existing.email = SUPER_ADMIN_EMAIL;
+        await userRepo.save(existing);
+        log(`  Updated email: ${previous} → ${SUPER_ADMIN_EMAIL}`);
+      } else {
+        log(`  Already exists (user_id: ${existing.user_id}) — skipping.`);
+      }
+      // The password is deliberately NOT reset here: re-running this script on
+      // a live machine must never silently restore a default credential.
     } else {
       const { max } = (await userRepo
         .createQueryBuilder('u')

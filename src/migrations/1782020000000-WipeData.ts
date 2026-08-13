@@ -1,13 +1,16 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /**
- * Standalone WIPE migration — clears all application DATA while preserving the
- * schema structure (tables, indexes, constraints) AND the identity tables:
- * `core.users`, `core.roles`, `core.permissions`.
+ * Standalone WIPE migration — clears ALL application DATA while preserving the
+ * schema structure (tables, indexes, constraints).
  *
- * Everything else in the `core`, `master`, and `transaction` schemas is emptied
- * (including user_sessions and user_line_mappings, since the lines they map to
- * are wiped).
+ * Every table in the `core`, `master` and `transaction` schemas is emptied,
+ * identity included: `npm run onboarding:super-admin` recreates the Super
+ * Admin, role and permission afterwards, so preserving them here would leave a
+ * half-emptied database rather than a clean one.
+ *
+ * Use WipeTransactions (1782030000000) instead when master data (centres,
+ * lines, cameras, charges) and users should survive.
  *
  * Run with:  npm run migration:wipe
  *
@@ -59,6 +62,19 @@ export class WipeData1782020000000 implements MigrationInterface {
     // core link tables (deleted before master.lines they reference)
     '"core"."user_line_mappings"',
     '"core"."user_sessions"',
+    // audit_logs.user_id → core.users, so it goes before the users below.
+    '"core"."audit_logs"',
+    // Identity. Recreated by `npm run onboarding:super-admin`, which is why a
+    // full wipe can clear them: permissions ← roles ← users, so delete in
+    // reverse.
+    '"core"."users"',
+    '"core"."roles"',
+    '"core"."permissions"',
+    // Records the applied schema_version. Clearing it means the next boot
+    // re-applies AlterSchema once — slow but harmless, since every statement
+    // in it is idempotent — and leaves the machine reporting as un-onboarded,
+    // which matches an emptied database.
+    '"core"."onboarding_status"',
     // master — charges first (FKs → centres, vehicles, charge_categories)
     '"master"."charges"',
     '"master"."admin_pc_line_mappings"',
@@ -72,12 +88,15 @@ export class WipeData1782020000000 implements MigrationInterface {
     '"master"."tests"',
   ] as const;
 
-  /** Tables intentionally KEPT (identity / access control). */
-  private static readonly PRESERVED = [
-    'core.users',
-    'core.roles',
-    'core.permissions',
-  ] as const;
+  /**
+   * Nothing is preserved: this is the full reset. Identity is recreated by
+   * `npm run onboarding:super-admin`, so keeping it here would leave a
+   * half-emptied database rather than a clean one.
+   *
+   * Use WipeTransactions (1782030000000) when master data and users should
+   * survive.
+   */
+  private static readonly PRESERVED = [] as const;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     if (process.env.ALLOW_DATA_WIPE !== 'true') {
@@ -120,9 +139,9 @@ export class WipeData1782020000000 implements MigrationInterface {
     for (const table of targets) {
       await queryRunner.query(`DELETE FROM ${table}`);
     }
+    console.log(`[WipeData] Wiped: ${targets.join(', ')}`);
     console.log(
-      `[WipeData] Wiped: ${targets.join(', ')} ` +
-        `(preserved: ${WipeData1782020000000.PRESERVED.join(', ')})`,
+      '[WipeData] Database is now empty. Run `npm run onboarding:super-admin` to recreate the Super Admin.',
     );
   }
 

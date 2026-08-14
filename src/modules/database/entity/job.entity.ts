@@ -28,6 +28,7 @@ import { Appointment } from './appointment.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
 import { JobImage } from './job-image.entity';
+import { User } from './user.entity';
 
 @Entity({ name: 'jobs', schema: DATABASE_SCHEMAS.TRANSACTION })
 @Index('IDX_JOB_JOB_ID', ['job_id'], { unique: true })
@@ -121,6 +122,22 @@ export class Job implements IJobFields {
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
+
+  /* Assigned user FK — who is responsible for this job.
+   *
+   * Nullable only because jobs created before assignment existed have none;
+   * JobService requires it on every new job, chosen from the users mapped to
+   * the job's line. Assignment is fixed at creation and not reassignable here. */
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
+  assigned_user_id?: string | null;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'assigned_user_id' })
+  assignedUser?: User;
 
   /* Admin PC FK */
   @Column({

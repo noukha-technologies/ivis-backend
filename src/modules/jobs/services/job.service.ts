@@ -26,6 +26,7 @@ import { JobDao } from '../../database/dao/job.dao';
 import { JobImageDao } from '../../database/dao/job-image.dao';
 import { LineDao } from '../../database/dao/line.dao';
 import { PaymentsDao } from '../../database/dao/payments.dao';
+import { UsersDao } from '../../database/dao/users.dao';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { PaymentApiClientService } from '../../../common/integrations/payment/payment-api-client.service';
 import { RopApiClientService } from '../../../common/integrations/rop/rop-api-client.service';
@@ -72,6 +73,7 @@ export class JobService {
     private readonly adminPcDao: AdminPcDao,
     private readonly cameraDao: CameraDao,
     private readonly paymentsDao: PaymentsDao,
+    private readonly usersDao: UsersDao,
     private readonly paymentApi: PaymentApiClientService,
     private readonly ropApi: RopApiClientService,
     private readonly infileGenerator: InfileGeneratorService,
@@ -204,6 +206,7 @@ export class JobService {
   async createFromAppointment(
     appointmentId: string,
     actor: UserContext,
+    assignment?: { line_id: string; assigned_user_id: string },
   ): Promise<Job> {
     this.logger.log(
       `Converting appointment ${appointmentId} to a job`,
@@ -257,6 +260,30 @@ export class JobService {
     const resolvedCentreId =
       appt.centre_id ?? actor.user.center_id ?? undefined;
 
+    // Every job runs on a line and belongs to someone: the IN file is written
+    // to the line's folder, and the result comes back against that lane. A job
+    // with neither is unworkable, so both are required rather than inferred.
+    const lineId = assignment?.line_id ?? appt.line_id ?? undefined;
+    if (!lineId) {
+      throw new BadRequestException(
+        'Select the line this job will run on before converting.',
+      );
+    }
+    if (!assignment?.assigned_user_id) {
+      throw new BadRequestException(
+        'Select the user responsible for this job before converting.',
+      );
+    }
+
+    // The chosen user must actually be mapped to the chosen line — the picker
+    // enforces this, but the endpoint is reachable directly.
+    const assignable = await this.usersDao.findActiveByLineId(lineId);
+    if (!assignable.some((u) => u.id === assignment.assigned_user_id)) {
+      throw new BadRequestException(
+        'The selected user is not assigned to that line.',
+      );
+    }
+
     const job = await this.create(
       {
         appointment_id: appt.id,
@@ -264,7 +291,8 @@ export class JobService {
         customer_id: appt.customer_id,
         vehicle_record_id: vehicleRecordId,
         centre_id: resolvedCentreId,
-        line_id: appt.line_id ?? undefined,
+        line_id: lineId,
+        assigned_user_id: assignment.assigned_user_id,
         anpr_capture_id: appt.anpr_capture_id ?? undefined,
       },
       actor,

@@ -10,6 +10,7 @@ import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginationService } from '../../../common/shared/pagination/pagination.service';
 
 import { normalizeUserCode } from '../../../common/utils/normalize-user-code.util';
+import { UserLineMapping } from '../entity/user-line-mapping.entity';
 import {
   buildTypeOrmPaginationOptions,
   toPaginatedResult,
@@ -37,6 +38,27 @@ export class UsersDao extends Repository<User> implements IUserDao {
       )
       .leftJoinAndSelect('lineMapping.line', 'line')
       .andWhere('user.is_deleted = :isDeleted', { isDeleted: false });
+  }
+
+  /**
+   * Active users mapped to a line, for the job-assignment picker.
+   *
+   * Joins through user_line_mappings rather than users.center_id: a centre may
+   * have many staff, but only those actually mapped to the line can be assigned
+   * a job running on it.
+   */
+  findActiveByLineId(lineId: string): Promise<User[]> {
+    return this.createQueryBuilder('user')
+      .innerJoin(
+        UserLineMapping,
+        'mapping',
+        'mapping.user_id = user.id AND mapping.is_deleted = false',
+      )
+      .leftJoinAndSelect('user.role', 'role')
+      .where('mapping.line_id = :lineId', { lineId })
+      .andWhere('user.is_deleted = false')
+      .orderBy('user.user_name', 'ASC')
+      .getMany();
   }
 
   async findActiveById(id: string): Promise<User | null> {

@@ -1,3 +1,4 @@
+import { User } from '../../../database/entity/user.entity';
 import type { UserContext } from '../../../../common/dto/auth.dto';
 import { CreateLineDto, UpdateLineDto } from '../../../../common/dto/line.dto';
 import { LineListQueryDto } from '../../../../common/dto/line-list-query.dto';
@@ -8,6 +9,7 @@ export interface ILineService {
   create(createLineDto: CreateLineDto, actor: UserContext): Promise<Line>;
   findAll(query: LineListQueryDto): Promise<PaginatedResult<Line>>;
   findOne(id: string): Promise<Line>;
+  findAssignableUsers(id: string): Promise<User[]>;
   findByCode(code: string): Promise<Line | null>;
   update(id: string, updateLineDto: UpdateLineDto): Promise<Line>;
   remove(id: string): Promise<void>;

@@ -12,6 +12,8 @@ import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGenera
 import { Line } from '../../../database/entity/line.entity';
 import { LineDao } from '../../../database/dao/line.dao';
 import { CentreDao } from '../../../database/dao/centre.dao';
+import { UsersDao } from '../../../database/dao/users.dao';
+import { User } from '../../../database/entity/user.entity';
 import { CameraDao } from '../../../database/dao/camera.dao';
 import { AdminPcDao } from '../../../database/dao/admin-pc.dao';
 import { UserLineMappingDao } from '../../../database/dao/user-line-mapping.dao';
@@ -31,6 +33,7 @@ export class LineService implements ILineService {
     private readonly centreDao: CentreDao,
     private readonly cameraDao: CameraDao,
     private readonly adminPcDao: AdminPcDao,
+    private readonly usersDao: UsersDao,
     private readonly userLineMappingDao: UserLineMappingDao,
     private readonly masterScope: MasterScopeService,
     private readonly logger: AppLogger,
@@ -133,6 +136,18 @@ export class LineService implements ILineService {
       );
       throw new DatabaseException('Failed to fetch lines. Please try again.');
     }
+  }
+
+  /**
+   * The users a job on this line can be assigned to.
+   *
+   * Verifies the line exists first, so an unknown id is a 404 rather than a
+   * silently empty list — the picker would otherwise show "no users assigned"
+   * for a line that simply is not there.
+   */
+  async findAssignableUsers(id: string): Promise<User[]> {
+    await this.findOne(id);
+    return this.usersDao.findActiveByLineId(id);
   }
 
   async findOne(id: string): Promise<Line> {

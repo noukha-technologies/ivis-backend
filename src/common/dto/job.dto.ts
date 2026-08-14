@@ -335,6 +335,15 @@ export class CreateJobDto {
   @IsString()
   line_id?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'User responsible for this job, chosen from those mapped to the line. Required when converting an appointment.',
+    example: '2058858609483202561',
+  })
+  @IsOptional()
+  @IsString({ message: 'assigned_user_id must be a string' })
+  assigned_user_id?: string;
+
   @ApiPropertyOptional({ description: 'Admin PC snowflake ID' })
   @IsOptional()
   @IsString()
@@ -397,4 +406,29 @@ export class UpdateJobDto extends PartialType(
   @IsOptional()
   @IsDateString()
   invoice_date?: string;
+}
+
+/**
+ * Line and assignee chosen when converting an appointment into a job.
+ *
+ * Both are required: the IN file is written to the line's folder, and every job
+ * must have someone responsible for it. The DTO is separate from CreateJobDto
+ * because that one keeps them optional for jobs created by other paths.
+ */
+export class ConvertAppointmentDto {
+  @ApiProperty({
+    description: 'Line the job will run on.',
+    example: '2058858609483202561',
+  })
+  @IsString({ message: 'line_id must be a string' })
+  @IsNotEmpty({ message: 'Select the line this job will run on.' })
+  line_id!: string;
+
+  @ApiProperty({
+    description: 'User responsible for the job — must be mapped to the line.',
+    example: '2058858609483202562',
+  })
+  @IsString({ message: 'assigned_user_id must be a string' })
+  @IsNotEmpty({ message: 'Select the user responsible for this job.' })
+  assigned_user_id!: string;
 }

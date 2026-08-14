@@ -22,6 +22,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import {
+  ConvertAppointmentDto,
   CreateJobDto,
   CreateJobIntakeDto,
   CreateJobRequestDto,
@@ -104,10 +105,12 @@ export class JobController {
   async createFromAppointment(
     @CurrentUser() actor: UserContext,
     @Param('appointmentId', ParseSnowflakeIdPipe) appointmentId: string,
+    @Body() body: ConvertAppointmentDto,
   ) {
     const data = await this.jobService.createFromAppointment(
       appointmentId,
       actor,
+      { line_id: body.line_id, assigned_user_id: body.assigned_user_id },
     );
     const pricing = await this.jobService.resolvePricingForJob(data);
     return { message: 'Job created successfully', data: { ...data, pricing } };

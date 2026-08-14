@@ -81,6 +81,20 @@ export class LineController {
     return { message: 'Line retrieved successfully', data: line };
   }
 
+  @Get(':id/users')
+  @ApiOperation({
+    summary: 'Users assigned to this line',
+    description:
+      'Active users mapped to the line via user_line_mappings — the candidates a job running on this line can be assigned to. A line with no mapped users returns an empty list.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Line snowflake ID' })
+  @ApiResponse({ status: 200, description: 'Users retrieved successfully.' })
+  @ApiResponse({ status: 404, description: 'Line not found.' })
+  async findUsers(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const users = await this.lineService.findAssignableUsers(id);
+    return { message: 'Line users retrieved successfully', data: users };
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update line details' })
   @ApiParam({ name: 'id', type: String, description: 'Line snowflake ID' })

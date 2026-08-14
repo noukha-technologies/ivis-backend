@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 17;
+export const ALTER_SCHEMA_VERSION = 18;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1249,6 +1249,23 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "source"`,
     );
     await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "assigned_user_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_JOB_ASSIGNED_USER_ID" ON "transaction"."jobs" ("assigned_user_id")`,
+    );
+    // Nullable at the column level because jobs created before assignment
+    // existed have none; the service requires it on every new job.
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_jobs_assigned_user_id') THEN
+          ALTER TABLE "transaction"."jobs"
+            ADD CONSTRAINT "FK_jobs_assigned_user_id"
+            FOREIGN KEY ("assigned_user_id") REFERENCES "core"."users"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "appointment_id" bigint`,
     );
     await queryRunner.query(
@@ -1901,6 +1918,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_JOB_APPOINTMENT_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "assigned_user_id"`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "appointment_id"`,

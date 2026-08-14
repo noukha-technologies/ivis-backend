@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -379,6 +379,18 @@ export class AppointmentService {
 
   async remove(id: string): Promise<void> {
     const appointment = await this.findOne(id);
+
+    // A converted appointment owns a job, and for an online booking the payment
+    // recorded against it. This is a soft delete, so those rows would survive
+    // and keep pointing at a parent the UI no longer shows — the job would go
+    // on being worked while its appointment had vanished. Refuse, and let the
+    // operator delete the job instead if the work genuinely needs undoing.
+    if (appointment.status === AppointmentStatus.CONVERTED) {
+      throw new BadRequestException(
+        'This appointment has been converted to a job and cannot be deleted. Delete the job instead.',
+      );
+    }
+
     const details = await this.buildAuditDetailsForDelete(appointment);
     this.attachAuditDetails(appointment, details);
     appointment.is_deleted = true;

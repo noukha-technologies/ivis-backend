@@ -61,6 +61,18 @@ export class PaymentsService {
   ): Promise<Payments> {
     this.logger.log('Creating payment transaction', PaymentsService.context);
     try {
+      // Idempotency: if a payment already exists for this job, return it.
+      if (createDto.job_id) {
+        const existing = await this.paymentsDao.findByJobId(createDto.job_id);
+        if (existing) {
+          this.logger.log(
+            `Payment already exists for job ${createDto.job_id} — returning existing payment ${existing.id}`,
+            PaymentsService.context,
+          );
+          return existing;
+        }
+      }
+
       const resolved = await this.resolveReferences(createDto);
 
       let paymentsId = createDto.payments_id;

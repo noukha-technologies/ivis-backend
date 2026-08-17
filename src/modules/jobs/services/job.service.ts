@@ -14,7 +14,10 @@ import { getCreatedById } from '../../../common/utils/created-by.util';
 import { OmanTimeZone } from '../../../common/utils/util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { patchAuditContext } from '../../../common/audit/audit-context';
-import { AppointmentStatus } from '../../../common/enums/common.enums';
+import {
+  AppointmentStatus,
+  RopVerificationStatus,
+} from '../../../common/enums/common.enums';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
@@ -225,6 +228,30 @@ export class JobService {
     if (!appt.customer_id) {
       throw new BadRequestException(
         'Enter customer details before converting to a job',
+      );
+    }
+
+    // A job records an inspection of a vehicle that is physically here. The
+    // ANPR capture is the evidence it arrived and the plate was read at the
+    // lane; without one, a booking made days ago could become a job for a car
+    // that never turned up. Online bookings are the risk — they exist in the
+    // queue long before arrival — so this is enforced here rather than relying
+    // on the UI hiding a button.
+    if (!appt.anpr_capture_id) {
+      throw new BadRequestException(
+        'The vehicle has not been captured at a lane yet. Wait for the ANPR reading before converting.',
+      );
+    }
+
+    // ROP is the government record for the vehicle and its owner. Converting
+    // before it is Fetched would start an inspection on unverified details,
+    // and the result is submitted back to ROP under them.
+    const ropStatus = appt.ropVerification?.fetch_status;
+    if (ropStatus !== RopVerificationStatus.VALIDATED) {
+      throw new BadRequestException(
+        ropStatus === RopVerificationStatus.FAILED
+          ? 'ROP verification failed for this vehicle. Resolve it before converting to a job.'
+          : 'ROP verification is still pending. Wait for it to complete before converting to a job.',
       );
     }
 

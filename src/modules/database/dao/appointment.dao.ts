@@ -18,6 +18,9 @@ export class AppointmentDao
 {
   private static readonly detailRelations = {
     anprCapture: true,
+    // Loaded because converting to a job requires a Fetched ROP verification —
+    // see JobService.createFromAppointment.
+    ropVerification: true,
     customer: { vehicleRecord: true },
     vehicleRecord: { vehicleMaster: true },
     centre: true,
@@ -63,6 +66,10 @@ export class AppointmentDao
       .leftJoinAndSelect('appointment.vehicleRecord', 'vehicleRecord')
       .leftJoinAndSelect('vehicleRecord.vehicleMaster', 'vehicleMaster')
       .leftJoinAndSelect('appointment.anprCapture', 'anprCapture')
+      // The list needs this so the UI can show why an appointment is not yet
+      // convertible, rather than letting the operator reach the final step and
+      // be refused there.
+      .leftJoinAndSelect('appointment.ropVerification', 'ropVerification')
       .leftJoinAndSelect('appointment.centre', 'centre')
       .leftJoinAndSelect('appointment.line', 'line');
 

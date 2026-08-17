@@ -9,6 +9,7 @@ export interface IPaymentsDao {
   merge(entity: Payments, entityLike: DeepPartial<Payments>): Payments;
   findActiveById(id: string): Promise<Payments | null>;
   findByPaymentsId(paymentsId: number): Promise<Payments | null>;
+  findByJobId(jobId: string): Promise<Payments | null>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Payments>>;
   getNextPaymentsId(): Promise<number>;
 }

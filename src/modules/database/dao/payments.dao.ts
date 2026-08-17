@@ -53,6 +53,14 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     });
   }
 
+  async findByJobId(jobId: string): Promise<Payments | null> {
+    return this.findOne({
+      where: { job_id: jobId, is_deleted: false },
+      relations: PaymentsDao.detailRelations,
+      order: { created_at: 'ASC' },
+    });
+  }
+
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Payments>> {

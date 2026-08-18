@@ -1,25 +1,21 @@
+import { toLocalOmanDigits } from '../utils/oman-phone.util';
+
 /**
- * Normalize an Oman phone number to the canonical `+968 XXXXXXXX` form.
+ * Normalize an Oman phone number to the bare 8-digit local form IVIS stores.
  *
- * Accepts whatever the operator typed — spaces, dashes, a `+968`/`00968`/`968`
- * country code or a leading `0` — and reduces it to the 8-digit national number,
- * then re-applies the `+968 ` prefix. If the result is not a valid 8-digit Oman
- * number the input is returned unchanged so validation can reject it.
+ * Accepts whatever arrives — spaces, dashes, a `+968`/`00968`/`968` country
+ * code or a leading `0`. If the result is not a valid 8-digit Oman number the
+ * input is returned trimmed but unchanged, so validation rejects it with a
+ * message about the number rather than silently storing something else.
+ *
+ * This used to re-apply a `+968 ` prefix, which was the odd one out: every
+ * other writer (ANPR/ROP enrichment, the appointment ingest, the walk-in and
+ * job forms) stores 8 bare digits, and the UI validates 8 digits. A booking
+ * whose customer came through this path was therefore stored as
+ * `+968 93472815` and then rejected by the very form meant to edit it. The
+ * delegation below is deliberate — one canonical form, one implementation.
  */
 export function normalizeOmanPhone(value: unknown): unknown {
   if (typeof value !== 'string') return value;
-
-  let digits = value.replace(/\D/g, ''); // strip +, spaces, dashes, etc.
-
-  // Drop the country code in any of its common forms.
-  if (digits.startsWith('00968')) digits = digits.slice(5);
-  else if (digits.startsWith('968') && digits.length > 8)
-    digits = digits.slice(3);
-
-  // Drop a stray leading zero (e.g. 091234567).
-  if (digits.length === 9 && digits.startsWith('0')) digits = digits.slice(1);
-
-  if (digits.length !== 8) return value.trim();
-
-  return `+968 ${digits}`;
+  return toLocalOmanDigits(value) ?? value.trim();
 }

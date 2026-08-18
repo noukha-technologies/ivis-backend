@@ -40,12 +40,27 @@ interface RopMockApiVehicle {
   vehicleColor?: string;
   vehicleType?: string;
   vehicleCategory?: string;
+  insurance?: string;
+  insurancePolicyNo?: string;
+  insuranceExpiry?: string;
+  regExpiry?: string;
 }
 
 interface RopMockApiResponse {
   success: boolean;
   message?: string;
   data?: RopMockApiVehicle;
+}
+
+/**
+ * Parses a ROP `YYYY-MM-DD` expiry. Returns undefined for anything else, so a
+ * blank or malformed value leaves the column null rather than storing an
+ * Invalid Date that would read as a real expiry downstream.
+ */
+function parseRopDate(value: string | undefined): Date | undefined {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value.trim())) return undefined;
+  const parsed = new Date(`${value.trim()}T00:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
 @Injectable()
@@ -113,6 +128,12 @@ export class RopApiClientService {
         vehicle_model: raw.model,
         reg_no: raw.plateNumber ?? plateNumber,
         chassis_no: raw.vinNumber,
+        insurance: raw.insurance,
+        // ROP quotes the expiry as a plain YYYY-MM-DD day, which `new Date`
+        // reads as midnight UTC. Left as a date-only value rather than being
+        // shifted into Oman time: an expiry is a calendar day, not an instant,
+        // and adding a timezone offset would move it across midnight.
+        reg_expiry: parseRopDate(raw.regExpiry),
         plate_color: raw.plateColour,
         vehicle_color: raw.vehicleColor,
         vehicle_type: raw.vehicleType,

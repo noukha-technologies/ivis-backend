@@ -16,6 +16,7 @@ import {
 import { JobIntakeResult } from '../../../common/interfaces/job.interface';
 
 import { AppLogger } from '../../../common/logger/app.logger';
+import { toLocalOmanDigits } from '../../../common/utils/oman-phone.util';
 import {
   DatabaseException,
   ResourceNotFoundException,
@@ -241,7 +242,10 @@ export class JobIntakeService {
     dto: CreateJobIntakeDto,
     createdBy: string,
   ): Promise<Customer> {
-    const phone = dto.phone.trim();
+    // Normalised before the lookup, not just before the write: a number quoted
+    // as +968 XXXXXXXX would otherwise miss the existing customer stored as 8
+    // digits and silently create a duplicate.
+    const phone = toLocalOmanDigits(dto.phone) ?? dto.phone.trim();
     let customer = await this.customerDao.findActiveByPhone(phone);
 
     if (customer) {

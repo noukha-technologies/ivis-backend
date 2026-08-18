@@ -78,15 +78,15 @@ export class CreateAppointmentDto {
   customer_name?: string;
 
   @ApiPropertyOptional({
-    description: 'Customer phone (Oman, stored as +968 XXXXXXXX)',
-    example: '+968 91234567',
+    description: 'Customer phone (Oman, stored as 8 digits)',
+    example: '91234567',
   })
   @IsOptional()
   @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString({ message: 'customer_phone must be a string' })
-  @Matches(/^\+968\s\d{8}$/, {
+  @Matches(/^\d{8}$/, {
     message:
-      'customer_phone must be a valid 8-digit Oman number (example: +968 91234567)',
+      'customer_phone must be a valid 8-digit Oman number (example: 91234567)',
   })
   customer_phone?: string;
 
@@ -107,15 +107,15 @@ export class CreateAppointmentDto {
   owner_name?: string;
 
   @ApiPropertyOptional({
-    description: 'Vehicle owner phone (Oman, stored as +968 XXXXXXXX)',
-    example: '+968 91234567',
+    description: 'Vehicle owner phone (Oman, stored as 8 digits)',
+    example: '91234567',
   })
   @IsOptional()
   @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString({ message: 'owner_phone must be a string' })
-  @Matches(/^\+968\s\d{8}$/, {
+  @Matches(/^\d{8}$/, {
     message:
-      'owner_phone must be a valid 8-digit Oman number (example: +968 91234567)',
+      'owner_phone must be a valid 8-digit Oman number (example: 91234567)',
   })
   owner_phone?: string;
 
@@ -131,15 +131,15 @@ export class CreateAppointmentDto {
   driver_name?: string;
 
   @ApiPropertyOptional({
-    description: 'Driver phone (Oman, stored as +968 XXXXXXXX)',
-    example: '+968 91234567',
+    description: 'Driver phone (Oman, stored as 8 digits)',
+    example: '91234567',
   })
   @IsOptional()
   @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString({ message: 'driver_phone must be a string' })
-  @Matches(/^\+968\s\d{8}$/, {
+  @Matches(/^\d{8}$/, {
     message:
-      'driver_phone must be a valid 8-digit Oman number (example: +968 91234567)',
+      'driver_phone must be a valid 8-digit Oman number (example: 91234567)',
   })
   driver_phone?: string;
 

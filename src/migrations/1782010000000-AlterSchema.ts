@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 18;
+export const ALTER_SCHEMA_VERSION = 19;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1410,6 +1410,106 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       END $$;
     `);
 
+    // tajdeed_outbox — the durable queue of events owed to the appointment
+    // provider. POST /events returns 202 meaning *queued*, not *applied*, and
+    // a transaction_id is accepted exactly once, so the event (and its id) is
+    // written here BEFORE the first send: that is what lets a retry reuse the
+    // id safely instead of creating a duplicate, and what stops a crash mid
+    // send from losing the event with no record it was ever owed.
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "transaction"."tajdeed_outbox" (
+        "id"               bigint                NOT NULL,
+        "transaction_id"   character varying(64) NOT NULL,
+        "event_type"       character varying(32) NOT NULL,
+        "branch_code"      character varying(16) NOT NULL,
+        "payload"          jsonb                 NOT NULL,
+        "job_id"           bigint,
+        "centre_id"        bigint,
+        "line_id"          bigint,
+        "delivery_status"  character varying(16) NOT NULL DEFAULT 'Pending',
+        "event_status"     character varying(16),
+        "attempt_count"    integer               NOT NULL DEFAULT 0,
+        "next_attempt_at"  TIMESTAMP,
+        "last_error"       text,
+        "accepted_at"      TIMESTAMP,
+        "processed_at"     TIMESTAMP,
+        "created_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
+        "updated_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
+        CONSTRAINT "PK_tajdeed_outbox_id" PRIMARY KEY ("id")
+      )
+    `);
+    // An earlier abandoned attempt left a tajdeed_outbox with a different
+    // shape (attempts/status, no FKs). CREATE TABLE IF NOT EXISTS silently
+    // skips such a table, so every column is also added individually — that
+    // reconciles the stale table and is a no-op on a freshly created one.
+    for (const [column, type] of [
+      ['transaction_id', 'character varying(64)'],
+      ['event_type', 'character varying(32)'],
+      ['branch_code', 'character varying(16)'],
+      ['payload', 'jsonb'],
+      ['job_id', 'bigint'],
+      ['centre_id', 'bigint'],
+      ['line_id', 'bigint'],
+      ['delivery_status', "character varying(16) NOT NULL DEFAULT 'Pending'"],
+      ['event_status', 'character varying(16)'],
+      ['attempt_count', 'integer NOT NULL DEFAULT 0'],
+      ['next_attempt_at', 'TIMESTAMP'],
+      ['last_error', 'text'],
+      ['accepted_at', 'TIMESTAMP'],
+      ['processed_at', 'TIMESTAMP'],
+    ]) {
+      await queryRunner.query(
+        `ALTER TABLE "transaction"."tajdeed_outbox" ADD COLUMN IF NOT EXISTS "${column}" ${type}`,
+      );
+    }
+    // The old attempts/status pair is superseded by attempt_count and the two
+    // separate delivery/event statuses.
+    for (const column of ['attempts', 'status']) {
+      await queryRunner.query(
+        `ALTER TABLE "transaction"."tajdeed_outbox" DROP COLUMN IF EXISTS "${column}"`,
+      );
+    }
+
+    await queryRunner.query(
+      `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_TAJDEED_OUTBOX_TRANSACTION_ID" ON "transaction"."tajdeed_outbox" ("transaction_id")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_TAJDEED_OUTBOX_DRAIN" ON "transaction"."tajdeed_outbox" ("delivery_status", "next_attempt_at")`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_TAJDEED_OUTBOX_JOB_ID" ON "transaction"."tajdeed_outbox" ("job_id")`,
+    );
+    // All three FKs are SET NULL rather than CASCADE: the outbox is an audit
+    // trail of what we told the provider, and that record must survive the
+    // job, centre or line it referred to being removed.
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_tajdeed_outbox_job_id') THEN
+          ALTER TABLE "transaction"."tajdeed_outbox"
+            ADD CONSTRAINT "FK_tajdeed_outbox_job_id"
+            FOREIGN KEY ("job_id") REFERENCES "transaction"."jobs"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_tajdeed_outbox_centre_id') THEN
+          ALTER TABLE "transaction"."tajdeed_outbox"
+            ADD CONSTRAINT "FK_tajdeed_outbox_centre_id"
+            FOREIGN KEY ("centre_id") REFERENCES "master"."centres"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_tajdeed_outbox_line_id') THEN
+          ALTER TABLE "transaction"."tajdeed_outbox"
+            ADD CONSTRAINT "FK_tajdeed_outbox_line_id"
+            FOREIGN KEY ("line_id") REFERENCES "master"."lines"("id") ON DELETE SET NULL;
+        END IF;
+      END $$;
+    `);
+
     // customers: driver details now stored here (driver_phone_number).
     await queryRunner.query(
       `ALTER TABLE "transaction"."customers" ADD COLUMN IF NOT EXISTS "driver_name" character varying(128)`,
@@ -1875,6 +1975,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     // null, and re-tightening would fail (or destroy data) on those rows.
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."job_images" CASCADE`,
+    );
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "transaction"."tajdeed_outbox"`,
     );
     await queryRunner.query(
       `DROP TABLE IF EXISTS "transaction"."appointment_bookings"`,

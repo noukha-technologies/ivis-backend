@@ -127,8 +127,15 @@ export class AnprOrchestrationService {
       const ropResult = onFile
         ? {
             owner_name: onFile.owner_name,
+            owner_phone: onFile.owner_phone,
+            driver_name: onFile.driver_name,
+            driver_phone: onFile.driver_phone,
+            mulkiya_id: onFile.mulkiya_id,
             vehicle_make: onFile.vehicle_make,
             vehicle_model: onFile.vehicle_model,
+            plate_color: onFile.plate_color,
+            vehicle_color: onFile.vehicle_color,
+            vehicle_type: onFile.vehicle_type,
             reg_no: onFile.reg_no,
             chassis_no: onFile.chassis_no,
             insurance: onFile.insurance,
@@ -180,8 +187,19 @@ export class AnprOrchestrationService {
             await this.ropVerificationDao.getNextRopVerificationId(),
           anpr_capture_id: anprCapture.id,
           owner_name: ropResult?.owner_name,
+          // The owner/driver/mulkiya and colour fields were previously mapped
+          // by the client but never written here, so they sat in raw_response
+          // while their own columns stayed empty — and every screen reading
+          // the columns showed blanks for data we already had.
+          owner_phone: ropResult?.owner_phone,
+          driver_name: ropResult?.driver_name,
+          driver_phone: ropResult?.driver_phone,
+          mulkiya_id: ropResult?.mulkiya_id,
           vehicle_make: ropResult?.vehicle_make,
           vehicle_model: ropResult?.vehicle_model,
+          plate_color: ropResult?.plate_color,
+          vehicle_color: ropResult?.vehicle_color,
+          vehicle_type: ropResult?.vehicle_type,
           reg_no: ropResult?.reg_no ?? plate,
           chassis_no: ropResult?.chassis_no,
           insurance: ropResult?.insurance,

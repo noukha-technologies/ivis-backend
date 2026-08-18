@@ -3,7 +3,11 @@ import { AppLogger } from '../../logger/app.logger';
 import { OnlineAppointmentResult } from '../../interfaces/common.interfaces';
 import {
   APPOINTMENT_BRANCHES_PATH,
+  APPOINTMENT_DUPLICATE_CODE,
+  APPOINTMENT_EVENTS_PATH,
   APPOINTMENT_SUCCESS_CODE,
+  RECONCILE_BATCH_LIMIT,
+  REQUEST_TIMEOUT_MS,
   appointmentApiKey,
   appointmentBaseUrl,
 } from './appointment.constants';
@@ -13,7 +17,11 @@ import {
   AppointmentEnvelope,
   BookingListResponse,
   BranchListResponse,
+  EventStatusResult,
+  PushOutcome,
+  ReconcileResponse,
   SingleBookingResponse,
+  TajdeedEventEnvelope,
 } from './appointment.types';
 
 /**
@@ -141,6 +149,158 @@ export class AppointmentApiClientService {
   }
 
   /**
+   * Pushes one event. Unlike the read path this reports a three-way outcome,
+   * because the caller must be able to tell "delivered" from "try again" from
+   * "never retry" — see PushOutcome.
+   *
+   * E0007 (duplicate transaction_id) counts as SUCCESS: it means the provider
+   * already holds this event, so a retry that races an earlier accepted send
+   * settles rather than looping. It says nothing about whether processing
+   * succeeded — that is what fetchEventStatus is for.
+   */
+  async pushEvent(envelope: TajdeedEventEnvelope): Promise<PushOutcome> {
+    const apiKey = appointmentApiKey();
+    if (!apiKey) {
+      return {
+        ok: false,
+        retryable: false,
+        code: null,
+        reason: 'APPOINTMENT_API_KEY is not configured',
+      };
+    }
+
+    try {
+      const res = await fetch(
+        `${appointmentBaseUrl()}${APPOINTMENT_EVENTS_PATH}`,
+        {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(envelope),
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        },
+      );
+
+      const body = (await res
+        .json()
+        .catch(() => null)) as AppointmentEnvelope | null;
+      const code = body?.status ?? null;
+      const message = body?.message ?? `HTTP ${res.status}`;
+
+      if (res.ok && code === APPOINTMENT_SUCCESS_CODE) {
+        return { ok: true, duplicate: false };
+      }
+
+      if (code === APPOINTMENT_DUPLICATE_CODE) {
+        return { ok: true, duplicate: true };
+      }
+
+      // 429 and 5xx are transient by contract; everything else in the 4xx
+      // range will fail identically until the payload or credential changes,
+      // so retrying it would be an infinite loop against a fixed answer.
+      if (res.status === 429 || res.status >= 500) {
+        return {
+          ok: false,
+          retryable: true,
+          reason: `${code ?? res.status}: ${message}`,
+        };
+      }
+
+      return {
+        ok: false,
+        retryable: false,
+        code,
+        reason: `${code ?? res.status}: ${message}`,
+      };
+    } catch (err) {
+      // Timeouts and connection failures never reached the provider (or we
+      // cannot know), so the same transaction_id must be retried.
+      return {
+        ok: false,
+        retryable: true,
+        reason: (err as Error).message,
+      };
+    }
+  }
+
+  /** The provider's outcome for one pushed event. */
+  async fetchEventStatus(
+    transactionId: string,
+  ): Promise<EventStatusResult | null> {
+    return this.get<EventStatusResult>(
+      `${APPOINTMENT_EVENTS_PATH}/${encodeURIComponent(transactionId)}/status`,
+    );
+  }
+
+  /**
+   * Bulk status probe for sweeping the outbox. The provider caps this at 100
+   * ids per call; more is E0004, so the caller must chunk.
+   */
+  async reconcile(
+    transactionIds: string[],
+  ): Promise<ReconcileResponse['results'] | null> {
+    if (transactionIds.length === 0) return [];
+
+    const body = await this.post<ReconcileResponse>('/reconcile', {
+      transaction_ids: transactionIds.slice(0, RECONCILE_BATCH_LIMIT),
+    });
+    return body?.results ?? null;
+  }
+
+  /**
+   * Shared POST for the read-shaped endpoints (reconcile). Mirrors get()'s
+   * null-on-failure contract; pushEvent deliberately does NOT use this,
+   * because an event needs the retry distinction that null erases.
+   */
+  private async post<T extends AppointmentEnvelope>(
+    path: string,
+    payload: unknown,
+  ): Promise<T | null> {
+    const apiKey = appointmentApiKey();
+    if (!apiKey) {
+      this.logger.warn(
+        `APPOINTMENT_API_KEY is not configured — skipping POST ${path}`,
+        AppointmentApiClientService.context,
+      );
+      return null;
+    }
+
+    try {
+      const res = await fetch(`${appointmentBaseUrl()}${path}`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+
+      const body = (await res.json().catch(() => null)) as T | null;
+
+      if (!res.ok || body?.status !== APPOINTMENT_SUCCESS_CODE) {
+        this.logger.warn(
+          `Appointment API POST ${path} → HTTP ${res.status} ${body?.status ?? ''} ${body?.message ?? ''}`.trim(),
+          AppointmentApiClientService.context,
+        );
+        return null;
+      }
+
+      return body;
+    } catch (err) {
+      this.logger.warn(
+        `Appointment API POST ${path} failed: ${(err as Error).message}`,
+        AppointmentApiClientService.context,
+      );
+      return null;
+    }
+  }
+
+  /**
    * Shared GET: bearer auth, query building and envelope decoding. Returns
    * null on 404 (absent resource), on any non-success provider code, and on
    * transport failure — never throws.
@@ -165,6 +325,9 @@ export class AppointmentApiClientService {
           Accept: 'application/json',
           Authorization: `Bearer ${apiKey}`,
         },
+        // Without this a hung provider hangs the caller indefinitely, which on
+        // the ingest path would stall the whole poll cycle.
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
 
       if (res.status === 404) {

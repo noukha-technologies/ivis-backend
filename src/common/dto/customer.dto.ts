@@ -1,4 +1,6 @@
 import { IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { normalizeOmanPhone } from '../shared/phone.util';
 import {
   ApiProperty,
   ApiPropertyOptional,
@@ -26,9 +28,14 @@ export class CreateCustomerDto {
   owner_name!: string;
 
   @ApiProperty({
-    description: 'Owner / customer contact number',
-    example: '+968 91000000',
+    description: 'Owner / customer contact number (Oman, stored as 8 digits)',
+    example: '91000000',
   })
+  // Normalised here rather than in each service: ROP, the appointment ingest
+  // and the operator forms all quote numbers differently, and a customer whose
+  // phone is stored in any other shape is later rejected by the 8-digit
+  // validation on the very form meant to edit it.
+  @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString()
   @IsNotEmpty()
   owner_phone_number!: string;
@@ -66,10 +73,11 @@ export class CreateCustomerDto {
   driver_name?: string;
 
   @ApiPropertyOptional({
-    description: 'Driver contact number',
-    example: '+968 94000000',
+    description: 'Driver contact number (Oman, stored as 8 digits)',
+    example: '94000000',
   })
   @IsOptional()
+  @Transform(({ value }) => normalizeOmanPhone(value))
   @IsString()
   driver_phone_number?: string;
 

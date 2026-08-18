@@ -17,10 +17,12 @@ import { patchAuditContext } from '../../../common/audit/audit-context';
 import {
   AppointmentStatus,
   RopVerificationStatus,
+  TajdeedEventType,
 } from '../../../common/enums/common.enums';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { AnprCaptureDao } from '../../database/dao/anpr-capture.dao';
 import { AppointmentDao } from '../../database/dao/appointment.dao';
+import { AppointmentBookingDao } from '../../database/dao/appointment-booking.dao';
 import { CameraDao } from '../../database/dao/camera.dao';
 import { CentreDao } from '../../database/dao/centre.dao';
 import { ChargeDao } from '../../database/dao/charge.dao';
@@ -34,6 +36,9 @@ import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { PaymentApiClientService } from '../../../common/integrations/payment/payment-api-client.service';
 import { RopApiClientService } from '../../../common/integrations/rop/rop-api-client.service';
 import { InfileGeneratorService } from './infile-generator.service';
+import { TajdeedOutboxService } from '../../transactions/tajdeed-events/services/tajdeed-outbox.service';
+import { LaneStatusService } from '../../transactions/tajdeed-events/services/lane-status.service';
+import { buildInspectionResultPayload } from '../../../common/integrations/appointments/inspection-result.mapper';
 import { Job } from '../../database/entity/job.entity';
 import { Charge } from '../../database/entity/charge.entity';
 
@@ -69,6 +74,7 @@ export class JobService {
     private readonly customerDao: CustomerDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly appointmentDao: AppointmentDao,
+    private readonly bookingDao: AppointmentBookingDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly chargeDao: ChargeDao,
     private readonly centreDao: CentreDao,
@@ -80,6 +86,8 @@ export class JobService {
     private readonly paymentApi: PaymentApiClientService,
     private readonly ropApi: RopApiClientService,
     private readonly infileGenerator: InfileGeneratorService,
+    private readonly outbox: TajdeedOutboxService,
+    private readonly laneStatus: LaneStatusService,
     private readonly logger: AppLogger,
   ) {}
 
@@ -106,10 +114,98 @@ export class JobService {
       job.vehicleRecord?.plate_number ?? '',
       job.overall_result ?? 'Passed',
     );
-    return this.update(id, {
+    const submitted = await this.update(id, {
       status: 'Completed',
       completed_at: new Date().toISOString(),
     });
+
+    // Order matters: the result is recorded against the lane while it is still
+    // occupied, and only then is the lane released. Both queue in creation
+    // order, so the outbox drains them the same way.
+    await this.queueInspectionResult(job);
+    await this.laneStatus.pushLaneChange(submitted, 'IDLE');
+
+    return submitted;
+  }
+
+  /**
+   * Queues the inspection result for the appointment provider.
+   *
+   * Queued, never sent inline: the provider completing a booking is their work
+   * to do asynchronously, and an outage on their side must not fail the
+   * operator's Submit. Every failure here is swallowed for the same reason —
+   * the job IS submitted, and losing the push is a delivery problem for the
+   * outbox to surface, not grounds for rejecting a completed inspection.
+   */
+  private async queueInspectionResult(job: Job): Promise<void> {
+    try {
+      // Only bookings the provider already knows about. A walk-in has no
+      // booking on their side, so an event for it can only ever come back
+      // FAILED — there is nothing there to match it to.
+      if (!job.appointment_id) return;
+
+      const appointment = await this.appointmentDao.findActiveById(
+        job.appointment_id,
+      );
+      const bookingId = appointment?.provider_booking_id?.trim();
+      if (!bookingId) return;
+
+      if (!job.test_results) {
+        this.logger.warn(
+          `Job ${job.id} submitted with no OUT-file results — nothing to push to the provider`,
+          JobService.context,
+        );
+        return;
+      }
+
+      const centre = job.centre_id
+        ? await this.centreDao.findActiveById(job.centre_id)
+        : null;
+      const branchCode = centre?.provider_branch_code?.trim();
+      if (!branchCode) return;
+
+      // plate_type is not on the appointment — it lives on the raw booking the
+      // provider sent us. Without it a plate shared by two plate types matches
+      // two vehicles and the event fails rather than guessing, so it is worth
+      // the extra read.
+      const booking = await this.bookingDao.findByBookingId(bookingId);
+      const line = job.line_id
+        ? await this.lineDao.findActiveById(job.line_id)
+        : null;
+
+      const payload = buildInspectionResultPayload({
+        sections: job.test_results as Record<string, Record<string, string>>,
+        overallResult: job.overall_result,
+        plateNumber:
+          job.vehicleRecord?.plate_number ?? booking?.plate_number ?? '',
+        plateType: booking?.plate_type ?? null,
+        laneId: line?.provider_lane_id ?? appointment?.assigned_lane ?? null,
+        jobNumber: job.job_id,
+      });
+
+      if (!payload.plate_number) {
+        this.logger.warn(
+          `Job ${job.id} has no plate number — cannot push an inspection result`,
+          JobService.context,
+        );
+        return;
+      }
+
+      await this.outbox.enqueue({
+        eventType: TajdeedEventType.INSPECTION_RESULT,
+        branchCode,
+        payload,
+        jobId: job.id,
+        centreId: job.centre_id ?? null,
+        lineId: job.line_id ?? null,
+      });
+    } catch (err) {
+      this.logger.error(
+        `Failed to queue inspection result for job ${job.id}: ${(err as Error).message}`,
+        (err as Error).stack,
+        JobService.context,
+      );
+    }
   }
 
   /** Redo Test — flag the job's overall result as Redo. */
@@ -124,12 +220,19 @@ export class JobService {
   async startJob(id: string): Promise<Job> {
     const job = await this.findOne(id);
     const { name, path } = await this.infileGenerator.generateForJob(job);
-    return this.update(id, {
+    const started = await this.update(id, {
       status: 'In Progress',
       infile_name: name,
       infile_path: path,
       started_at: new Date().toISOString(),
     });
+
+    // The vehicle is physically on the lane now. Told to the provider as it
+    // happens rather than waiting for the 5-minute snapshot, which would leave
+    // their lane board showing this lane free while a car occupies it.
+    await this.laneStatus.pushLaneChange(started, 'OCCUPIED');
+
+    return started;
   }
 
   async create(createDto: CreateJobDto, actor: UserContext): Promise<Job> {
@@ -503,6 +606,36 @@ export class JobService {
       );
       throw new BadRequestException(
         'IN file could not be read from disk — it may have been moved or the share is unavailable.',
+      );
+    }
+  }
+
+  /**
+   * Raw OUT file contents for the Test & Submit preview modal.
+   *
+   * Reads from disk rather than replaying the parsed results so the operator
+   * sees exactly what the rig wrote — the parsed view is already on the page,
+   * and a parse that silently dropped a section is only visible in the raw text.
+   */
+  async getOutFileContent(id: string): Promise<string> {
+    const job = await this.findOne(id);
+
+    if (!job.outfile_path) {
+      throw new BadRequestException(
+        'OUT file has not been received yet — the lane has not written a result for this job.',
+      );
+    }
+
+    try {
+      return await fs.readFile(job.outfile_path, 'utf8');
+    } catch (error) {
+      this.logger.error(
+        `Failed to read OUT file at ${job.outfile_path}: ${(error as Error).message}`,
+        (error as Error).stack,
+        JobService.context,
+      );
+      throw new BadRequestException(
+        'OUT file could not be read from disk — it may have been moved or the share is unavailable.',
       );
     }
   }

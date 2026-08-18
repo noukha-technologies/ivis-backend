@@ -44,14 +44,19 @@ export class JobDao extends Repository<Job> implements IJobDao {
    * wrong lane.
    */
   findActiveByLineId(lineId: string): Promise<Job[]> {
-    return this.createQueryBuilder('job')
-      .where('job.line_id = :lineId', { lineId })
-      .andWhere('job.is_deleted = false')
-      .andWhere('job.status IN (:...statuses)', {
-        statuses: ['Pending', 'In Progress'],
-      })
-      .orderBy('job.created_at', 'DESC')
-      .getMany();
+    return (
+      this.createQueryBuilder('job')
+        // Joined for the lane-status heartbeat, which reports the plate of the
+        // vehicle occupying the lane.
+        .leftJoinAndSelect('job.vehicleRecord', 'vehicleRecord')
+        .where('job.line_id = :lineId', { lineId })
+        .andWhere('job.is_deleted = false')
+        .andWhere('job.status IN (:...statuses)', {
+          statuses: ['Pending', 'In Progress'],
+        })
+        .orderBy('job.created_at', 'DESC')
+        .getMany()
+    );
   }
 
   async findByJobId(jobId: number): Promise<Job | null> {

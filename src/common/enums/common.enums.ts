@@ -68,6 +68,42 @@ export enum RopVerificationStatus {
   FAILED = 'Failed',
 }
 
+/** The two event types the provider's POST /events accepts. */
+export enum TajdeedEventType {
+  INSPECTION_RESULT = 'INSPECTION_RESULT',
+  LANE_STATUS = 'LANE_STATUS',
+}
+
+/**
+ * Whether the event reached the provider — OUR side of the exchange.
+ *
+ * Deliberately separate from TajdeedEventStatus: delivery answers "did it
+ * land", the provider's status answers "did it apply". A row can be Accepted
+ * and still FAILED, which is exactly the case an operator must act on, and
+ * collapsing the two would hide it.
+ */
+export enum TajdeedDeliveryStatus {
+  /** Enqueued, not yet sent (or waiting on next_attempt_at). */
+  PENDING = 'Pending',
+  /** The provider returned 202, or E0007 meaning it already held the event. */
+  ACCEPTED = 'Accepted',
+  /** Accepted AND the provider confirmed it applied it. Terminal, success. */
+  PROCESSED = 'Processed',
+  /** The provider rejected it during processing. Terminal; needs a new event. */
+  FAILED = 'Failed',
+  /** Non-retryable 4xx on send — the payload or credential is wrong. Terminal. */
+  ABANDONED = 'Abandoned',
+}
+
+/** The provider's own processing status, read back from /events/:id/status. */
+export enum TajdeedEventStatus {
+  RECEIVED = 'RECEIVED',
+  PROCESSING = 'PROCESSING',
+  PROCESSED = 'PROCESSED',
+  FAILED = 'FAILED',
+  NOT_FOUND = 'NOT_FOUND',
+}
+
 export enum AppointmentTypes {
   PAID = 'Paid',
   UNPAID = 'Unpaid',

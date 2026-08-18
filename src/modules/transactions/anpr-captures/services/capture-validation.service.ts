@@ -189,11 +189,20 @@ export class CaptureValidationService {
     if (walkInMatch) {
       const patch: {
         anpr_capture_id: string;
+        rop_verification_id?: string;
         vehicle_record_id?: string;
         customer_id?: string;
         line_id?: string;
         centre_id?: string;
       } = { anpr_capture_id: capture.id };
+      // Job creation gates on the appointment's own ROP link, so without this
+      // the verification exists and reads Fetched while the appointment still
+      // looks unverified — the row says "Ready to Convert" and the convert
+      // step then refuses it. Guarded because this method is also called
+      // without a ROP row, where there is nothing to link yet.
+      if (rop) {
+        patch.rop_verification_id = rop.id;
+      }
       // An ingested booking knows its centre but not which lane the car would
       // use — that is only known now, on arrival.
       if (capture.line_id && !walkInMatch.line_id) {
@@ -222,12 +231,19 @@ export class CaptureValidationService {
     if (existing) {
       // Keep the appointment pointed at the (possibly newly created) record /
       // pre-filled ROP customer.
-      const patch: { vehicle_record_id?: string; customer_id?: string } = {};
+      const patch: {
+        vehicle_record_id?: string;
+        customer_id?: string;
+        rop_verification_id?: string;
+      } = {};
       if (vehicleRecord && existing.vehicle_record_id !== vehicleRecord.id) {
         patch.vehicle_record_id = vehicleRecord.id;
       }
       if (customerId && !existing.customer_id) {
         patch.customer_id = customerId;
+      }
+      if (rop && existing.rop_verification_id !== rop.id) {
+        patch.rop_verification_id = rop.id;
       }
       if (Object.keys(patch).length > 0) {
         await this.appointmentDao.update(existing.id, patch);
@@ -263,6 +279,7 @@ export class CaptureValidationService {
       id: generateSnowflakeId(),
       appointment_id: await this.appointmentDao.getNextAppointmentId(),
       anpr_capture_id: capture.id,
+      rop_verification_id: rop?.id ?? null,
       customer_id: customerId ?? null,
       vehicle_record_id: vehicleRecord?.id ?? null,
       centre_id: line?.centre_id ?? null,

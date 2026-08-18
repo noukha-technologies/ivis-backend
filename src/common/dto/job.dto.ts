@@ -432,3 +432,30 @@ export class ConvertAppointmentDto {
   @IsNotEmpty({ message: 'Select the user responsible for this job.' })
   assigned_user_id!: string;
 }
+
+/**
+ * Request to generate a synthetic Admin PC OUT file for a plate.
+ *
+ * Development only — the real file comes from the inspection rig. See
+ * OutfileGeneratorService for why this exists and why it is refused in
+ * production.
+ */
+export class GenerateOutfileDto {
+  @ApiProperty({
+    description: 'Plate to generate the result for, e.g. 3157BCD.',
+    example: '3157BCD',
+  })
+  @IsString({ message: 'plate_number must be a string' })
+  @IsNotEmpty({ message: 'plate_number is required' })
+  plate_number!: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Overall outcome to simulate. 'fail' fails the brake rig, which drives REJECTED and the provider's 14-day re-inspection window.",
+    enum: ['pass', 'fail'],
+    default: 'pass',
+  })
+  @IsOptional()
+  @IsIn(['pass', 'fail'], { message: "result must be 'pass' or 'fail'" })
+  result?: 'pass' | 'fail';
+}

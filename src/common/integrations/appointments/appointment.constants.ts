@@ -9,7 +9,7 @@ import { isProduction } from '../../config/env.config';
 
 /**
  * Default base URL when APPOINTMENT_API_BASE_URL is unset. Deliberately the
- * STAGING host: an unconfigured environment must fail safe toward the sandbox
+ * STAGING host: an unconfigured environment must fail safe toward the SBX test
  * branch, never toward the live production queues.
  */
 export const APPOINTMENT_DEFAULT_BASE_URL =
@@ -20,6 +20,36 @@ export const APPOINTMENT_EVENTS_PATH = '/events';
 
 /** Provider success code. Every response carries `status`; E0000 means success. */
 export const APPOINTMENT_SUCCESS_CODE = 'E0000';
+
+/**
+ * Duplicate transaction_id. A SAFE outcome, not a failure: it means the event
+ * already reached the provider, so the push should settle rather than retry.
+ * It says nothing about whether processing succeeded.
+ */
+export const APPOINTMENT_DUPLICATE_CODE = 'E0007';
+
+/**
+ * Caps how long any provider call may hang. Without it a stalled connection
+ * blocks the caller forever — on the ingest poller that would wedge the whole
+ * cycle, and on the outbox drain it would hold the claim past its backoff.
+ */
+export const REQUEST_TIMEOUT_MS = 15_000;
+
+/** The provider refuses more than 100 transaction ids per reconcile call. */
+export const RECONCILE_BATCH_LIMIT = 100;
+
+/**
+ * Retry backoff for a pushed event, in seconds — the provider's published
+ * schedule (immediate, 10s, 30s, 60s, then every 5 minutes). The last entry
+ * repeats for all further attempts rather than escalating, so a long provider
+ * outage settles into a steady 5-minute poll instead of backing off forever.
+ */
+export const PUSH_RETRY_BACKOFF_SECONDS = [0, 10, 30, 60, 300];
+
+export function nextRetryDelayMs(attemptCount: number): number {
+  const index = Math.min(attemptCount, PUSH_RETRY_BACKOFF_SECONDS.length - 1);
+  return PUSH_RETRY_BACKOFF_SECONDS[index] * 1000;
+}
 
 /** Resolved base URL with any trailing slash removed. */
 export function appointmentBaseUrl(): string {

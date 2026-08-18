@@ -3,6 +3,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AppLogger } from '../../../common/logger/app.logger';
 import { getUploadRoot } from '../../../common/utils/file-storage.util';
+import { buildInFileName } from '../../../common/shared/files/inspection-file-name.util';
 import { Job } from '../../database/entity/job.entity';
 
 /** Tests requested in the IN file (static for now — mirrors the sample). */
@@ -64,7 +65,7 @@ export class InfileGeneratorService {
       job.adminPc?.in_file_path?.trim() ||
       process.env.IN_FILE_DIR?.trim() ||
       path.join(getUploadRoot(), 'in-files');
-    const name = `IN_JOB_${job.job_id}_${plate.replace(/[^A-Za-z0-9-]/g, '')}.data`;
+    const name = buildInFileName(plate);
     const fullPath = path.join(dir, name);
 
     try {

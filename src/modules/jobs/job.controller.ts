@@ -26,6 +26,7 @@ import {
   CreateJobDto,
   CreateJobIntakeDto,
   CreateJobRequestDto,
+  GenerateOutfileDto,
   UpdateJobDto,
 } from '../../common/dto/job.dto';
 import { isLegacyJobCreate } from '../../common/validators/job-create-request.validator';
@@ -37,6 +38,7 @@ import { getCreatedById } from '../../common/utils/created-by.util';
 import { JobService } from './services/job.service';
 import { JobIntakeService } from './services/job-intake.service';
 import { JobImageService } from './services/job-image.service';
+import { OutfileGeneratorService } from './services/outfile-generator.service';
 import type { JobImageSource } from '../database/entity/job-image.entity';
 
 type UploadedImage = { buffer: Buffer; mimetype: string; size: number };
@@ -48,6 +50,7 @@ export class JobController {
     private readonly jobService: JobService,
     private readonly jobIntakeService: JobIntakeService,
     private readonly jobImageService: JobImageService,
+    private readonly outfileGenerator: OutfileGeneratorService,
   ) {}
 
   @Post()
@@ -164,6 +167,14 @@ export class JobController {
     return { message: 'IN file retrieved', data };
   }
 
+  @Get(':id/out-file')
+  @ApiOperation({ summary: 'Retrieve raw OUT file contents for a job' })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async outFile(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.jobService.getOutFileContent(id);
+    return { message: 'OUT file retrieved', data };
+  }
+
   @Post(':id/images')
   @ApiOperation({ summary: 'Upload or capture a photo for a job' })
   @ApiConsumes('multipart/form-data')
@@ -198,6 +209,24 @@ export class JobController {
   ) {
     await this.jobImageService.removeImage(id, imageId);
     return { message: 'Job image deleted successfully', data: null };
+  }
+
+  @Post('dev/outfile')
+  @ApiOperation({
+    summary: 'Generate a synthetic OUT file for a plate (development only)',
+    description:
+      'Writes a rig-shaped result file into the Admin PC OUT folder, where the normal watcher picks it up within ~5s. Exists because the inspection rig is not present outside a centre. Refused in production.',
+  })
+  @ApiResponse({ status: 201, description: 'OUT file written' })
+  async generateOutfile(@Body() dto: GenerateOutfileDto) {
+    const data = await this.outfileGenerator.generate(
+      dto.plate_number,
+      dto.result ?? 'pass',
+    );
+    return {
+      message: `OUT file generated for ${data.plate} (${data.result})`,
+      data,
+    };
   }
 
   @Post(':id/start')

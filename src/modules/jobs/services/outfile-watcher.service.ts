@@ -7,6 +7,10 @@ import {
   deriveOverallResult,
   parseIni,
 } from '../../../common/shared/files/ini-parser.util';
+import {
+  normalizePlateForFileName,
+  parseOutFileName,
+} from '../../../common/shared/files/inspection-file-name.util';
 import { AdminPcDao } from '../../database/dao/admin-pc.dao';
 import { JobDao } from '../../database/dao/job.dao';
 
@@ -70,16 +74,58 @@ export class OutfileWatcherService {
           continue;
         }
 
-        const job = await this.jobDao
+        // <PLATE>-outfile-<YYYYMMDD>.res.txt is the agreed convention, and the
+        // name is checked against the file's own LicenceNo when it follows it.
+        // A mismatch means the file was renamed or copied over another and its
+        // result would be attributed to the wrong vehicle, so it is refused.
+        //
+        // A non-conforming name is NOT refused: the rig writes these files and
+        // does not always follow the convention (the vendor's own samples do
+        // not), and discarding a real inspection result over a filename would
+        // lose work that cannot be recovered. It is logged instead.
+        const named = parseOutFileName(file);
+        if (named) {
+          if (named.plate !== normalizePlateForFileName(plate)) {
+            this.logger.warn(
+              `OUT file ${file} is named for plate ${named.plate} but contains ${plate} — skipped, resolve the mismatch before it is attributed`,
+              OutfileWatcherService.context,
+            );
+            this.processed.add(key);
+            continue;
+          }
+        } else {
+          this.logger.log(
+            `OUT file ${file} does not follow <PLATE>-outfile-<YYYYMMDD>.res.txt — processed on its LicenceNo (${plate})`,
+            OutfileWatcherService.context,
+          );
+        }
+
+        const candidates = await this.jobDao
           .createQueryBuilder('job')
           .leftJoinAndSelect('job.vehicleRecord', 'vr')
           .where('job.is_deleted = false')
           .andWhere('job.status = :status', { status: 'In Progress' })
           .andWhere('vr.plate_number = :plate', { plate })
           .orderBy('job.created_at', 'DESC')
-          .getOne();
+          .getMany();
 
-        if (!job) continue; // no matching in-progress job yet — retry next cycle
+        if (candidates.length === 0) continue; // not started yet — retry next cycle
+
+        // Two in-progress jobs for one plate cannot be told apart by plate, and
+        // guessing the newest would attach the result to the wrong inspection.
+        // That is survivable while the mistake stays local, but this result is
+        // also pushed to the provider, where it completes a booking and cannot
+        // be withdrawn — so an ambiguous file is left for an operator instead.
+        if (candidates.length > 1) {
+          this.logger.warn(
+            `OUT file ${file} matches ${candidates.length} in-progress jobs for plate ${plate} (${candidates.map((j) => `#J${j.job_id}`).join(', ')}) — skipped, resolve the duplicate before it can be attributed`,
+            OutfileWatcherService.context,
+          );
+          this.processed.add(key);
+          continue;
+        }
+
+        const job = candidates[0];
 
         job.test_results = parsed;
         job.outfile_name = file;

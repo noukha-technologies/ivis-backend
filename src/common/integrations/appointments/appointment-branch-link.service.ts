@@ -124,8 +124,7 @@ export class AppointmentBranchLinkService {
     // A branch already held by another centre is re-assignable: the operator
     // saw who holds it in the picker, so this is a deliberate move rather than
     // a mistake to block. The previous centre simply stops reading it.
-    const existing =
-      await this.centreDao.findByProviderBranchCode(branchCode);
+    const existing = await this.centreDao.findByProviderBranchCode(branchCode);
     if (existing && existing.id !== centreId) {
       this.logger.warn(
         `Branch ${branchCode} moved from centre ${existing.code} to ${centre.code}`,

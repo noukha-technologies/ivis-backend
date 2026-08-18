@@ -5,6 +5,7 @@ import { CustomerModule } from './customers/customer.module';
 import { AnprCaptureModule } from './anpr-captures/anpr-capture.module';
 import { RopVerificationModule } from './rop-verifications/rop-verification.module';
 import { OnlineAppointmentModule } from './online-appointments/online-appointment.module';
+import { TajdeedEventsModule } from './tajdeed-events/tajdeed-events.module';
 @Module({
   imports: [
     DatabaseModule,
@@ -13,6 +14,7 @@ import { OnlineAppointmentModule } from './online-appointments/online-appointmen
     CustomerModule,
     PaymentsModule,
     OnlineAppointmentModule,
+    TajdeedEventsModule,
   ],
   exports: [
     AnprCaptureModule,
@@ -20,6 +22,7 @@ import { OnlineAppointmentModule } from './online-appointments/online-appointmen
     CustomerModule,
     PaymentsModule,
     OnlineAppointmentModule,
+    TajdeedEventsModule,
   ],
 })
 export class TransactionsModule {}

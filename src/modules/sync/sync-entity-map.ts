@@ -189,17 +189,22 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: PaymentType,
     direction: 'READ_ONLY',
     conditional: false,
-    // Matched on its business key, not on `id`.
+    // Matched on `code`, and the local sequence is left alone.
     //
-    // Every box mints its own snowflake PKs and its own sequential
-    // <name>_id, so the same logical master row exists on central and here
-    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
-    // to INSERT, and hit the unique index on the business key instead —
-    // "duplicate key value violates unique constraint". Targeting that key
-    // makes the pull adopt the local row and update it in place; the util
-    // keeps the local `id` and the key itself out of the UPDATE, so nothing
-    // that already references this row breaks.
-    conflictColumns: ['payment_type_id'],
+    // Three ids describe one of these rows and only one of them is portable:
+    //   - `id`          snowflake, minted per box       → differs
+    //   - `<name>_id`   MAX(...)+1 per box              → differs
+    //   - `code`        authored once, shared by all    → stable
+    //
+    // Conflicting on either of the first two means Postgres finds no match,
+    // INSERTs, and then trips the unique index on `code` for a row that
+    // already exists. Conflicting on `code` finds the local row and updates
+    // it — but the UPDATE must not carry central's `<name>_id` down, or that
+    // number collides with whichever local row already holds it. The util
+    // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
+    // keeps the sequence out too.
+    conflictColumns: ['code'],
+    localOnlyColumns: ['payment_type_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, PaymentType, cursor),
   },
   Test: {
@@ -207,17 +212,22 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Test,
     direction: 'READ_ONLY',
     conditional: false,
-    // Matched on its business key, not on `id`.
+    // Matched on `code`, and the local sequence is left alone.
     //
-    // Every box mints its own snowflake PKs and its own sequential
-    // <name>_id, so the same logical master row exists on central and here
-    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
-    // to INSERT, and hit the unique index on the business key instead —
-    // "duplicate key value violates unique constraint". Targeting that key
-    // makes the pull adopt the local row and update it in place; the util
-    // keeps the local `id` and the key itself out of the UPDATE, so nothing
-    // that already references this row breaks.
-    conflictColumns: ['test_id'],
+    // Three ids describe one of these rows and only one of them is portable:
+    //   - `id`          snowflake, minted per box       → differs
+    //   - `<name>_id`   MAX(...)+1 per box              → differs
+    //   - `code`        authored once, shared by all    → stable
+    //
+    // Conflicting on either of the first two means Postgres finds no match,
+    // INSERTs, and then trips the unique index on `code` for a row that
+    // already exists. Conflicting on `code` finds the local row and updates
+    // it — but the UPDATE must not carry central's `<name>_id` down, or that
+    // number collides with whichever local row already holds it. The util
+    // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
+    // keeps the sequence out too.
+    conflictColumns: ['code'],
+    localOnlyColumns: ['test_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Test, cursor),
   },
   Vehicle: {
@@ -225,17 +235,22 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Vehicle,
     direction: 'READ_ONLY',
     conditional: false,
-    // Matched on its business key, not on `id`.
+    // Matched on `code`, and the local sequence is left alone.
     //
-    // Every box mints its own snowflake PKs and its own sequential
-    // <name>_id, so the same logical master row exists on central and here
-    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
-    // to INSERT, and hit the unique index on the business key instead —
-    // "duplicate key value violates unique constraint". Targeting that key
-    // makes the pull adopt the local row and update it in place; the util
-    // keeps the local `id` and the key itself out of the UPDATE, so nothing
-    // that already references this row breaks.
-    conflictColumns: ['vehicle_id'],
+    // Three ids describe one of these rows and only one of them is portable:
+    //   - `id`          snowflake, minted per box       → differs
+    //   - `<name>_id`   MAX(...)+1 per box              → differs
+    //   - `code`        authored once, shared by all    → stable
+    //
+    // Conflicting on either of the first two means Postgres finds no match,
+    // INSERTs, and then trips the unique index on `code` for a row that
+    // already exists. Conflicting on `code` finds the local row and updates
+    // it — but the UPDATE must not carry central's `<name>_id` down, or that
+    // number collides with whichever local row already holds it. The util
+    // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
+    // keeps the sequence out too.
+    conflictColumns: ['code'],
+    localOnlyColumns: ['vehicle_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Vehicle, cursor),
   },
 

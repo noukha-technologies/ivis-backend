@@ -22,6 +22,20 @@ const EPOCH = new Date(0);
 
 export type SyncRunStatus = 'SUCCESS' | 'PARTIAL' | 'FAILED';
 
+/**
+ * Which half of a run to perform.
+ *
+ * The two directions carry different data and are wanted at different times:
+ * a centre pushes its day's transactions constantly, but only needs central's
+ * masters when someone has changed them. Splitting them keeps the routine
+ * action cheap instead of re-walking every read-only table on every run.
+ *
+ * `full` keeps push-then-pull ordering, which matters for the BIDIRECTIONAL
+ * entities: local edits go up before central's copy comes back down, so a
+ * local change made since the last run wins its own conflict.
+ */
+export type SyncMode = 'push' | 'pull' | 'full';
+
 export interface SyncRunResult {
   status: SyncRunStatus;
   pulled: Record<string, number>;
@@ -63,7 +77,7 @@ export class DatabaseSyncService {
     private readonly logger: AppLogger,
   ) {}
 
-  async runSync(): Promise<SyncRunResult> {
+  async runSync(mode: SyncMode = 'full'): Promise<SyncRunResult> {
     const onboarding = await this.onboardingStatusDao.getStatus();
     if (
       !onboarding ||
@@ -135,36 +149,52 @@ export class DatabaseSyncService {
     }
 
     const result: SyncRunResult = { status: 'SUCCESS', pulled: {}, pushed: {} };
+    const doPush = mode === 'push' || mode === 'full';
+    const doPull = mode === 'pull' || mode === 'full';
+
+    // A phase that never ran is neither ok nor failed. Seeded true so it does
+    // not drag a single-phase run down to PARTIAL — a push-only run that
+    // pushed everything is a SUCCESS, not a half-finished full sync.
     let pushOk = true;
     let pullOk = true;
 
-    try {
-      await this.pushPhase(runId, result);
-    } catch (error) {
-      pushOk = false;
-      result.error = error instanceof Error ? error.message : String(error);
-      this.logger.error(
-        `Database Sync push phase failed: ${result.error}`,
-        error instanceof Error ? error.stack : undefined,
-        DatabaseSyncService.context,
-      );
+    if (doPush) {
+      try {
+        await this.pushPhase(runId, result);
+      } catch (error) {
+        pushOk = false;
+        result.error = error instanceof Error ? error.message : String(error);
+        this.logger.error(
+          `Database Sync push phase failed: ${result.error}`,
+          error instanceof Error ? error.stack : undefined,
+          DatabaseSyncService.context,
+        );
+      }
     }
 
-    try {
-      await this.pullPhase(runId, result);
-    } catch (error) {
-      pullOk = false;
-      const message = error instanceof Error ? error.message : String(error);
-      result.error = result.error ? `${result.error}; ${message}` : message;
-      this.logger.error(
-        `Database Sync pull phase failed: ${message}`,
-        error instanceof Error ? error.stack : undefined,
-        DatabaseSyncService.context,
-      );
+    if (doPull) {
+      try {
+        await this.pullPhase(runId, result);
+      } catch (error) {
+        pullOk = false;
+        const message = error instanceof Error ? error.message : String(error);
+        result.error = result.error ? `${result.error}; ${message}` : message;
+        this.logger.error(
+          `Database Sync pull phase failed: ${message}`,
+          error instanceof Error ? error.stack : undefined,
+          DatabaseSyncService.context,
+        );
+      }
     }
 
+    // PARTIAL only means something in a run that attempted both phases.
+    const ranBoth = doPush && doPull;
     result.status =
-      pushOk && pullOk ? 'SUCCESS' : pushOk || pullOk ? 'PARTIAL' : 'FAILED';
+      pushOk && pullOk
+        ? 'SUCCESS'
+        : ranBoth && (pushOk || pullOk)
+          ? 'PARTIAL'
+          : 'FAILED';
 
     await this.syncRunLogDao.finishRun(
       localRun.id,
@@ -183,7 +213,7 @@ export class DatabaseSyncService {
     }
 
     this.logger.log(
-      `Database Sync run ${runId}: ${result.status} — pushed ${JSON.stringify(result.pushed)}, pulled ${JSON.stringify(result.pulled)}`,
+      `Database Sync run ${runId} (${mode}): ${result.status} — pushed ${JSON.stringify(result.pushed)}, pulled ${JSON.stringify(result.pulled)}`,
       DatabaseSyncService.context,
     );
 

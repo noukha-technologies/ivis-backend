@@ -25,6 +25,7 @@ import {
   SyncPullChunkDto,
   SyncPullChunkResponseDto,
   SyncStartRunDto,
+  SyncTriggerDto,
   SyncStartRunResponseDto,
   SyncRunLogDto,
 } from '../../common/dto/sync.dto';
@@ -62,11 +63,16 @@ export class SyncController {
   @Post('trigger')
   @ApiOperation({
     summary: 'Centre: manually trigger a Database Sync run (Sync Now button)',
+    description:
+      "mode 'push' sends this centre's data up, 'pull' brings central's masters down, 'full' does both in that order. Defaults to 'full' for callers that do not choose.",
   })
   @ApiOkResponse({ type: SyncRunLogDto })
-  async trigger(@CurrentUser() userContext: UserContext) {
+  async trigger(
+    @CurrentUser() userContext: UserContext,
+    @Body() body: SyncTriggerDto,
+  ) {
     assertCanUseSync(userContext);
-    return this.databaseSyncService.runSync();
+    return this.databaseSyncService.runSync(body?.mode ?? 'full');
   }
 
   @Get('status')

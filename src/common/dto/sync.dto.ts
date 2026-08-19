@@ -2,11 +2,23 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsArray,
   IsDateString,
+  IsIn,
   IsInt,
   IsObject,
   IsOptional,
   IsString,
 } from 'class-validator';
+
+/**
+ * Which half of a run the caller wants. See SyncMode in database-sync.service.
+ * Optional so an older client that posts an empty body still gets a full run.
+ */
+export class SyncTriggerDto {
+  @ApiPropertyOptional({ enum: ['push', 'pull', 'full'] })
+  @IsOptional()
+  @IsIn(['push', 'pull', 'full'])
+  mode?: 'push' | 'pull' | 'full';
+}
 
 /** One entity's chunk of rows being pushed centre → central. See Database_sync_arch_replan.md §3a/§7. */
 export class SyncPushChunkDto {

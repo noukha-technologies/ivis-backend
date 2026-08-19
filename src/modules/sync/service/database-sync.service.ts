@@ -350,6 +350,7 @@ export class DatabaseSyncService {
                   conflictColumns: definition.conflictColumns,
                   conflictIndexPredicate: definition.conflictIndexPredicate,
                   localOnlyColumns: definition.localOnlyColumns,
+                  localSequenceColumns: definition.localSequenceColumns,
                 },
               ),
           );

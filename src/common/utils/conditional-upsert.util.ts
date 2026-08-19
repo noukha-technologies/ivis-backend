@@ -48,6 +48,20 @@ export async function upsertWithUpdate<T extends ObjectLiteral>(
      * list, and on a fresh row there is no local value to protect.
      */
     localOnlyColumns?: string[];
+    /**
+     * Columns holding a per-box sequence (`<name>_id`): minted here on INSERT,
+     * never taken from the sender, never overwritten on UPDATE.
+     *
+     * These are display numbers each box assigns with MAX(...)+1, and they
+     * still carry a global unique constraint. Two boxes therefore number the
+     * same space independently, so any row the sender inserts brings a number
+     * some local row already holds — the constraint fires and no choice of
+     * ON CONFLICT target can prevent it, because the collision is on a
+     * different column from the one being matched. Generating the value
+     * locally at insert time sidesteps it entirely: the sender's number is
+     * simply not part of the conversation.
+     */
+    localSequenceColumns?: string[];
   },
 ): Promise<number> {
   if (!rows.length) return 0;
@@ -67,10 +81,12 @@ export async function upsertWithUpdate<T extends ObjectLiteral>(
   // *different* id already represents this logical pair; the incoming id
   // must be discarded, not applied, or the row's identity would silently
   // change underneath anything that already referenced it.
+  const localSequences = new Set(options.localSequenceColumns ?? []);
   const excludedFromUpdate = new Set([
     ...conflictColumns,
     'id',
     ...(options.localOnlyColumns ?? []),
+    ...localSequences,
   ]);
   const updateSet = columnNames
     .filter((name) => !excludedFromUpdate.has(name))
@@ -83,14 +99,27 @@ export async function upsertWithUpdate<T extends ObjectLiteral>(
   let written = 0;
   for (const row of rows) {
     const rowRecord = row as unknown as Record<string, unknown>;
-    const values = columns.map((column) => {
-      const raw = rowRecord[column.propertyName];
-      if (raw != null && (column.type === 'jsonb' || column.type === 'json')) {
-        return JSON.stringify(raw);
-      }
-      return raw ?? null;
-    });
-    const placeholders = values.map((_, i) => `$${i + 1}`).join(', ');
+    // Placeholders and values are built together so the $n numbering stays
+    // contiguous: a local-sequence column contributes SQL but no parameter,
+    // and numbering them independently would leave a dangling $n.
+    const values: unknown[] = [];
+    const placeholders = columns
+      .map((column) => {
+        // Minted here, not taken from the sender — see localSequenceColumns.
+        // The subquery reads the pre-insert snapshot, so consecutive rows in
+        // one chunk still number consecutively.
+        if (localSequences.has(column.databaseName)) {
+          return `(SELECT COALESCE(MAX("${column.databaseName}"), 0) + 1 FROM ${table})`;
+        }
+        const raw = rowRecord[column.propertyName];
+        values.push(
+          raw != null && (column.type === 'jsonb' || column.type === 'json')
+            ? JSON.stringify(raw)
+            : (raw ?? null),
+        );
+        return `$${values.length}`;
+      })
+      .join(', ');
     const result: unknown[] = await manager.query(
       `INSERT INTO ${table} (${columnList}) VALUES (${placeholders})
        ON CONFLICT (${conflictTarget})${conflictPredicate} DO UPDATE SET ${updateSet}${whereClause}

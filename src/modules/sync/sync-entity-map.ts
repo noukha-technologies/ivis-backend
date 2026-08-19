@@ -82,6 +82,12 @@ export interface SyncEntityDefinition {
    * entity's blind overwrite would erase local-only state on every run.
    */
   localOnlyColumns?: string[];
+  /**
+   * Per-box sequence columns (`<name>_id`) — minted locally on insert rather
+   * than taken from the sender. See localSequenceColumns in the upsert util
+   * for why no ON CONFLICT target can substitute for this.
+   */
+  localSequenceColumns?: string[];
 }
 
 async function pullSimple<T extends ObjectLiteral>(
@@ -122,6 +128,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Centre,
     direction: 'READ_ONLY',
     conditional: false,
+    // `centre_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['centre_id'],
     // The centre's own sync credential lives on this row and central holds
     // null for it, so a blind READ_ONLY overwrite would lock the centre out
     // of the very next run.
@@ -204,7 +216,7 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
     // keeps the sequence out too.
     conflictColumns: ['code'],
-    localOnlyColumns: ['payment_type_id'],
+    localSequenceColumns: ['payment_type_id'],
     // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
     // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
     // only matches an index whose predicate it repeats, so without this the
@@ -233,7 +245,7 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
     // keeps the sequence out too.
     conflictColumns: ['code'],
-    localOnlyColumns: ['test_id'],
+    localSequenceColumns: ['test_id'],
     // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
     // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
     // only matches an index whose predicate it repeats, so without this the
@@ -262,7 +274,7 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps `id` and the conflict target out of the UPDATE; localOnlyColumns
     // keeps the sequence out too.
     conflictColumns: ['code'],
-    localOnlyColumns: ['vehicle_id'],
+    localSequenceColumns: ['vehicle_id'],
     // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
     // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
     // only matches an index whose predicate it repeats, so without this the
@@ -299,6 +311,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Line,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // `line_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['line_id'],
     pull: async (ds, centreId, cursor) =>
       pullSimple(ds, Line, 'centre_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, Line, cursor),
@@ -308,6 +326,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Camera,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // `camera_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['camera_id'],
     // Camera has no centre_id of its own — scoped via CameraLineMapping -> Line.centre_id.
     pull: async (ds, centreId, cursor) =>
       ds
@@ -353,6 +377,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: AdminPc,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // `admin_pc_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['admin_pc_id'],
     pull: async (ds, centreId, cursor) =>
       pullSimple(ds, AdminPc, 'center_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, AdminPc, cursor),
@@ -380,6 +410,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Charge,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // `charge_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['charge_id'],
     pull: async (ds, centreId, cursor) =>
       pullSimple(ds, Charge, 'centre_id', centreId, cursor),
     pushLocal: async (ds, cursor) => pullGlobal(ds, Charge, cursor),
@@ -389,6 +425,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: User,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // `user_id` is minted here by MAX(...)+1 and still carries a global unique
+    // index, so a row inserted from the other side brings a number some local
+    // row already holds. The conflict target stays `id` — these are
+    // centre-scoped, and matching on the number would merge one centre's
+    // record with another's that happens to share it.
+    localSequenceColumns: ['user_id'],
     // User.password has select:false (excluded from plain queries so it
     // never leaks into normal API responses) — must be explicitly
     // .addSelect()'d here, or every synced User row lands locally with a

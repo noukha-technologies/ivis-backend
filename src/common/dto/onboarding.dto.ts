@@ -42,6 +42,43 @@ export class VerifyCentralResponseDto {
   isGlobalScope?: boolean;
 }
 
+/**
+ * Re-issue a centre's Database Sync credential, authenticated by user
+ * credentials rather than an API key.
+ *
+ * The credential is normally issued once, at the end of the onboarding pull.
+ * If that write is lost — central reachable but the local UPDATE failed, the
+ * box restored from a backup taken before it, the centre onboarded on a build
+ * that discarded the value — the centre is stranded: onboarding short-circuits
+ * at COMPLETED and never re-runs, and every authenticated route into central
+ * needs the very key that is missing.
+ *
+ * Password auth is the only channel that does not require the missing key,
+ * which is what makes recovery possible at all.
+ */
+export class IssueSyncKeyRequestDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  password!: string;
+}
+
+export class IssueSyncKeyResponseDto {
+  @ApiProperty({ description: 'Plaintext key. Returned once, never stored.' })
+  apiKey!: string;
+
+  @ApiProperty()
+  centreId!: string;
+
+  @ApiProperty({ description: 'Prior active keys revoked by this issue.' })
+  revokedCount!: number;
+}
+
 /** On-demand re-scope — a Super Admin logging into an already-onboarded centre for the first time. */
 export class ResolveReScopedRowRequestDto {
   @ApiProperty()

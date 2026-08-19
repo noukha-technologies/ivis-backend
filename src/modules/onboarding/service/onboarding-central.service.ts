@@ -115,6 +115,67 @@ export class OnboardingCentralService {
     };
   }
 
+  /**
+   * Mints a fresh Database Sync credential for the caller's own centre.
+   *
+   * The recovery path for a centre that finished onboarding without a usable
+   * key. Authenticated by password because that is the only channel a keyless
+   * centre still has — every other central route it would need is guarded by
+   * the key it does not have.
+   *
+   * A caller can only ever affect its own centre: the centre is read from the
+   * authenticated user's `center_id`, never from the request. Global-scope
+   * accounts are refused for the same reason they are refused at confirm —
+   * they belong to no single centre, so there is nothing to issue against.
+   *
+   * Prior keys are revoked, so a lost key cannot keep working and the table
+   * does not accumulate a valid key per recovery.
+   */
+  async issueSyncKey(
+    email: string,
+    password: string,
+  ): Promise<{ apiKey: string; centreId: string; revokedCount: number }> {
+    const user = await this.usersDao.findByEmailWithPassword(email);
+    if (!user?.password || !(await bcrypt.compare(password, user.password))) {
+      throw new ErrorException('INVALID_USER', 'Invalid email or password');
+    }
+    if (!user.center_id) {
+      throw new ErrorException(
+        'FORBIDDEN_REQUEST',
+        'Global-scope accounts are not tied to a centre, so no sync key can be issued for them',
+      );
+    }
+
+    const centre = await this.centreDao.findActiveById(user.center_id);
+    if (!centre) {
+      throw new ErrorException(
+        'RESOURCE_NOT_FOUND',
+        `Centre ${user.center_id} not found or inactive`,
+      );
+    }
+
+    const existing = await this.centreApiKeyDao.findAllActive();
+    const mine = existing.filter((k) => k.centre_id === centre.id);
+    for (const key of mine) {
+      await this.centreApiKeyDao.revoke(key.id);
+    }
+
+    const plaintextKey = generateSnowflakeId() + generateSnowflakeId();
+    const keyHash = await bcrypt.hash(plaintextKey, 10);
+    await this.centreApiKeyDao.createForCentre(centre.id, keyHash);
+
+    this.logger.log(
+      `Re-issued Database Sync API key for centre ${centre.code} (${centre.id}); revoked ${mine.length} prior key(s)`,
+      OnboardingCentralService.context,
+    );
+
+    return {
+      apiKey: plaintextKey,
+      centreId: centre.id,
+      revokedCount: mine.length,
+    };
+  }
+
   async confirm(email: string, password: string) {
     const user = await this.usersDao.findByEmailWithPassword(email);
     if (!user?.password || !(await bcrypt.compare(password, user.password))) {

@@ -68,6 +68,14 @@ export class CentralOnboardingHttpClientService {
     });
   }
 
+  /** Recovery: mint a fresh Database Sync key for this centre. See IssueSyncKeyRequestDto. */
+  async issueSyncKey(
+    email: string,
+    password: string,
+  ): Promise<{ apiKey: string; centreId: string; revokedCount: number }> {
+    return this.post('/onboarding/issue-sync-key', { email, password });
+  }
+
   async resolveReScopedRow(
     email: string,
     centreId: string,

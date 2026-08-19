@@ -6,6 +6,8 @@ import { OnboardingCentralService } from './service/onboarding-central.service';
 import {
   VerifyCentralRequestDto,
   VerifyCentralResponseDto,
+  IssueSyncKeyRequestDto,
+  IssueSyncKeyResponseDto,
   ResolveReScopedRowRequestDto,
   ResolveReScopedRowResponseDto,
   OnboardingConfirmRequestDto,
@@ -45,6 +47,20 @@ export class OnboardingController {
     @Body() body: VerifyCentralRequestDto,
   ): Promise<VerifyCentralResponseDto> {
     return this.onboardingCentral.verifyCentral(body.email, body.password);
+  }
+
+  @Post('issue-sync-key')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      "Central: re-issue this centre's Database Sync key (password-authenticated recovery for a centre with none)",
+  })
+  @ApiOkResponse({ type: IssueSyncKeyResponseDto })
+  async issueSyncKey(
+    @Body() body: IssueSyncKeyRequestDto,
+  ): Promise<IssueSyncKeyResponseDto> {
+    return this.onboardingCentral.issueSyncKey(body.email, body.password);
   }
 
   @Post('resolve-rescoped-row')

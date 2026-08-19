@@ -140,6 +140,11 @@ export class OnboardingService {
     }
 
     if (status.status === 'COMPLETED') {
+      // Onboarding never runs again on this box, so a credential that was not
+      // stored the first time would never appear on its own and Database Sync
+      // would be permanently dead with no way back. Checked on every login
+      // instead of once: if central is unreachable now, the next login retries.
+      await this.ensureSyncApiKey(status.centre_id, email, password);
       return { status: 'COMPLETED' };
     }
     if (status.status === 'IN_PROGRESS') {
@@ -404,6 +409,61 @@ export class OnboardingService {
       });
       this.logger.log(
         `Onboarding sync: re-scoped ${reScopedSuperAdmins.length} Super Admin(s) locally`,
+        OnboardingService.context,
+      );
+    }
+  }
+
+  /**
+   * Self-heal for an onboarded centre that has no Database Sync credential.
+   *
+   * Reads the centre's stored key and, if it is missing, asks central for a
+   * fresh one using the credentials this login already carries — the one
+   * channel that does not itself require the missing key.
+   *
+   * Never throws. This runs on the COMPLETED path of every login, so a failure
+   * here must not block sign-in: the centre is fully usable without sync, and
+   * the next login tries again. A permanent problem shows up as a repeated
+   * warning rather than a locked-out operator.
+   */
+  private async ensureSyncApiKey(
+    centreId: string | null | undefined,
+    email: string,
+    password: string,
+  ): Promise<void> {
+    if (!centreId) return;
+
+    try {
+      const rows: Array<{ sync_api_key: string | null }> =
+        await this.dataSource.query(
+          `SELECT "sync_api_key" FROM "master"."centres" WHERE "id" = $1`,
+          [centreId],
+        );
+      if (rows[0]?.sync_api_key?.trim()) return;
+
+      this.logger.warn(
+        `Centre ${centreId} is onboarded but has no Database Sync credential — requesting one from central.`,
+        OnboardingService.context,
+      );
+
+      const { apiKey, revokedCount } = await this.centralClient.issueSyncKey(
+        email,
+        password,
+      );
+      await this.dataSource.query(
+        `UPDATE "master"."centres" SET "sync_api_key" = $1 WHERE "id" = $2`,
+        [apiKey, centreId],
+      );
+
+      this.logger.log(
+        `Database Sync credential recovered for centre ${centreId} (${revokedCount} prior key(s) revoked).`,
+        OnboardingService.context,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Could not recover the Database Sync credential for centre ${centreId} — ${
+          error instanceof Error ? error.message : String(error)
+        }. Sync stays unavailable; the next login will retry.`,
         OnboardingService.context,
       );
     }

@@ -5,6 +5,18 @@ import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
 import { ALTER_SCHEMA_VERSION } from '../../../migrations/1782010000000-AlterSchema';
 import { SYNC_ENTITY_MAP } from '../sync-entity-map';
 
+/**
+ * Normal ceiling for a central call. Generous because a pull chunk is up to
+ * CHUNK_SIZE rows over the public internet, not a local query.
+ */
+const REQUEST_TIMEOUT_MS = 30_000;
+
+/**
+ * Ceiling for the retry, sized for a cold start on a sleeping instance — an
+ * observed wake took ~45s, so the retry must outlast that or it defeats itself.
+ */
+const WAKE_RETRY_TIMEOUT_MS = 90_000;
+
 export interface SyncPushChunkResult {
   accepted: number;
   hasMore: boolean;
@@ -125,6 +137,53 @@ export class CentralSyncHttpClientService {
     await this.post('/sync/run/finish', { runId, status, error });
   }
 
+  /**
+   * One request, with a timeout and a single retry for a sleeping host.
+   *
+   * There was no timeout at all before, so a request inherited Node's default
+   * and a hung connection could stall the whole run indefinitely. The retry
+   * exists because central is deployed on an instance that sleeps when idle:
+   * the first call after a quiet period spends its time on the cold start and
+   * would otherwise fail the run outright, with the server fully awake by the
+   * time anyone looked. One retry turns that into a slow success.
+   *
+   * Only connection-level failures are retried. A response — including 401 or
+   * a schema-drift refusal — is returned as-is: those never improve on a second
+   * attempt, and pushes are not idempotent enough to repeat blindly.
+   */
+  private async fetchWithWakeRetry(
+    path: string,
+    key: string,
+    body: Record<string, unknown>,
+  ): Promise<Response> {
+    const url = `${this.baseUrl()}${path}`;
+    const init = {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        Authorization: `Bearer ${key}`,
+      },
+      body: JSON.stringify(body),
+    };
+
+    try {
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Central did not answer ${path} within ${REQUEST_TIMEOUT_MS / 1000}s — retrying once in case it was asleep.`,
+        CentralSyncHttpClientService.context,
+      );
+      return await fetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(WAKE_RETRY_TIMEOUT_MS),
+      });
+    }
+  }
+
   private async post<T>(
     path: string,
     body: Record<string, unknown>,
@@ -133,15 +192,7 @@ export class CentralSyncHttpClientService {
 
     let res: Response;
     try {
-      res = await fetch(`${this.baseUrl()}${path}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Authorization: `Bearer ${key}`,
-        },
-        body: JSON.stringify(body),
-      });
+      res = await this.fetchWithWakeRetry(path, key, body);
     } catch (err) {
       const message = `Central server unreachable at ${path}: ${(err as Error).message}`;
       this.logger.warn(message, CentralSyncHttpClientService.context);

@@ -98,3 +98,37 @@ export function resolvedEnvFiles(): string[] {
     existsSync(resolve(process.cwd(), file)),
   );
 }
+
+/**
+ * Which half of the deployment this process is.
+ *
+ * `centre` is a box installed at an inspection centre: it owns cameras on the
+ * local network, watches FTP folders, ingests appointments and pushes results
+ * to the provider. `central` is the shared server every centre syncs against —
+ * it holds the master data and serves the sync endpoints, and has none of that
+ * local hardware.
+ *
+ * Defaults to `centre`, because that is the deployment there are many of and
+ * the one that breaks visibly if it is wrong. A misconfigured central is the
+ * quieter failure: it wastes work rather than stopping any.
+ */
+export type NodeRole = 'centre' | 'central';
+
+export function nodeRole(): NodeRole {
+  return process.env.NODE_ROLE?.trim().toLowerCase() === 'central'
+    ? 'central'
+    : 'centre';
+}
+
+/**
+ * True on a centre box — the guard for every background worker that talks to
+ * hardware or an external provider on a centre's behalf.
+ *
+ * Deliberately guards the WORKERS, not the modules. Central still serves the
+ * same controllers: the admin UI reads cameras and appointments from it, and
+ * the sync pull queries those very tables. Removing the modules would break
+ * those reads; only the schedulers have no business running there.
+ */
+export function isCentreNode(): boolean {
+  return nodeRole() === 'centre';
+}

@@ -20,6 +20,7 @@ import { Centre } from '../../../database/entity/centre.entity';
 import { Appointment } from '../../../database/entity/appointment.entity';
 import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
 import { AppointmentBooking as ProviderBooking } from '../../../../common/integrations/appointments/appointment.types';
+import { isCentreNode } from '../../../../common/config/env.config';
 
 /**
  * Today is the operational day — its queue is what staff are working from, so
@@ -79,12 +80,20 @@ export class AppointmentIngestService {
   /** Today only — the queue staff are actively working from. */
   @Interval(TODAY_INTERVAL_MS)
   async runToday(): Promise<void> {
+    // Centre-only workload — see isCentreNode(). Central serves the same
+    // controllers but owns no cameras, no FTP shares and no provider branch.
+    if (!isCentreNode()) return;
+
     await this.runWindow(0, 1, 'today');
   }
 
   /** Tomorrow through the end of the window, on a slower cadence. */
   @Interval(UPCOMING_INTERVAL_MS)
   async runUpcoming(): Promise<void> {
+    // Centre-only workload — see isCentreNode(). Central serves the same
+    // controllers but owns no cameras, no FTP shares and no provider branch.
+    if (!isCentreNode()) return;
+
     await this.runWindow(1, WINDOW_DAYS, 'upcoming');
   }
 

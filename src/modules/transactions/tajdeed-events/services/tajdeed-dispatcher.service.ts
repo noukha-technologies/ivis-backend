@@ -17,6 +17,7 @@ import {
   LaneStatusPayload,
   TajdeedEventEnvelope,
 } from '../../../../common/integrations/appointments/appointment.types';
+import { isCentreNode } from '../../../../common/config/env.config';
 
 /** How often the outbox is drained. */
 const DRAIN_INTERVAL_MS = 30_000;
@@ -59,6 +60,10 @@ export class TajdeedDispatcherService {
 
   @Interval(DRAIN_INTERVAL_MS)
   async drain(): Promise<void> {
+    // Centre-only workload — see isCentreNode(). Central serves the same
+    // controllers but owns no cameras, no FTP shares and no provider branch.
+    if (!isCentreNode()) return;
+
     if (process.env.TAJDEED_PUSH_DISABLED === 'true') return;
 
     try {
@@ -155,6 +160,10 @@ export class TajdeedDispatcherService {
   /** Asks the provider what became of everything we have delivered. */
   @Interval(CONFIRM_INTERVAL_MS)
   async confirm(): Promise<void> {
+    // Centre-only workload — see isCentreNode(). Central serves the same
+    // controllers but owns no cameras, no FTP shares and no provider branch.
+    if (!isCentreNode()) return;
+
     if (process.env.TAJDEED_PUSH_DISABLED === 'true') return;
 
     try {

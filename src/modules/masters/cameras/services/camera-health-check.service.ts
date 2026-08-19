@@ -5,9 +5,35 @@ import { Camera } from '../../../database/entity/camera.entity.js';
 import { AppLogger } from '../../../../common/logger/app.logger.js';
 import { FullHealthCheckResult } from '../../../../common/enums/common.enums.js';
 
+/**
+ * Backoff for a camera that keeps failing, as multiples of its configured
+ * ping interval. A camera that has been dark for an hour is not going to
+ * answer on the next 30-second tick, and probing it that often produced a
+ * failure line per camera per interval, forever — on a host without `ping`
+ * installed that is the entire log.
+ *
+ * Still bounded: the last step keeps re-probing every 20 intervals (~10 min at
+ * the default), so a camera that comes back is picked up on its own without a
+ * restart.
+ */
+const BACKOFF_STEPS = [1, 2, 4, 10, 20] as const;
+
 @Injectable()
 export class CameraHealthCheckService {
   private static readonly context = 'CameraHealthCheckService';
+
+  /**
+   * Consecutive failures per camera, in memory only.
+   *
+   * Deliberately not persisted: a restart should re-probe everything at full
+   * rate rather than inherit an hour-old backoff, and this is scheduling
+   * state, not a fact about the camera. `is_online` on the row remains the
+   * durable answer.
+   */
+  private readonly failureStreak = new Map<string, number>();
+
+  /** Last summary line emitted, so an unchanged sweep stays silent. */
+  private lastSummary = '';
 
   constructor(
     private readonly cameraDao: CameraDao,
@@ -33,7 +59,10 @@ export class CameraHealthCheckService {
       const res = await ping.promise.probe(targetIp, { timeout: 2 });
       return res.alive;
     } catch (error) {
-      this.logger.log(
+      // Debug, not log: this fires on every probe of an unreachable host, and
+      // on a container without the `ping` binary it fires for every camera
+      // forever. The transition line in pingCheck carries the real signal.
+      this.logger.debug(
         `Ping failed for ${ip}: ${error}`,
         CameraHealthCheckService.context,
       );
@@ -134,12 +163,16 @@ export class CameraHealthCheckService {
     });
     const now = Date.now();
 
-    // Only cameras whose ping interval has elapsed are due this sweep.
+    // Due when the camera's own interval has elapsed, stretched by however
+    // long it has been failing — see BACKOFF_STEPS.
     const due = cameras.filter((camera) => {
       const intervalMs =
         Math.max(10, camera.health_ping_interval_seconds ?? 30) * 1000;
+      const streak = this.failureStreak.get(camera.id) ?? 0;
+      const multiplier =
+        BACKOFF_STEPS[Math.min(streak, BACKOFF_STEPS.length - 1)];
       const lastCheck = camera.last_health_check?.getTime() ?? 0;
-      return now - lastCheck >= intervalMs;
+      return now - lastCheck >= intervalMs * multiplier;
     });
 
     if (due.length === 0) {
@@ -152,13 +185,28 @@ export class CameraHealthCheckService {
       due.map((camera) => this.pingCheck(camera)),
     );
 
+    due.forEach((camera, i) => {
+      const r = results[i];
+      const alive = r.status === 'fulfilled' && r.value;
+      if (alive) this.failureStreak.delete(camera.id);
+      else this.failureStreak.set(camera.id, (this.failureStreak.get(camera.id) ?? 0) + 1);
+    });
+
     const online = results.filter(
       (r) => r.status === 'fulfilled' && r.value,
     ).length;
-    this.logger.log(
-      `[Camera Health] Checked ${due.length} camera(s) → ${online} online, ${due.length - online} offline`,
-      CameraHealthCheckService.context,
-    );
+
+    // Only speak when the picture changes. The old line fired on every sweep,
+    // so a stable estate wrote the same sentence every few seconds and buried
+    // everything else in the log.
+    const summary = `${due.length}:${online}`;
+    if (summary !== this.lastSummary) {
+      this.lastSummary = summary;
+      this.logger.log(
+        `[Camera Health] Checked ${due.length} camera(s) → ${online} online, ${due.length - online} offline`,
+        CameraHealthCheckService.context,
+      );
+    }
   }
 
   /**

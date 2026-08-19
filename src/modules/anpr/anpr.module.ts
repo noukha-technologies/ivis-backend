@@ -27,6 +27,7 @@ import { FtpFolderWatcherService } from './services/ftp-service/ftp-folder-watch
 import { FtpFileProcessorService } from './services/ftp-service/ftp-file-processor.service';
 import { FtpConnectionPoolService } from './services/ftp-service/ftp-connection-pool.service';
 import { FtpDirectoryScannerService } from './services/ftp-service/ftp-directory-scanner.service';
+import { isCentreNode } from '../../common/config/env.config';
 
 @Module({
   imports: [
@@ -73,6 +74,16 @@ export class AnprModule implements OnApplicationBootstrap {
   ) {}
 
   async onApplicationBootstrap(): Promise<void> {
+    // ANPR is hardware attached to one centre's network. On central the
+    // watchers would poll FTP shares that do not exist and health-check
+    // 192.168.x addresses it can never route to — which is exactly what the
+    // deployed logs showed. The module still loads so its controllers answer;
+    // only the background work is skipped.
+    if (!isCentreNode()) {
+      this.logger.log('ANPR watchers skipped — this node is not a centre.');
+      return;
+    }
+
     this.logger.log('━━━ ANPR Module Bootstrap ━━━');
 
     try {

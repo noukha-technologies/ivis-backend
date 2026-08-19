@@ -3,6 +3,7 @@
 import {
   currentEnv,
   loadEnv,
+  nodeRole,
   resolvedEnvFiles,
 } from './common/config/env.config';
 loadEnv();
@@ -163,7 +164,7 @@ async function bootstrap() {
 
     logger.log(`Server: http://localhost:${port}/${apiPrefix}`, 'Bootstrap');
     logger.log(
-      `Environment: ${NODE_ENV} (env files: ${resolvedEnvFiles().join(', ') || 'none — using process env only'})`,
+      `Environment: ${NODE_ENV} · role: ${nodeRole()} (env files: ${resolvedEnvFiles().join(', ') || 'none — using process env only'})`,
       'Bootstrap',
     );
     logger.log(

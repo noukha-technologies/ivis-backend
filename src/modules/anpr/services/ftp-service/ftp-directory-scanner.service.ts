@@ -11,6 +11,7 @@ import { shouldUseMountMode } from '../../../../common/utils/ftp-path-resolver.u
 import { AnprMethodConfigService } from '../anpr-method-config.service';
 import { FtpFileProcessorService } from './ftp-file-processor.service';
 import { FtpFolderWatcherService } from './ftp-folder-watcher.service';
+import { isCentreNode } from '../../../../common/config/env.config';
 @Injectable()
 export class FtpDirectoryScannerService implements OnModuleInit {
   private readonly fallbackSweepMs: number;
@@ -31,6 +32,9 @@ export class FtpDirectoryScannerService implements OnModuleInit {
   }
 
   onModuleInit(): void {
+    // Same reasoning as the watchers — see AnprModule.onApplicationBootstrap.
+    if (!isCentreNode()) return;
+
     if (this.fallbackSweepMs <= 0) {
       this.logger.log(
         '[FTP Fallback] Disabled (ANPR_FTP_FALLBACK_SWEEP_MINUTES=0)',

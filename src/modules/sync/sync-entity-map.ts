@@ -205,6 +205,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps the sequence out too.
     conflictColumns: ['code'],
     localOnlyColumns: ['payment_type_id'],
+    // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
+    // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
+    // only matches an index whose predicate it repeats, so without this the
+    // statement fails with "no unique or exclusion constraint matching the
+    // ON CONFLICT specification" even though the index plainly exists.
+    conflictIndexPredicate: 'is_deleted = false',
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, PaymentType, cursor),
   },
   Test: {
@@ -228,6 +234,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps the sequence out too.
     conflictColumns: ['code'],
     localOnlyColumns: ['test_id'],
+    // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
+    // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
+    // only matches an index whose predicate it repeats, so without this the
+    // statement fails with "no unique or exclusion constraint matching the
+    // ON CONFLICT specification" even though the index plainly exists.
+    conflictIndexPredicate: 'is_deleted = false',
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Test, cursor),
   },
   Vehicle: {
@@ -251,6 +263,12 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // keeps the sequence out too.
     conflictColumns: ['code'],
     localOnlyColumns: ['vehicle_id'],
+    // The `code` index is PARTIAL — `... ("code") WHERE is_deleted = false`,
+    // so a code can be reused once its owning row is soft-deleted. ON CONFLICT
+    // only matches an index whose predicate it repeats, so without this the
+    // statement fails with "no unique or exclusion constraint matching the
+    // ON CONFLICT specification" even though the index plainly exists.
+    conflictIndexPredicate: 'is_deleted = false',
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Vehicle, cursor),
   },
 

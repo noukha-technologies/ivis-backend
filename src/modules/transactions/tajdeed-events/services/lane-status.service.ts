@@ -13,6 +13,7 @@ import {
 } from '../../../../common/integrations/appointments/appointment.types';
 import { TajdeedOutboxService } from './tajdeed-outbox.service';
 import { normalizePlate } from '../../../../common/integrations/appointments/inspection-result.mapper';
+import { isCentreNode } from '../../../../common/config/env.config';
 
 /**
  * The provider asks for a full snapshot every 5 minutes. Because a heartbeat
@@ -52,6 +53,10 @@ export class LaneStatusService {
 
   @Interval(HEARTBEAT_INTERVAL_MS)
   async heartbeat(): Promise<void> {
+    // Centre-only workload — see isCentreNode(). Central serves the same
+    // controllers but owns no cameras, no FTP shares and no provider branch.
+    if (!isCentreNode()) return;
+
     if (
       process.env.TAJDEED_PUSH_DISABLED === 'true' ||
       process.env.TAJDEED_LANE_STATUS_DISABLED === 'true'

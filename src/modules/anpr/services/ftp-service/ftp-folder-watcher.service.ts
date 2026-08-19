@@ -8,7 +8,10 @@ import {
   stripCameraPathFromFtpRoot,
 } from '../../../../common/utils/ftp-path-resolver.util';
 import { AnprMethodConfigService } from '../anpr-method-config.service';
-import { FtpConnectionPoolService } from './ftp-connection-pool.service';
+import {
+  CameraOfflineError,
+  FtpConnectionPoolService,
+} from './ftp-connection-pool.service';
 import { FtpFileProcessorService } from './ftp-file-processor.service';
 import { AnprGateway } from '../http-push-service/anpr-gateway.service';
 
@@ -33,6 +36,12 @@ export class FtpFolderWatcherService implements OnApplicationShutdown {
   private readonly watchIntervalMs: number;
   private readonly defaultWatchMode: WatchMode;
   private bootstrapped = false;
+  /**
+   * Cameras currently being skipped for being offline. Purely so the "waiting"
+   * and "resumed" lines are logged once per transition instead of on every
+   * tick — the watch interval is ~1s, which would otherwise flood the log.
+   */
+  private readonly offlineSkipped = new Set<string>();
 
   constructor(
     private readonly methodConfig: AnprMethodConfigService,
@@ -169,6 +178,7 @@ export class FtpFolderWatcherService implements OnApplicationShutdown {
     }
 
     this.watchers.delete(cameraId);
+    this.offlineSkipped.delete(cameraId);
     this.ftpPool.releaseConnection(cameraId);
 
     this.logger.log(
@@ -344,6 +354,26 @@ export class FtpFolderWatcherService implements OnApplicationShutdown {
         return;
       }
 
+      // Offline cameras are skipped, not stopped: the watcher stays registered
+      // and idles cheaply, so when the health checker marks the camera online
+      // again the next tick resumes on its own. Re-read fresh above, so this
+      // reflects the latest health check rather than boot-time state.
+      if (!camera.isOnline) {
+        if (!this.offlineSkipped.has(cameraId)) {
+          this.offlineSkipped.add(cameraId);
+          this.logger.warn(
+            `[FTP Watcher] ${camera.cameraCode} is offline — pausing scans until the health check clears it`,
+          );
+        }
+        return;
+      }
+
+      if (this.offlineSkipped.delete(cameraId)) {
+        this.logger.log(
+          `[FTP Watcher] ${camera.cameraCode} is back online — resuming scans`,
+        );
+      }
+
       const mode = this.resolveWatchMode(camera);
       handle.mode = mode;
 
@@ -379,6 +409,13 @@ export class FtpFolderWatcherService implements OnApplicationShutdown {
         );
       }
     } catch (err: unknown) {
+      // The camera went offline between the health read above and the connect.
+      // Nothing was attempted, so there is no transport problem to back off
+      // from — idle and let the next tick take the offline path properly.
+      if (err instanceof CameraOfflineError) {
+        return;
+      }
+
       const message = err instanceof Error ? err.message : String(err);
       this.logger.error(
         `[FTP Watcher] Cycle failed for camera id=${cameraId}: ${message}`,

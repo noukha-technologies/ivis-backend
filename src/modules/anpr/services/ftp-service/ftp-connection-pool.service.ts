@@ -11,6 +11,20 @@ type PooledFtp = {
 };
 
 /**
+ * Thrown instead of dialling a camera the health checker has marked offline.
+ *
+ * A distinct type so callers can treat it as "skip this camera for now" rather
+ * than a transport failure worth backing off or alerting on — nothing was
+ * attempted, so there is nothing to retry differently.
+ */
+export class CameraOfflineError extends Error {
+  constructor(cameraCode: string) {
+    super(`Camera ${cameraCode} is offline — FTP not attempted`);
+    this.name = 'CameraOfflineError';
+  }
+}
+
+/**
  * One FTP control connection per camera. Used to LIST and GET files on the camera/server.
  */
 @Injectable()
@@ -34,6 +48,16 @@ export class FtpConnectionPoolService implements OnApplicationShutdown {
   }
 
   async getConnection(camera: CameraEntity): Promise<Client> {
+    // Never dial a camera the health checker cannot reach. Every connect
+    // against an unreachable host costs a full socket timeout, and the callers
+    // run on intervals — so an offline camera produced a steady stream of
+    // timeout errors that buried the real logs and kept sockets in flight for
+    // nothing. The health check re-tests it on its own schedule; when it comes
+    // back this gate simply stops firing, so no restart is needed.
+    if (!camera.isOnline) {
+      throw new CameraOfflineError(camera.cameraCode);
+    }
+
     const existing = this.connections.get(camera.id);
     if (existing?.isConnected) {
       return existing.client;

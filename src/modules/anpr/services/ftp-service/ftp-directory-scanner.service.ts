@@ -63,17 +63,41 @@ export class FtpDirectoryScannerService implements OnModuleInit {
         `Camera ${cameraId} has no ftpDirectory configured`,
       );
     }
+    // Refuse up front rather than letting the operator wait out a socket
+    // timeout and then read a generic transport error.
+    if (!camera.isOnline) {
+      throw new BadRequestException(
+        `Camera ${camera.cameraCode} is offline (${camera.health_status}). Bring it online before scanning.`,
+      );
+    }
 
     await this.folderWatcher.scanNow(cameraId);
   }
 
   private async fallbackSweep(): Promise<void> {
-    const cameras = await this.methodConfig.findActiveCamerasWithFtp();
-    if (cameras.length === 0) {
+    const configured = await this.methodConfig.findActiveCamerasWithFtp();
+    if (configured.length === 0) {
       return;
     }
 
-    this.logger.debug(`[FTP Fallback] Sweeping ${cameras.length} camera(s)`);
+    // Offline cameras are dropped before the sweep rather than failing inside
+    // it: each attempt against an unreachable host costs a socket timeout, and
+    // reporting that as a "sweep failure" per camera per cycle is noise, not
+    // information. The health checker owns deciding when they are back.
+    const cameras = configured.filter((c) => c.isOnline);
+    const skipped = configured.length - cameras.length;
+
+    if (cameras.length === 0) {
+      this.logger.debug(
+        `[FTP Fallback] Skipped — all ${skipped} FTP camera(s) offline`,
+      );
+      return;
+    }
+
+    this.logger.debug(
+      `[FTP Fallback] Sweeping ${cameras.length} camera(s)` +
+        (skipped > 0 ? ` (${skipped} offline, skipped)` : ''),
+    );
 
     await Promise.allSettled(
       cameras.map(async (camera) => {

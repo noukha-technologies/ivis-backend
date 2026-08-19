@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -76,9 +77,10 @@ export class AppointmentBranchLinkService {
         ]),
     );
 
-    // Every branch the provider returns is selectable. `taken_by_centre_code`
-    // is informational only — it tells the operator a branch is already in use
-    // so the choice is informed, but it does not block re-assignment.
+    // A branch held by another centre is offered but not selectable: `link`
+    // refuses it outright, so showing it as pickable would only produce a
+    // conflict on click. It stays visible, with the holder named, so the
+    // operator can see where it went rather than wondering why it is missing.
     return branches.map((branch) => {
       const code = branch.branch_code.trim().toUpperCase();
       const takenByCentre = takenBy.get(code) ?? null;
@@ -89,8 +91,10 @@ export class AppointmentBranchLinkService {
         timezone: branch.timezone,
         lane_count: branch.lanes.length,
         taken_by_centre_code: takenByCentre,
-        selectable: true,
-        unavailable_reason: null,
+        selectable: takenByCentre === null,
+        unavailable_reason: takenByCentre
+          ? `Already mapped to centre ${takenByCentre}`
+          : null,
       };
     });
   }
@@ -121,14 +125,15 @@ export class AppointmentBranchLinkService {
   ): Promise<BranchVerificationResult> {
     const centre = await this.requireCentre(centreId);
 
-    // A branch already held by another centre is re-assignable: the operator
-    // saw who holds it in the picker, so this is a deliberate move rather than
-    // a mistake to block. The previous centre simply stops reading it.
+    // One branch belongs to exactly one centre. Two centres reading the same
+    // branch would both ingest its bookings and both push results back for
+    // them, so the provider would see one inspection completed twice and the
+    // operators would each see the other centre's cars in their queue. Unlink
+    // the holder first — that is an explicit decision, not a silent takeover.
     const existing = await this.centreDao.findByProviderBranchCode(branchCode);
     if (existing && existing.id !== centreId) {
-      this.logger.warn(
-        `Branch ${branchCode} moved from centre ${existing.code} to ${centre.code}`,
-        AppointmentBranchLinkService.context,
+      throw new ConflictException(
+        `Branch ${branchCode} is already mapped to centre ${existing.centre_name} (${existing.code}). Unlink it there before mapping it to ${centre.centre_name}.`,
       );
     }
 

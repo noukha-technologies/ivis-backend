@@ -160,7 +160,7 @@ export class DatabaseSyncService {
 
     if (doPush) {
       try {
-        await this.pushPhase(runId, result);
+        await this.pushPhase(runId, localRun.id, result);
       } catch (error) {
         pushOk = false;
         result.error = error instanceof Error ? error.message : String(error);
@@ -174,7 +174,7 @@ export class DatabaseSyncService {
 
     if (doPull) {
       try {
-        await this.pullPhase(runId, result);
+        await this.pullPhase(runId, localRun.id, result);
       } catch (error) {
         pullOk = false;
         const message = error instanceof Error ? error.message : String(error);
@@ -224,7 +224,18 @@ export class DatabaseSyncService {
 
   // ─── PUSH PHASE (this centre → central) — chunked per entity ────────────
 
-  private async pushPhase(runId: string, result: SyncRunResult): Promise<void> {
+  /**
+   * @param runId    central's run id — identifies the run across the wire
+   * @param localRunId this box's own sync_run_logs row, which the Sync Log
+   *   table reads. Recorded separately because central's counts live in
+   *   central's database; without this the local history showed a run as
+   *   SUCCESS with 0 pushed and 0 pulled, which reads as "nothing happened".
+   */
+  private async pushPhase(
+    runId: string,
+    localRunId: string,
+    result: SyncRunResult,
+  ): Promise<void> {
     const failures: string[] = [];
 
     for (const entityKey of PUSH_ORDER) {
@@ -274,6 +285,14 @@ export class DatabaseSyncService {
         }
 
         result.pushed[entityKey] = totalPushed;
+        if (totalPushed > 0) {
+          await this.syncRunLogDao.recordChunk(
+            localRunId,
+            'pushed',
+            entityKey,
+            totalPushed,
+          );
+        }
         this.syncGateway.broadcastSyncActivity({
           phase: 'push',
           entityKey,
@@ -304,7 +323,12 @@ export class DatabaseSyncService {
 
   // ─── PULL PHASE (central → this centre) — chunked per entity, one transaction per chunk ──
 
-  private async pullPhase(runId: string, result: SyncRunResult): Promise<void> {
+  /** See pushPhase for why localRunId is carried alongside central's runId. */
+  private async pullPhase(
+    runId: string,
+    localRunId: string,
+    result: SyncRunResult,
+  ): Promise<void> {
     for (const entityKey of PULL_ORDER) {
       const definition = SYNC_ENTITY_MAP[entityKey];
       if (
@@ -370,6 +394,14 @@ export class DatabaseSyncService {
       }
 
       result.pulled[entityKey] = totalPulled;
+      if (totalPulled > 0) {
+        await this.syncRunLogDao.recordChunk(
+          localRunId,
+          'pulled',
+          entityKey,
+          totalPulled,
+        );
+      }
       this.syncGateway.broadcastSyncActivity({
         phase: 'pull',
         entityKey,

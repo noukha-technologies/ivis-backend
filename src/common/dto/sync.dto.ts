@@ -68,9 +68,55 @@ export class SyncPullChunkResponseDto {
   nextCursor?: string | null;
 }
 
+/**
+ * What the centre declares about itself when opening a run.
+ *
+ * Exists because schema_version was previously a purely local value: nothing
+ * was exchanged, so a centre running an old build silently dropped every
+ * column central had added and still reported SUCCESS. Declaring the version
+ * and the entity list up front turns that silent data loss into a refusal.
+ */
+export class SyncStartRunDto {
+  @ApiPropertyOptional({
+    description:
+      "The centre's ALTER_SCHEMA_VERSION. Omitted by pre-handshake builds, which are treated as unknown rather than rejected.",
+  })
+  @IsOptional()
+  @IsInt()
+  schemaVersion?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Entity keys this centre knows how to sync, so central can report tables the centre would never ask for.',
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  entityKeys?: string[];
+}
+
 export class SyncStartRunResponseDto {
   @ApiProperty()
   runId!: string;
+
+  @ApiPropertyOptional({
+    description: "Central's own ALTER_SCHEMA_VERSION, for the centre's logs.",
+  })
+  centralSchemaVersion?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'false when the centre is behind central and would silently miss columns. The centre must abort the run.',
+  })
+  compatible?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Human-readable schema differences — version gap, and entities either side does not know.',
+    type: [String],
+  })
+  schemaDrift?: string[];
 }
 
 export class SyncRunLogDto {

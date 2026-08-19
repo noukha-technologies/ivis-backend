@@ -24,6 +24,7 @@ import {
   SyncPushChunkResponseDto,
   SyncPullChunkDto,
   SyncPullChunkResponseDto,
+  SyncStartRunDto,
   SyncStartRunResponseDto,
   SyncRunLogDto,
 } from '../../common/dto/sync.dto';
@@ -88,8 +89,15 @@ export class SyncController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Central: start a new sync run, get a runId' })
   @ApiOkResponse({ type: SyncStartRunResponseDto })
-  async startRun(): Promise<SyncStartRunResponseDto> {
-    return this.syncCentralService.startRun();
+  async startRun(
+    @Req() req: Request,
+    @Body() body: SyncStartRunDto,
+  ): Promise<SyncStartRunResponseDto> {
+    return this.syncCentralService.startRun(
+      req.centreId!,
+      body.schemaVersion,
+      body.entityKeys,
+    );
   }
 
   @Post('run/push')
@@ -160,7 +168,12 @@ export class SyncController {
   @Get('runs')
   @ApiOperation({ summary: 'Admin UI: recent sync run history (Sync Log tab)' })
   @ApiOkResponse({ type: [SyncRunLogDto] })
-  async recentRuns(): Promise<{ message: string; data: SyncRunLogDto[] }> {
+  async recentRuns(
+    @CurrentUser() userContext: UserContext,
+  ): Promise<{ message: string; data: SyncRunLogDto[] }> {
+    // Same gate as trigger/status — this route was the one Database Sync
+    // surface any authenticated user could read.
+    assertCanUseSync(userContext);
     const data = (await this.syncCentralService.recentRuns(
       20,
     )) as unknown as SyncRunLogDto[];

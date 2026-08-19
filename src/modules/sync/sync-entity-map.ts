@@ -76,6 +76,12 @@ export interface SyncEntityDefinition {
   /** Non-PK conflict target for upsert (e.g. RoleCentreMapping's (role_id, centre_id) partial unique index). */
   conflictColumns?: string[];
   conflictIndexPredicate?: string;
+  /**
+   * Columns the pull phase must leave alone on an existing local row, because
+   * the centre owns them and central holds null. Without this a READ_ONLY
+   * entity's blind overwrite would erase local-only state on every run.
+   */
+  localOnlyColumns?: string[];
 }
 
 async function pullSimple<T extends ObjectLiteral>(
@@ -116,6 +122,10 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Centre,
     direction: 'READ_ONLY',
     conditional: false,
+    // The centre's own sync credential lives on this row and central holds
+    // null for it, so a blind READ_ONLY overwrite would lock the centre out
+    // of the very next run.
+    localOnlyColumns: ['sync_api_key'],
     pull: async (ds, centreId, cursor) =>
       ds
         .getRepository(Centre)

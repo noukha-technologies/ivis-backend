@@ -387,14 +387,69 @@ export class OnboardingService {
     // Re-scoped Super Admin rows — returned by pull/complete, written
     // locally here (central never owns a per-centre copy of these, see
     // onboarding-central.service.ts's pullComplete doc comment).
-    const { reScopedSuperAdmins } =
+    const { apiKey, reScopedSuperAdmins } =
       await this.centralClient.pullComplete(pullSessionId);
+
+    // Persist the Database Sync credential central just issued for this centre.
+    // It is returned exactly once, at the end of the pull — dropping it here
+    // used to mean the only way to sync afterwards was pasting a key into
+    // CENTRAL_SYNC_API_KEY by hand. Written onto the centre's own row, which
+    // the Centre sync definition protects via localOnlyColumns so the next
+    // pull cannot overwrite it with central's null.
+    await this.storeSyncApiKey(apiKey);
+
     if (reScopedSuperAdmins.length) {
       await this.dataSource.transaction(async (manager) => {
         await this.upsertRows(manager, User, reScopedSuperAdmins as unknown as User[]);
       });
       this.logger.log(
         `Onboarding sync: re-scoped ${reScopedSuperAdmins.length} Super Admin(s) locally`,
+        OnboardingService.context,
+      );
+    }
+  }
+
+  /**
+   * Records the issued Database Sync key on this centre's own `centres` row.
+   *
+   * Never throws: onboarding has already pulled every row successfully by this
+   * point, and failing the whole run over the credential write would leave the
+   * centre unusable rather than merely unable to sync. A warning is enough —
+   * the sync client reports the missing key clearly on the first attempt.
+   */
+  private async storeSyncApiKey(apiKey: string | undefined): Promise<void> {
+    if (!apiKey?.trim()) {
+      this.logger.warn(
+        'Onboarding: central returned no Database Sync API key — sync will need CENTRAL_SYNC_API_KEY set manually.',
+        OnboardingService.context,
+      );
+      return;
+    }
+
+    try {
+      const status = await this.onboardingStatusDao.getStatus();
+      const centreId = status?.centre_id;
+      if (!centreId) {
+        this.logger.warn(
+          'Onboarding: no centre_id on the onboarding status row, cannot store the Database Sync API key.',
+          OnboardingService.context,
+        );
+        return;
+      }
+
+      await this.dataSource.query(
+        `UPDATE "master"."centres" SET "sync_api_key" = $1 WHERE "id" = $2`,
+        [apiKey.trim(), centreId],
+      );
+      this.logger.log(
+        `Onboarding: Database Sync API key stored for centre ${centreId}`,
+        OnboardingService.context,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Onboarding: failed to store the Database Sync API key — ${
+          error instanceof Error ? error.message : String(error)
+        }`,
         OnboardingService.context,
       );
     }

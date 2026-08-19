@@ -40,6 +40,14 @@ export async function upsertWithUpdate<T extends ObjectLiteral>(
     conditional: boolean;
     conflictColumns?: string[];
     conflictIndexPredicate?: string;
+    /**
+     * Columns the incoming row must never write. For values that belong to the
+     * receiving box alone — a locally-issued credential, say — where the sender
+     * legitimately holds null and a blind overwrite would destroy local state.
+     * Applies to the UPDATE half only: an INSERT still needs the full column
+     * list, and on a fresh row there is no local value to protect.
+     */
+    localOnlyColumns?: string[];
   },
 ): Promise<number> {
   if (!rows.length) return 0;
@@ -59,7 +67,11 @@ export async function upsertWithUpdate<T extends ObjectLiteral>(
   // *different* id already represents this logical pair; the incoming id
   // must be discarded, not applied, or the row's identity would silently
   // change underneath anything that already referenced it.
-  const excludedFromUpdate = new Set([...conflictColumns, 'id']);
+  const excludedFromUpdate = new Set([
+    ...conflictColumns,
+    'id',
+    ...(options.localOnlyColumns ?? []),
+  ]);
   const updateSet = columnNames
     .filter((name) => !excludedFromUpdate.has(name))
     .map((name) => `"${name}" = EXCLUDED."${name}"`)

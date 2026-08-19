@@ -42,6 +42,19 @@ export class Centre implements ICentreMasterFields {
   @Column({ type: 'varchar', nullable: true })
   provider_branch_code?: string | null;
 
+  /**
+   * This centre's own Database Sync credential, as issued by the central server
+   * at onboarding. Only ever populated on the centre's own box, for its own
+   * row — central keeps the bcrypt hash in `centre_api_keys` and leaves this
+   * null.
+   *
+   * LOCAL ONLY. Listed in the Centre sync definition's `localOnlyColumns`, or
+   * the pull phase would overwrite it with central's null on every run and the
+   * centre would lock itself out after its first successful sync.
+   */
+  @Column({ type: 'varchar', nullable: true })
+  sync_api_key?: string | null;
+
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
 

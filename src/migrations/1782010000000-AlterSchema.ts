@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 19;
+export const ALTER_SCHEMA_VERSION = 20;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1080,6 +1080,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     // means no live credential lingers in the database.
     await queryRunner.query(
       `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "appointment_api_key"`,
+    );
+    // Database Sync credential this centre presents to the central server,
+    // issued at onboarding. Distinct from the dropped appointment key above:
+    // that one was global and env-held, this one is genuinely per-centre and
+    // only ever populated on the centre's own box for its own row. Central
+    // stores the bcrypt hash in "core"."centre_api_keys" and leaves this null,
+    // which is why the Centre sync definition marks it localOnlyColumns.
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" ADD COLUMN IF NOT EXISTS "sync_api_key" character varying`,
     );
 
     // centres.name → centre_name, and appointment_* → provider_* on both
@@ -2196,6 +2205,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     `);
     await queryRunner.query(
       `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "appointment_api_key"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "sync_api_key"`,
     );
     await queryRunner.query(
       `ALTER TABLE "master"."centres" DROP COLUMN IF EXISTS "provider_branch_code"`,

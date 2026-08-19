@@ -1,5 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { AppLogger } from '../../../common/logger/app.logger';
+import { CentreDao } from '../../database/dao/centre.dao';
+import { OnboardingStatusDao } from '../../database/dao/onboarding-status.dao';
+import { ALTER_SCHEMA_VERSION } from '../../../migrations/1782010000000-AlterSchema';
+import { SYNC_ENTITY_MAP } from '../sync-entity-map';
 
 export interface SyncPushChunkResult {
   accepted: number;
@@ -25,7 +29,11 @@ export interface SyncPullChunkResult {
 export class CentralSyncHttpClientService {
   private static readonly context = 'CentralSyncHttpClientService';
 
-  constructor(private readonly logger: AppLogger) {}
+  constructor(
+    private readonly logger: AppLogger,
+    private readonly centreDao: CentreDao,
+    private readonly onboardingStatusDao: OnboardingStatusDao,
+  ) {}
 
   private baseUrl(): string {
     const url = process.env.CENTRAL_SYNC_API_URL?.trim();
@@ -35,16 +43,61 @@ export class CentralSyncHttpClientService {
     return url.replace(/\/$/, '');
   }
 
-  private apiKey(): string {
+  /**
+   * The credential this centre presents to central.
+   *
+   * Prefers the key the central server issued to this centre at onboarding and
+   * stored on its own `centres` row; falls back to CENTRAL_SYNC_API_KEY for a
+   * box that predates that flow or is being driven by hand in development.
+   *
+   * The env fallback is also where a placeholder tends to sit — `.env` shipped
+   * with a literal `<the real central-server API key/token>` for a while, which
+   * passed a bare empty-check and then failed as a confusing 401 from central.
+   * Anything still wrapped in angle brackets is treated as unconfigured so the
+   * error names the real problem, locally.
+   */
+  private async apiKey(): Promise<string> {
+    const issued = await this.issuedKey();
+    if (issued) return issued;
+
     const key = process.env.CENTRAL_SYNC_API_KEY?.trim();
     if (!key) {
-      throw new Error('CENTRAL_SYNC_API_KEY is not configured');
+      throw new Error(
+        'No Database Sync credential: this centre has no issued key, and CENTRAL_SYNC_API_KEY is not set.',
+      );
+    }
+    if (key.startsWith('<') || key.endsWith('>')) {
+      throw new Error(
+        `CENTRAL_SYNC_API_KEY is still the placeholder value ("${key}") — replace it with the key issued to this centre.`,
+      );
     }
     return key;
   }
 
-  async startRun(): Promise<{ runId: string }> {
-    return this.post('/sync/run/start', {});
+  /** This centre's stored key, or null if it was never issued one. */
+  private async issuedKey(): Promise<string | null> {
+    const onboarding = await this.onboardingStatusDao.getStatus();
+    const centreId = onboarding?.centre_id;
+    if (!centreId) return null;
+
+    const centre = await this.centreDao.findOne({ where: { id: centreId } });
+    return centre?.sync_api_key?.trim() || null;
+  }
+
+  /**
+   * Opens a run, declaring this centre's schema version and entity coverage so
+   * central can refuse before any rows move (see SyncCentralService.startRun).
+   */
+  async startRun(): Promise<{
+    runId: string;
+    centralSchemaVersion?: number;
+    compatible?: boolean;
+    schemaDrift?: string[];
+  }> {
+    return this.post('/sync/run/start', {
+      schemaVersion: ALTER_SCHEMA_VERSION,
+      entityKeys: Object.keys(SYNC_ENTITY_MAP),
+    });
   }
 
   async pushChunk(
@@ -76,6 +129,8 @@ export class CentralSyncHttpClientService {
     path: string,
     body: Record<string, unknown>,
   ): Promise<T> {
+    const key = await this.apiKey();
+
     let res: Response;
     try {
       res = await fetch(`${this.baseUrl()}${path}`, {
@@ -83,7 +138,7 @@ export class CentralSyncHttpClientService {
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json',
-          Authorization: `Bearer ${this.apiKey()}`,
+          Authorization: `Bearer ${key}`,
         },
         body: JSON.stringify(body),
       });

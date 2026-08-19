@@ -50,6 +50,9 @@ export interface SyncRunResult {
 export class DatabaseSyncService {
   private static readonly context = 'DatabaseSyncService';
   private static readonly POSTGRES_UNDEFINED_COLUMN = '42703';
+  private static readonly POSTGRES_NOT_NULL_VIOLATION = '23502';
+  /** Entities already reported for ignored columns this run — see warnOnIgnoredColumns. */
+  private readonly reportedIgnoredColumns = new Set<string>();
 
   constructor(
     @InjectDataSource() private readonly dataSource: DataSource,
@@ -72,11 +75,19 @@ export class DatabaseSyncService {
       );
     }
 
+    // Per-run, so a drift warning silenced on one run reappears on the next
+    // until someone actually deploys the fix.
+    this.reportedIgnoredColumns.clear();
+
     const localRun = await this.syncRunLogDao.startRun();
 
     let runId: string;
+    let handshake: Awaited<
+      ReturnType<typeof this.centralClient.startRun>
+    > | null = null;
     try {
-      ({ runId } = await this.centralClient.startRun());
+      handshake = await this.centralClient.startRun();
+      runId = handshake.runId;
     } catch (error) {
       // Central unreachable (or misconfigured, e.g. missing API key/URL) before
       // any work started — finalize the row as FAILED instead of leaving it
@@ -96,6 +107,31 @@ export class DatabaseSyncService {
       };
       this.syncGateway.broadcastSyncRunComplete(result);
       return result;
+    }
+
+    // Schema drift that central rated incompatible: stop before moving a single
+    // row. Proceeding would write nulls into every column this build does not
+    // know about and still report SUCCESS, which is worse than not syncing.
+    if (handshake.compatible === false) {
+      const message = `Schema mismatch with central — sync aborted. ${(handshake.schemaDrift ?? []).join(' ')}`;
+      await this.syncRunLogDao.finishRun(localRun.id, 'FAILED', message);
+      this.logger.error(message, undefined, DatabaseSyncService.context);
+      const aborted: SyncRunResult = {
+        status: 'FAILED',
+        pulled: {},
+        pushed: {},
+        error: message,
+      };
+      this.syncGateway.broadcastSyncRunComplete(aborted);
+      return aborted;
+    }
+
+    // Compatible but not identical — worth recording, not worth blocking.
+    if (handshake.schemaDrift?.length) {
+      this.logger.warn(
+        `Database Sync schema drift (proceeding): ${handshake.schemaDrift.join(' ')}`,
+        DatabaseSyncService.context,
+      );
     }
 
     const result: SyncRunResult = { status: 'SUCCESS', pulled: {}, pushed: {} };
@@ -267,6 +303,8 @@ export class DatabaseSyncService {
         );
         if (!response.rows.length) break;
 
+        this.warnOnIgnoredColumns(entityKey, definition.entityClass, response.rows);
+
         await this.dataSource.transaction(async (manager) => {
           const count = await this.withMissingColumnHealing(
             manager,
@@ -281,6 +319,7 @@ export class DatabaseSyncService {
                   conditional: definition.conditional,
                   conflictColumns: definition.conflictColumns,
                   conflictIndexPredicate: definition.conflictIndexPredicate,
+                  localOnlyColumns: definition.localOnlyColumns,
                 },
               ),
           );
@@ -319,6 +358,45 @@ export class DatabaseSyncService {
    * original Database Sync engine (see DATABASE_SYNC_HARDENING_PLAN.md) —
    * this hardening logic is orthogonal to the transport change.
    */
+  /**
+   * Names the fields central sent that this build has nowhere to put.
+   *
+   * The upsert reads values by walking LOCAL entity metadata, so any extra key
+   * in the payload is silently skipped — a centre on an old build lost every
+   * new column with no error and a SUCCESS result. The handshake refuses that
+   * case outright now; this covers what slips past it, notably a centre running
+   * a build with the same schema version but a stale entity definition.
+   *
+   * Once per entity per run, not per row — a full chunk would log the same
+   * field 500 times.
+   */
+  private warnOnIgnoredColumns(
+    entityKey: string,
+    entity: EntityTarget<ObjectLiteral>,
+    rows: Record<string, unknown>[],
+  ): void {
+    if (this.reportedIgnoredColumns.has(entityKey)) return;
+
+    const sample = rows[0];
+    if (!sample) return;
+
+    const known = new Set(
+      this.dataSource
+        .getMetadata(entity)
+        .columns.flatMap((c) => [c.propertyName, c.databaseName]),
+    );
+    const ignored = Object.keys(sample).filter((key) => !known.has(key));
+
+    this.reportedIgnoredColumns.add(entityKey);
+    if (!ignored.length) return;
+
+    this.logger.warn(
+      `⚠ Database Sync: central sent ${ignored.length} field(s) on ${entityKey} that this build does not know — ` +
+        `they were NOT stored: ${ignored.join(', ')}. Deploy the matching build to this centre.`,
+      DatabaseSyncService.context,
+    );
+  }
+
   private async withMissingColumnHealing<T>(
     manager: EntityManager,
     entity: EntityTarget<ObjectLiteral>,
@@ -328,6 +406,22 @@ export class DatabaseSyncService {
     try {
       return await attempt();
     } catch (error) {
+      // A column this build requires but the sender dropped: the payload has no
+      // value, the upsert writes null, and NOT NULL rejects it. Nothing local
+      // can fix that, so re-raise it named — otherwise it surfaces as a bare
+      // Postgres string and reads like a data bug rather than a version gap.
+      if (
+        error instanceof QueryFailedError &&
+        (error as { code?: string }).code ===
+          DatabaseSyncService.POSTGRES_NOT_NULL_VIOLATION
+      ) {
+        const column = (error as { column?: string }).column;
+        throw new Error(
+          `SCHEMA DRIFT on ${label}: required column "${column ?? 'unknown'}" was not supplied by the other side ` +
+            `— its build is missing this column, or dropped it. Align the schema versions.`,
+        );
+      }
+
       if (
         !(error instanceof QueryFailedError) ||
         (error as { code?: string }).code !==

@@ -113,7 +113,40 @@ export class TajdeedOutboxService {
    * failed transaction to processed, and re-pushing its id only earns E0007.
    * A fresh id is the only way the corrected event can be applied.
    */
-  async repush(transactionId: string): Promise<TajdeedOutbox | null> {
+/**
+   * Where a job currently stands with the provider, for the job screen.
+   *
+   * Returns null when nothing was ever queued — a walk-in, or a job whose
+   * booking the provider does not know about. That is a legitimate state, not
+   * an error: there is simply nothing to file.
+   */
+  async latestForJob(jobId: string): Promise<TajdeedOutbox | null> {
+    return this.outboxDao.findLatestInspectionResultByJobId(jobId);
+  }
+
+  /**
+   * Operator-driven retry: re-queue a job's most recent rejected result now.
+   *
+   * Exists because the automatic retry waits 30 minutes, and an operator who
+   * has just watched the counter check the customer in should not have to.
+   */
+  async pushNowForJob(jobId: string): Promise<TajdeedOutbox | null> {
+    const latest = await this.latestForJob(jobId);
+    if (!latest) return null;
+    return this.repush(latest.transaction_id, new Date());
+  }
+
+    /**
+   * Clones a rejected event as a fresh one.
+   *
+   * @param runAt when the successor becomes eligible to send. Defaults to now
+   *   for an operator pressing retry; the automatic path passes a future time
+   *   so the provider has a chance to record the check-in first.
+   */
+  async repush(
+    transactionId: string,
+    runAt: Date = new Date(),
+  ): Promise<TajdeedOutbox | null> {
     const original = await this.outboxDao.findByTransactionId(transactionId);
     if (!original) return null;
 
@@ -129,7 +162,7 @@ export class TajdeedOutboxService {
         line_id: original.line_id ?? null,
         delivery_status: TajdeedDeliveryStatus.PENDING,
         attempt_count: 0,
-        next_attempt_at: new Date(),
+        next_attempt_at: runAt,
       }),
     );
 

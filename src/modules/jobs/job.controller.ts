@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -39,6 +40,7 @@ import { JobService } from './services/job.service';
 import { JobIntakeService } from './services/job-intake.service';
 import { JobImageService } from './services/job-image.service';
 import { OutfileGeneratorService } from './services/outfile-generator.service';
+import { TajdeedOutboxService } from '../transactions/tajdeed-events/services/tajdeed-outbox.service';
 import type { JobImageSource } from '../database/entity/job-image.entity';
 
 type UploadedImage = { buffer: Buffer; mimetype: string; size: number };
@@ -51,6 +53,7 @@ export class JobController {
     private readonly jobIntakeService: JobIntakeService,
     private readonly jobImageService: JobImageService,
     private readonly outfileGenerator: OutfileGeneratorService,
+    private readonly outbox: TajdeedOutboxService,
   ) {}
 
   @Post()
@@ -175,7 +178,36 @@ export class JobController {
     return { message: 'OUT file retrieved', data };
   }
 
-  @Post(':id/images')
+@Get(':id/provider-event')
+  @ApiOperation({
+    summary: "This job's latest inspection-result event at the provider",
+    description:
+      'null when nothing was ever queued — a walk-in, or a job the provider has no booking for. That is a normal state, not an error.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async providerEvent(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.outbox.latestForJob(id);
+    return { message: 'Provider event retrieved', data };
+  }
+
+  @Post(':id/provider-event/retry')
+  @ApiOperation({
+    summary: "Re-send this job's inspection result to the provider now",
+    description:
+      'Queues a fresh event under a new transaction id — the provider never reprocesses a rejected one. Use once the booking has been checked in; the automatic retry otherwise waits 30 minutes.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  async retryProviderEvent(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.outbox.pushNowForJob(id);
+    if (!data) {
+      throw new BadRequestException(
+        'This job has no inspection result queued for the provider, so there is nothing to re-send.',
+      );
+    }
+    return { message: 'Inspection result re-queued for the provider', data };
+  }
+
+    @Post(':id/images')
   @ApiOperation({ summary: 'Upload or capture a photo for a job' })
   @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })

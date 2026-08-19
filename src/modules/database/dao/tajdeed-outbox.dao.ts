@@ -11,6 +11,7 @@ import { ITajdeedOutboxDao } from '../../transactions/tajdeed-events/dao/tajdeed
 import { TajdeedOutbox } from '../entity/tajdeed-outbox.entity';
 import {
   TajdeedDeliveryStatus,
+  TajdeedEventType,
   TajdeedEventStatus,
 } from '../../../common/enums/common.enums';
 
@@ -69,7 +70,26 @@ export class TajdeedOutboxDao
     });
   }
 
-  findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {
+/**
+   * The newest inspection-result event raised for a job.
+   *
+   * A job can have several over its life: one per submit, plus a successor for
+   * every automatic or manual retry. Only the latest describes where the job
+   * currently stands with the provider — the earlier ones are the audit trail.
+   */
+  findLatestInspectionResultByJobId(
+    jobId: string,
+  ): Promise<TajdeedOutbox | null> {
+    return this.createQueryBuilder('outbox')
+      .where('outbox.job_id = :jobId', { jobId })
+      .andWhere('outbox.event_type = :type', {
+        type: TajdeedEventType.INSPECTION_RESULT,
+      })
+      .orderBy('outbox.created_at', 'DESC')
+      .getOne();
+  }
+
+    findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {
     return this.findOne({ where: { transaction_id: transactionId } });
   }
 

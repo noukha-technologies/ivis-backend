@@ -244,6 +244,25 @@ export function chunkArray<T>(array: T[], size: number): T[][] {
 // same wall-clock day, regardless of which host timezone the server runs in.
 export const OmanTimeZone = 'Asia/Muscat';
 
+/**
+ * Whether two instants fall on the same Oman calendar day.
+ *
+ * Business rules here are written in Oman wall-clock terms — ROP wants the
+ * result submitted on the day the job was raised, and the provider only keeps
+ * a booking actionable for its own day — so "same day" must be evaluated in
+ * Asia/Muscat, never in the host's timezone.
+ */
+export function isSameOmanDay(a: Date, b: Date): boolean {
+  const fmt = (d: Date) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: OmanTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(d);
+  return fmt(a) === fmt(b);
+}
+
 export function getDateFolder(): string {
   const [yyyy, mm, dd] = new Intl.DateTimeFormat('en-CA', {
     timeZone: OmanTimeZone,

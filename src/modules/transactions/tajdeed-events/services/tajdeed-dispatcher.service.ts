@@ -4,6 +4,7 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import {
   TajdeedDeliveryStatus,
   TajdeedEventStatus,
+  TajdeedEventType,
 } from '../../../../common/enums/common.enums';
 import { TajdeedOutboxDao } from '../../../database/dao/tajdeed-outbox.dao';
 import { TajdeedOutbox } from '../../../database/entity/tajdeed-outbox.entity';
@@ -18,6 +19,8 @@ import {
   TajdeedEventEnvelope,
 } from '../../../../common/integrations/appointments/appointment.types';
 import { isCentreNode } from '../../../../common/config/env.config';
+import { isSameOmanDay } from '../../../../common/utils/util';
+import { TajdeedOutboxService } from './tajdeed-outbox.service';
 
 /** How often the outbox is drained. */
 const DRAIN_INTERVAL_MS = 30_000;
@@ -27,6 +30,14 @@ const DRAIN_INTERVAL_MS = 30_000;
  * worker apply it", which resolves in seconds but is not urgent for us.
  */
 const CONFIRM_INTERVAL_MS = 2 * 60_000;
+
+/**
+ * How long to wait before re-sending a result the provider rejected because
+ * the booking was not checked in. Sized for a person at their counter, not for
+ * a transient network fault — polling faster would not make anyone arrive
+ * sooner.
+ */
+const REJECTION_RETRY_DELAY_MS = 30 * 60_000;
 
 /** Rows handled per drain tick — bounds one cycle's provider load. */
 const DRAIN_BATCH = 20;
@@ -54,6 +65,7 @@ export class TajdeedDispatcherService {
 
   constructor(
     private readonly outboxDao: TajdeedOutboxDao,
+    private readonly outbox: TajdeedOutboxService,
     private readonly appointmentApi: AppointmentApiClientService,
     private readonly logger: AppLogger,
   ) {}
@@ -190,7 +202,71 @@ export class TajdeedDispatcherService {
     }
   }
 
-  private async applyStatus(
+/**
+   * Only a rejection that can plausibly clear on its own is worth retrying.
+   *
+   * The provider rejects an INSPECTION_RESULT for several reasons, and most are
+   * permanent: wrong branch, wrong day, already completed, ambiguous plate.
+   * Retrying those forever is noise. The one that genuinely resolves is the
+   * booking not yet being checked in — their counter records the arrival
+   * minutes later and the identical payload then succeeds.
+   */
+  private isRecoverableRejection(reason: string): boolean {
+    const text = reason.toLowerCase();
+    return (
+      text.includes('no active booking') ||
+      text.includes('checked_in') ||
+      text.includes('not checked in')
+    );
+  }
+
+  /**
+   * Re-queues a rejected inspection result as a fresh event, later.
+   *
+   * A new transaction id is mandatory — the provider holds the old one and
+   * answers E0007 to any resend of it. The delay exists because the thing we
+   * are waiting for is a human at their counter, which no amount of immediate
+   * retrying will hurry.
+   *
+   * Bounded by the Oman day the job completed on, which needs no counter and
+   * matches the business rule: ROP wants same-day submission and the provider
+   * only keeps a booking actionable for its own day, so an event that has not
+   * landed by midnight never will.
+   */
+  private async scheduleRejectionRetry(
+    row: TajdeedOutbox,
+    reason: string,
+  ): Promise<void> {
+    if (row.event_type !== TajdeedEventType.INSPECTION_RESULT) return;
+    if (!row.job_id) return;
+
+    if (!this.isRecoverableRejection(reason)) {
+      this.logger.warn(
+        `Not retrying ${row.transaction_id} — "${reason}" will not resolve on its own.`,
+        TajdeedDispatcherService.context,
+      );
+      return;
+    }
+
+    if (!isSameOmanDay(new Date(row.created_at), new Date())) {
+      this.logger.warn(
+        `Not retrying ${row.transaction_id} — past the Oman day it was raised on, so the booking can no longer accept it.`,
+        TajdeedDispatcherService.context,
+      );
+      return;
+    }
+
+    const retryAt = new Date(Date.now() + REJECTION_RETRY_DELAY_MS);
+    const successor = await this.outbox.repush(row.transaction_id, retryAt);
+    if (!successor) return;
+
+    this.logger.log(
+      `Queued ${successor.transaction_id} to retry ${row.transaction_id} at ${retryAt.toISOString()} — waiting for the provider to record the check-in.`,
+      TajdeedDispatcherService.context,
+    );
+  }
+
+    private async applyStatus(
     row: TajdeedOutbox,
     rawStatus: string,
   ): Promise<void> {
@@ -212,22 +288,26 @@ export class TajdeedDispatcherService {
     }
 
     if (eventStatus === TajdeedEventStatus.FAILED) {
-      // Terminal on their side and never self-healing. Recorded loudly, and
-      // left for an operator: correcting it means a NEW transaction id, which
-      // is a deliberate decision rather than something to automate.
       const detail = await this.appointmentApi.fetchEventStatus(
         row.transaction_id,
       );
+      const reason = detail?.error_message ?? 'Provider rejected the event';
+
+      // The original row is always closed as FAILED — a rejected transaction
+      // id never becomes processed, and re-sending it only earns E0007. Any
+      // recovery is a NEW event, queued below.
       await this.outboxDao.update(row.id, {
         delivery_status: TajdeedDeliveryStatus.FAILED,
         event_status: TajdeedEventStatus.FAILED,
-        last_error: detail?.error_message ?? 'Provider rejected the event',
+        last_error: reason,
       });
       this.logger.error(
-        `Provider REJECTED ${row.event_type} ${row.transaction_id}: ${detail?.error_message ?? 'no reason given'}`,
+        `Provider REJECTED ${row.event_type} ${row.transaction_id}: ${reason}`,
         undefined,
         TajdeedDispatcherService.context,
       );
+
+      await this.scheduleRejectionRetry(row, reason);
       return;
     }
 

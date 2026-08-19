@@ -160,6 +160,17 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Permission,
     direction: 'READ_ONLY',
     conditional: false,
+    // Matched on its business key, not on `id`.
+    //
+    // Every box mints its own snowflake PKs and its own sequential
+    // <name>_id, so the same logical master row exists on central and here
+    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
+    // to INSERT, and hit the unique index on the business key instead —
+    // "duplicate key value violates unique constraint". Targeting that key
+    // makes the pull adopt the local row and update it in place; the util
+    // keeps the local `id` and the key itself out of the UPDATE, so nothing
+    // that already references this row breaks.
+    conflictColumns: ['name'],
     // Global, no centre scoping — every centre pulls the full permission set.
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Permission, cursor),
   },
@@ -178,6 +189,17 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: PaymentType,
     direction: 'READ_ONLY',
     conditional: false,
+    // Matched on its business key, not on `id`.
+    //
+    // Every box mints its own snowflake PKs and its own sequential
+    // <name>_id, so the same logical master row exists on central and here
+    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
+    // to INSERT, and hit the unique index on the business key instead —
+    // "duplicate key value violates unique constraint". Targeting that key
+    // makes the pull adopt the local row and update it in place; the util
+    // keeps the local `id` and the key itself out of the UPDATE, so nothing
+    // that already references this row breaks.
+    conflictColumns: ['payment_type_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, PaymentType, cursor),
   },
   Test: {
@@ -185,6 +207,17 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Test,
     direction: 'READ_ONLY',
     conditional: false,
+    // Matched on its business key, not on `id`.
+    //
+    // Every box mints its own snowflake PKs and its own sequential
+    // <name>_id, so the same logical master row exists on central and here
+    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
+    // to INSERT, and hit the unique index on the business key instead —
+    // "duplicate key value violates unique constraint". Targeting that key
+    // makes the pull adopt the local row and update it in place; the util
+    // keeps the local `id` and the key itself out of the UPDATE, so nothing
+    // that already references this row breaks.
+    conflictColumns: ['test_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Test, cursor),
   },
   Vehicle: {
@@ -192,6 +225,17 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: Vehicle,
     direction: 'READ_ONLY',
     conditional: false,
+    // Matched on its business key, not on `id`.
+    //
+    // Every box mints its own snowflake PKs and its own sequential
+    // <name>_id, so the same logical master row exists on central and here
+    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
+    // to INSERT, and hit the unique index on the business key instead —
+    // "duplicate key value violates unique constraint". Targeting that key
+    // makes the pull adopt the local row and update it in place; the util
+    // keeps the local `id` and the key itself out of the UPDATE, so nothing
+    // that already references this row breaks.
+    conflictColumns: ['vehicle_id'],
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Vehicle, cursor),
   },
 
@@ -201,6 +245,17 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     entityClass: ChargeCategory,
     direction: 'BIDIRECTIONAL',
     conditional: true,
+    // Matched on its business key, not on `id`.
+    //
+    // Every box mints its own snowflake PKs and its own sequential
+    // <name>_id, so the same logical master row exists on central and here
+    // under two different PKs. ON CONFLICT (id) then saw no conflict, tried
+    // to INSERT, and hit the unique index on the business key instead —
+    // "duplicate key value violates unique constraint". Targeting that key
+    // makes the pull adopt the local row and update it in place; the util
+    // keeps the local `id` and the key itself out of the UPDATE, so nothing
+    // that already references this row breaks.
+    conflictColumns: ['category_id'],
     // Global (no centre_id) — every centre sees the same category list.
     pull: async (ds, _centreId, cursor) =>
       pullGlobal(ds, ChargeCategory, cursor),

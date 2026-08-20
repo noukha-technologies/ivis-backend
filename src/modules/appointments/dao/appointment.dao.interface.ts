@@ -15,6 +15,10 @@ export interface IAppointmentDao {
   ): Promise<Appointment | null>;
   findByProviderBookingId(bookingId: string): Promise<Appointment | null>;
   findLatestQueuedByPlate(plate: string): Promise<Appointment | null>;
+  findOpenByPlate(
+    plate: string,
+    excludeAppointmentRowId?: string,
+  ): Promise<Appointment | null>;
   findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Appointment>>;

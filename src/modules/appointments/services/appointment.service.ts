@@ -128,6 +128,11 @@ export class AppointmentService {
         rop?.vehicle_type ??
         null,
       chassis_no: rop?.chassis_no ?? record?.chassis_no ?? null,
+      // ROP first: it is the government record, and the only place make/model
+      // originate. The vehicle record is a local mirror that may predate the
+      // ROP fetch.
+      vehicle_make: rop?.vehicle_make ?? record?.vehicle_make ?? null,
+      vehicle_model: rop?.vehicle_model ?? record?.vehicle_model ?? null,
       charge_category_id: record?.vehicleMaster?.charge_category_id ?? null,
     };
   }
@@ -172,8 +177,34 @@ export class AppointmentService {
         plateNumber = plateNumber || capture.plate_number;
       }
 
+      // One open appointment per plate. A vehicle already queued or scheduled
+      // must finish that visit — be CONVERTED into a job, or CANCELLED —
+      // before it can be booked in again; otherwise the same car occupies two
+      // queue slots. Checked here because the plate is fully resolved by this
+      // point and nothing has been written yet.
+      if (plateNumber) {
+        const open = await this.appointmentDao.findOpenByPlate(plateNumber);
+        if (open) {
+          throw new DuplicateResourceException(
+            'Appointment',
+            'plate_number',
+            `${plateNumber} (appointment #${open.appointment_id} is still ${open.status})`,
+          );
+        }
+      }
+
+      // Resolved BEFORE the vehicle record, not after, because ROP is the only
+      // source of make/model — the ANPR capture and the walk-in form carry
+      // neither. Looking it up afterwards (as this used to) meant the vehicle
+      // record was written without them and stayed empty for the vehicle's
+      // whole life.
+      const rop = plateNumber
+        ? await this.ropVerificationDao.findLatestByRegNo(plateNumber)
+        : null;
+
       // Ensure a vehicle record exists for the plate and carries the ANPR/DTO
-      // vehicle type + chassis (#6 — ANPR vehicle type flows into the record).
+      // vehicle type + chassis (#6 — ANPR vehicle type flows into the record),
+      // plus make/model off the ROP record.
       const vehicleRecordId = await this.ensureVehicleRecord(
         createDto.vehicle_record_id,
         plateNumber,
@@ -182,6 +213,8 @@ export class AppointmentService {
         actor,
         createDto.plate_color,
         createDto.vehicle_color,
+        rop?.vehicle_make ?? undefined,
+        rop?.vehicle_model ?? undefined,
       );
 
       // Create / link the customer with all entered details (#4) and link it to
@@ -199,13 +232,9 @@ export class AppointmentService {
       const resolvedCentreId =
         createDto.centre_id ?? actor.user.center_id ?? undefined;
 
-      // Link the RopVerification already fetched/saved for this plate (via
-      // resolveByPlate on the walk-in form) so a later real ANPR arrival for
-      // the same plate can be matched back to this appointment.
-      const rop = plateNumber
-        ? await this.ropVerificationDao.findLatestByRegNo(plateNumber)
-        : null;
-
+      // `rop` is resolved above, before the vehicle record — linking it here
+      // means a later real ANPR arrival for the same plate can be matched back
+      // to this appointment.
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
         appointment_id: appointmentId,
@@ -544,6 +573,8 @@ export class AppointmentService {
     actor: UserContext,
     plateColor?: string,
     vehicleColor?: string,
+    vehicleMake?: string,
+    vehicleModel?: string,
   ): Promise<string | undefined> {
     if (existingRecordId) {
       const record =
@@ -554,6 +585,10 @@ export class AppointmentService {
           chassis_no: chassisNo ?? record.chassis_no,
           plate_color: plateColor ?? record.plate_color,
           vehicle_color: vehicleColor ?? record.vehicle_color,
+          // Incoming value wins only when present, so a later appointment
+          // without ROP data cannot blank what an earlier one established.
+          vehicle_make: vehicleMake ?? record.vehicle_make,
+          vehicle_model: vehicleModel ?? record.vehicle_model,
         });
         const saved = await this.vehicleRecordDao.save(merged);
         return saved.id;
@@ -570,6 +605,8 @@ export class AppointmentService {
         chassis_no: chassisNo ?? found.chassis_no,
         plate_color: plateColor ?? found.plate_color,
         vehicle_color: vehicleColor ?? found.vehicle_color,
+        vehicle_make: vehicleMake ?? found.vehicle_make,
+        vehicle_model: vehicleModel ?? found.vehicle_model,
       });
       const saved = await this.vehicleRecordDao.save(merged);
       return saved.id;
@@ -584,6 +621,8 @@ export class AppointmentService {
         chassis_no: chassisNo,
         plate_color: plateColor,
         vehicle_color: vehicleColor,
+        vehicle_make: vehicleMake,
+        vehicle_model: vehicleModel,
         created_by: getCreatedById(actor),
       }),
     );

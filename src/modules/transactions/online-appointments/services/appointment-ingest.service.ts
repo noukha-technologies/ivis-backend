@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
+import { DataSource } from 'typeorm';
 import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import {
@@ -24,9 +25,9 @@ import { isCentreNode } from '../../../../common/config/env.config';
 
 /**
  * Today is the operational day — its queue is what staff are working from, so
- * it is pulled every minute.
+ * it is pulled every 10 seconds.
  */
-const TODAY_INTERVAL_MS = 60_000;
+const TODAY_INTERVAL_MS = 10_000;
 
 /**
  * Future days change far less urgently: a booking made or cancelled for next
@@ -41,6 +42,22 @@ const UPCOMING_INTERVAL_MS = 5 * 60_000;
  * today would mean tomorrow's booking is invisible until tomorrow.
  */
 const WINDOW_DAYS = 7;
+
+/**
+ * Row key in `core.system_flags` that pauses ingest across restarts. Kept in
+ * sync with the WipeTransactions migration, which sets it.
+ *
+ * The stored value is one of:
+ *   'false' / row absent → running
+ *   'infinite'           → paused indefinitely (legacy value; nothing writes it now)
+ *   ISO-8601 timestamp   → paused until that instant, then resumes on its own
+ *
+ * The wipe writes a timestamp, never 'infinite'. A wipe is a momentary
+ * operation and must not leave a permanently broken system behind it: the
+ * Online Appointments screen reads the local mirror this service fills, so an
+ * indefinite pause silently blanks a whole screen with no way to tell why.
+ */
+const INGEST_PAUSED_FLAG = 'appointment_ingest_paused';
 
 /**
  * Pulls the provider's bookings into IVIS on a schedule.
@@ -75,7 +92,70 @@ export class AppointmentIngestService {
     private readonly paymentTypeDao: PaymentTypeDao,
     private readonly appointmentApi: AppointmentApiClientService,
     private readonly logger: AppLogger,
+    private readonly dataSource: DataSource,
   ) {}
+
+  /** Last pause state logged, so a held pause is announced once, not every poll. */
+  private lastPauseLogged: boolean | null = null;
+
+  /**
+   * Pause switch, written only by the wipe migration.
+   *
+   * A wipe deletes local rows, but the provider is the source of truth and
+   * re-serves the same bookings on the next poll — so without this the queue
+   * refills within one interval and the wipe looks like it did nothing. The
+   * flag lives in the database rather than in env because the wipe runs as its
+   * own process: it has to be able to stop a backend that is already running.
+   *
+   * A wipe's pause EXPIRES (see INGEST_PAUSED_FLAG). Nothing that a routine
+   * maintenance command does should be able to leave bookings permanently not
+   * arriving, which is what an indefinite pause did.
+   *
+   * Fails open (never blocks ingest) if the table is absent or unreadable — a
+   * deployment that has not run the migration yet must keep ingesting normally.
+   */
+  private async isPausedInDb(): Promise<boolean> {
+    let paused = false;
+    let until: string | null = null;
+
+    try {
+      const rows: Array<{ value: string }> = await this.dataSource.query(
+        `SELECT "value" FROM "core"."system_flags" WHERE "key" = $1 LIMIT 1`,
+        [INGEST_PAUSED_FLAG],
+      );
+      const value = rows[0]?.value;
+
+      if (value === 'infinite') {
+        paused = true;
+      } else if (value && value !== 'false') {
+        // A timed pause. An unparseable value is treated as "not paused"
+        // rather than "paused forever" — the failure mode of a corrupt flag
+        // should be bookings flowing, not bookings silently stopping.
+        const expiresAt = Date.parse(value);
+        if (Number.isFinite(expiresAt) && Date.now() < expiresAt) {
+          paused = true;
+          until = new Date(expiresAt).toISOString();
+        }
+      }
+    } catch {
+      return false;
+    }
+
+    // Announce each transition once. Silence was the real problem the first
+    // time round: the screen was empty and nothing said the poller was held.
+    if (paused !== this.lastPauseLogged) {
+      this.logger.warn(
+        paused
+          ? `Appointment ingest is PAUSED${until ? ` until ${until}` : ' indefinitely'} — ` +
+            `bookings will not be pulled until the pause is cleared.`
+          : 'Appointment ingest RESUMED — pulling bookings again.',
+        AppointmentIngestService.context,
+      );
+      this.lastPauseLogged = paused;
+    }
+
+    return paused;
+  }
 
   /** Today only — the queue staff are actively working from. */
   @Interval(TODAY_INTERVAL_MS)
@@ -104,6 +184,7 @@ export class AppointmentIngestService {
     label: string,
   ): Promise<void> {
     if (process.env.APPOINTMENT_INGEST_DISABLED === 'true') return;
+    if (await this.isPausedInDb()) return;
 
     try {
       const centres = await this.centreDao.findAllWithProviderBranchCode();
@@ -249,6 +330,26 @@ export class AppointmentIngestService {
       booking.appointment_id = existing.id;
       await this.bookingDao.save(booking);
       return;
+    }
+
+    // One open appointment per plate — the same rule the walk-in form enforces.
+    // The car is physically one vehicle: if it is already queued or scheduled
+    // (from a walk-in, or an earlier booking), a second provider booking must
+    // not put it in the queue twice. Left pending rather than thrown: the
+    // booking stays unpromoted and is retried next cycle, so it promotes on its
+    // own once the earlier visit is converted or cancelled.
+    if (booking.plate_number) {
+      const open = await this.appointmentDao.findOpenByPlate(
+        booking.plate_number,
+      );
+      if (open) {
+        this.logger.warn(
+          `Booking ${booking.booking_id} not promoted: plate ${booking.plate_number} ` +
+            `already has an open appointment #${open.appointment_id} (${open.status})`,
+          AppointmentIngestService.context,
+        );
+        return;
+      }
     }
 
     // The booking payload already carries vehicle, customer and payment detail,

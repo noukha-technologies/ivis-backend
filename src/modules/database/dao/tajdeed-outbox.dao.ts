@@ -77,7 +77,31 @@ export class TajdeedOutboxDao
    * every automatic or manual retry. Only the latest describes where the job
    * currently stands with the provider — the earlier ones are the audit trail.
    */
-  findLatestInspectionResultByJobId(
+/**
+   * Does this job already have an inspection result that is still going to be
+   * tried — queued, or delivered but unconfirmed?
+   *
+   * The guard against fan-out. A retry is scheduled per REJECTED ROW, but the
+   * thing being retried is the JOB's result. Two rejected rows in one confirm
+   * sweep therefore used to spawn two successors, which both failed and spawned
+   * two more — doubling every cycle until the day rolled over. One live event
+   * per job is the invariant; anything else is duplicate work the provider
+   * would have to reject anyway.
+   */
+  async hasLiveInspectionResult(jobId: string): Promise<boolean> {
+    const count = await this.createQueryBuilder('outbox')
+      .where('outbox.job_id = :jobId', { jobId })
+      .andWhere('outbox.event_type = :type', {
+        type: TajdeedEventType.INSPECTION_RESULT,
+      })
+      .andWhere('outbox.delivery_status IN (:...live)', {
+        live: [TajdeedDeliveryStatus.PENDING, TajdeedDeliveryStatus.ACCEPTED],
+      })
+      .getCount();
+    return count > 0;
+  }
+
+    findLatestInspectionResultByJobId(
     jobId: string,
   ): Promise<TajdeedOutbox | null> {
     return this.createQueryBuilder('outbox')
@@ -87,6 +111,28 @@ export class TajdeedOutboxDao
       })
       .orderBy('outbox.created_at', 'DESC')
       .getOne();
+  }
+
+  /**
+   * Latest inspection-result event for each of several jobs, in one query.
+   *
+   * DISTINCT ON keeps only the newest row per job — the job list needs the
+   * current state of a whole page at once, and asking per row would be one
+   * request per job on every render.
+   */
+  findLatestInspectionResultsByJobIds(
+    jobIds: string[],
+  ): Promise<TajdeedOutbox[]> {
+    if (!jobIds.length) return Promise.resolve([]);
+    return this.createQueryBuilder('outbox')
+      .distinctOn(['outbox.job_id'])
+      .where('outbox.job_id IN (:...jobIds)', { jobIds })
+      .andWhere('outbox.event_type = :type', {
+        type: TajdeedEventType.INSPECTION_RESULT,
+      })
+      .orderBy('outbox.job_id', 'ASC')
+      .addOrderBy('outbox.created_at', 'DESC')
+      .getMany();
   }
 
     findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {

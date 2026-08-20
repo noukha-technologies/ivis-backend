@@ -256,6 +256,19 @@ export class TajdeedDispatcherService {
       return;
     }
 
+    // One live event per job. A retry is scheduled per rejected ROW, but what
+    // is being retried is the job's result — so two rows rejected in the same
+    // confirm sweep would each spawn a successor, both fail, and spawn two
+    // more. That doubles every cycle. If anything is still queued or awaiting
+    // confirmation for this job, it already covers the retry.
+    if (await this.outbox.hasLiveResult(row.job_id)) {
+      this.logger.log(
+        `Not retrying ${row.transaction_id} — job ${row.job_id} already has a result in flight.`,
+        TajdeedDispatcherService.context,
+      );
+      return;
+    }
+
     const retryAt = new Date(Date.now() + REJECTION_RETRY_DELAY_MS);
     const successor = await this.outbox.repush(row.transaction_id, retryAt);
     if (!successor) return;

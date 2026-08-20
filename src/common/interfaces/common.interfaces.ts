@@ -58,6 +58,9 @@ export interface PlateLookupResult {
   vehicle_color: string | null;
   vehicle_type: string | null;
   chassis_no: string | null;
+  /** From the ROP record — the only source of make/model in the system. */
+  vehicle_make: string | null;
+  vehicle_model: string | null;
   charge_category_id: string | null;
 }
 

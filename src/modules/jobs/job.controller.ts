@@ -137,7 +137,29 @@ export class JobController {
     return { message: 'Jobs retrieved successfully', ...result };
   }
 
-  @Get(':id')
+@Get('provider-events')
+  @ApiOperation({
+    summary: 'Latest provider delivery state for several jobs',
+    description:
+      'Batched for the job list, which needs a whole page at once. Jobs with nothing queued are simply absent from the response.',
+  })
+  @ApiQuery({
+    name: 'jobIds',
+    required: true,
+    description: 'Comma-separated job snowflake IDs',
+  })
+  async providerEvents(@Query('jobIds') jobIds?: string) {
+    // MUST stay above @Get(':id') — Nest matches in declaration order, and
+    // below it "provider-events" would be parsed as a job id.
+    const ids = (jobIds ?? '')
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean);
+    const data = await this.outbox.latestForJobs(ids);
+    return { message: 'Provider events retrieved', data };
+  }
+
+    @Get(':id')
   @ApiOperation({
     summary: 'Retrieve job by ID (with customer, vehicle, and site details)',
   })

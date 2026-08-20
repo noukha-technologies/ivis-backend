@@ -142,13 +142,31 @@ export class JobService {
       // Only bookings the provider already knows about. A walk-in has no
       // booking on their side, so an event for it can only ever come back
       // FAILED — there is nothing there to match it to.
-      if (!job.appointment_id) return;
+      //
+      // This is the ONLY reason it is correct for a completed job to file
+      // nothing. Every other early return below is a fault, and is logged as
+      // one, because on the job screen they are indistinguishable: a job with
+      // no queued event renders the same whether there was nothing to send or
+      // we were unable to send it.
+      if (!job.appointment_id) {
+        this.logger.debug(
+          `Job ${job.id} has no appointment (walk-in) — no inspection result to file`,
+          JobService.context,
+        );
+        return;
+      }
 
       const appointment = await this.appointmentDao.findActiveById(
         job.appointment_id,
       );
       const bookingId = appointment?.provider_booking_id?.trim();
-      if (!bookingId) return;
+      if (!bookingId) {
+        this.logger.debug(
+          `Job ${job.id} is linked to appointment ${job.appointment_id}, which the provider holds no booking for — nothing to file`,
+          JobService.context,
+        );
+        return;
+      }
 
       if (!job.test_results) {
         this.logger.warn(
@@ -162,7 +180,17 @@ export class JobService {
         ? await this.centreDao.findActiveById(job.centre_id)
         : null;
       const branchCode = centre?.provider_branch_code?.trim();
-      if (!branchCode) return;
+      if (!branchCode) {
+        // A real booking that cannot be filed: the provider routes events by
+        // branch, so without the mapping there is no address to send to. Warn
+        // rather than return quietly — this is a centre that was never mapped,
+        // and left silent it looks exactly like a walk-in on every screen.
+        this.logger.warn(
+          `Job ${job.id} holds provider booking ${bookingId} but centre ${job.centre_id ?? 'n/a'} has no provider branch code — the inspection result cannot be filed. Map the centre to a provider branch.`,
+          JobService.context,
+        );
+        return;
+      }
 
       // plate_type is not on the appointment — it lives on the raw booking the
       // provider sent us. Without it a plate shared by two plate types matches

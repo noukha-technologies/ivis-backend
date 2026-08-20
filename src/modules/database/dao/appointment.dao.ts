@@ -150,6 +150,48 @@ export class AppointmentDao
       .getOne();
   }
 
+  /**
+   * Any still-open appointment for this plate, regardless of how the plate is
+   * carried on the row.
+   *
+   * "Open" means the vehicle's visit has not reached an end state: CONVERTED
+   * (a job was created from it — the appointment's job is done) and CANCELLED
+   * are terminal, everything else (QUEUED, SCHEDULED) is still live. Stated as
+   * NOT IN (terminal) rather than IN (open) on purpose: a status added later
+   * blocks by default, which fails safe.
+   *
+   * The plate is matched against BOTH sources because neither alone is
+   * complete — walk-ins created via AppointmentService.create() leave
+   * appointment.plate_number null and only carry the plate on the linked
+   * vehicle record, while bookings ingested before the car arrives have the
+   * plate on the appointment and no vehicle record yet. leftJoin (not inner)
+   * so plate-on-appointment rows are not dropped for want of a vehicle record.
+   */
+  async findOpenByPlate(
+    plate: string,
+    excludeAppointmentRowId?: string,
+  ): Promise<Appointment | null> {
+    const qb = this.createQueryBuilder('appointment')
+      .leftJoin('appointment.vehicleRecord', 'vehicleRecord')
+      .where('appointment.is_deleted = false')
+      .andWhere('appointment.status NOT IN (:...terminal)', {
+        terminal: [AppointmentStatus.CONVERTED, AppointmentStatus.CANCELLED],
+      })
+      .andWhere(
+        '(UPPER(appointment.plate_number) = UPPER(:plate) OR UPPER(vehicleRecord.plate_number) = UPPER(:plate))',
+        { plate },
+      );
+
+    // Lets an update re-validate itself without matching its own row.
+    if (excludeAppointmentRowId) {
+      qb.andWhere('appointment.id != :excludeId', {
+        excludeId: excludeAppointmentRowId,
+      });
+    }
+
+    return qb.orderBy('appointment.created_at', 'DESC').getOne();
+  }
+
   async getNextAppointmentId(): Promise<number> {
     const result = await this.createQueryBuilder('appointment')
       .select('MAX(appointment.appointment_id)', 'max')

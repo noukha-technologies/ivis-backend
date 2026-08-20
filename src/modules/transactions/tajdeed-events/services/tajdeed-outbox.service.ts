@@ -124,7 +124,17 @@ export class TajdeedOutboxService {
     return this.outboxDao.findLatestInspectionResultByJobId(jobId);
   }
 
-  /**
+/** True while a job still has an inspection result queued or unconfirmed. */
+  async hasLiveResult(jobId: string): Promise<boolean> {
+    return this.outboxDao.hasLiveInspectionResult(jobId);
+  }
+
+  /** Latest provider state for a page of jobs — see the DAO for why it is batched. */
+  async latestForJobs(jobIds: string[]): Promise<TajdeedOutbox[]> {
+    return this.outboxDao.findLatestInspectionResultsByJobIds(jobIds);
+  }
+
+    /**
    * Operator-driven retry: re-queue a job's most recent rejected result now.
    *
    * Exists because the automatic retry waits 30 minutes, and an operator who
@@ -133,6 +143,19 @@ export class TajdeedOutboxService {
   async pushNowForJob(jobId: string): Promise<TajdeedOutbox | null> {
     const latest = await this.latestForJob(jobId);
     if (!latest) return null;
+
+    // Same invariant as the automatic path: never add a second live event for
+    // one job. An operator pressing the button twice, or pressing it while a
+    // scheduled retry is already waiting, must not create a parallel attempt.
+    // Returning the existing row keeps the caller's success path intact.
+    if (await this.hasLiveResult(jobId)) {
+      this.logger.log(
+        `Job ${jobId} already has a result in flight (${latest.transaction_id}) — not queueing another.`,
+        TajdeedOutboxService.context,
+      );
+      return latest;
+    }
+
     return this.repush(latest.transaction_id, new Date());
   }
 

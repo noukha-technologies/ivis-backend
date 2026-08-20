@@ -7,8 +7,13 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * Deliberately narrower than WipeData (1782020000000), which empties master and
  * identity data too. This one leaves centres, lines, cameras, charges, users and
  * roles completely untouched, so a centre stays linked to its appointment-
- * provider branch and the ingest repopulates on its next poll. It is the reset
- * you want between test runs; WipeData is the one you want to start over.
+ * provider branch. It is the reset you want between test runs; WipeData is the
+ * one you want to start over.
+ *
+ * Because that provider link survives, the ingest would re-fetch and recreate
+ * every online booking on its next poll — so this migration also pauses the
+ * ingest for a short window (see pauseAppointmentIngest). The pause is
+ * time-boxed and lifts itself; nothing needs to be run afterwards.
  *
  * Run with:  npm run migration:wipe-transactions
  *
@@ -57,6 +62,19 @@ export class WipeTransactions1782030000000 implements MigrationInterface {
     '"transaction"."customers"',
     '"transaction"."vehicle_records"',
   ] as const;
+
+  /**
+   * Flag key in `core.system_flags` read by AppointmentIngestService before
+   * every poll. Must stay in sync with INGEST_PAUSED_FLAG in that service.
+   */
+  private static readonly INGEST_PAUSED_FLAG = 'appointment_ingest_paused';
+
+  /**
+   * How long the post-wipe pause lasts. Long enough to inspect a genuinely
+   * empty system, short enough that forgetting to resume costs one coffee
+   * break rather than a day of bookings that never arrived.
+   */
+  private static readonly INGEST_PAUSE_MINUTES = 15;
 
   /** Master and identity data, intentionally KEPT. */
   private static readonly PRESERVED = [
@@ -111,6 +129,8 @@ export class WipeTransactions1782030000000 implements MigrationInterface {
       await queryRunner.query(`DELETE FROM ${table}`);
     }
 
+    await this.pauseAppointmentIngest(queryRunner);
+
     console.log(
       `[WipeTransactions] Wiped: ${targets.join(', ')}\n` +
         `[WipeTransactions] Preserved: ${WipeTransactions1782030000000.PRESERVED.join(', ')}`,
@@ -124,6 +144,62 @@ export class WipeTransactions1782030000000 implements MigrationInterface {
   }
 
   // ─── helpers ───────────────────────────────────────────────────────────────
+
+  /**
+   * Stops the appointment ingest from immediately undoing this wipe.
+   *
+   * The provider — not this database — is the source of truth for online
+   * bookings, so the next poll re-fetches every booking we just deleted and
+   * recreates the appointment, vehicle record, customer and payment behind it.
+   * At the current 10s cadence the queue is visibly back before the operator
+   * has finished reading the wipe output, which reads as "the wipe did not
+   * work".
+   *
+   * The switch is a database row rather than an env var because the wipe runs
+   * as its own short-lived process: it must be able to stop a backend that is
+   * already running, and stay set across restarts.
+   *
+   * The pause is TIME-BOXED, not indefinite. The Online Appointments screen
+   * reads the local mirror this ingest fills, so a pause left set does not just
+   * keep the queue empty — it blanks that screen entirely, with nothing on it
+   * to say why. A maintenance command must not be able to leave the system in
+   * that state, so the pause lifts itself once the window elapses. There is no
+   * manual resume: the only writer is this migration, and a time-boxed pause
+   * needs no operator to clear it.
+   */
+  private async pauseAppointmentIngest(
+    queryRunner: QueryRunner,
+  ): Promise<void> {
+    await queryRunner.query(`
+      CREATE TABLE IF NOT EXISTS "core"."system_flags" (
+        "key" varchar(64) PRIMARY KEY,
+        "value" varchar(255) NOT NULL,
+        "updated_at" timestamp NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    const expiresAt = new Date(
+      Date.now() +
+        WipeTransactions1782030000000.INGEST_PAUSE_MINUTES * 60 * 1000,
+    ).toISOString();
+
+    await queryRunner.query(
+      `
+      INSERT INTO "core"."system_flags" ("key", "value", "updated_at")
+      VALUES ($1, $2, NOW())
+      ON CONFLICT ("key")
+      DO UPDATE SET "value" = $2, "updated_at" = NOW()
+      `,
+      [WipeTransactions1782030000000.INGEST_PAUSED_FLAG, expiresAt],
+    );
+
+    console.warn(
+      `[WipeTransactions] Appointment ingest PAUSED for ` +
+        `${WipeTransactions1782030000000.INGEST_PAUSE_MINUTES} minutes (until ${expiresAt})\n` +
+        '[WipeTransactions] so the provider does not repopulate what was just deleted.\n' +
+        '[WipeTransactions] It resumes automatically when the window elapses.',
+    );
+  }
 
   private async existingTables(queryRunner: QueryRunner): Promise<Set<string>> {
     const rows: Array<{ schemaname: string; tablename: string }> =

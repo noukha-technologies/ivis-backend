@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 20;
+export const ALTER_SCHEMA_VERSION = 21;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -423,8 +423,6 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "configuration_id"    integer               NOT NULL,
         "centre_id"           bigint                NOT NULL,
         "sync_mode"           character varying(16) NOT NULL DEFAULT 'Manual',
-        "sync_time_morning"   character varying(5),
-        "sync_time_evening"   character varying(5),
         "redo_test_enabled"   boolean               NOT NULL DEFAULT true,
         "auto_close"          boolean               NOT NULL DEFAULT false,
         "auto_close_time"     character varying(5),
@@ -439,14 +437,16 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         CONSTRAINT "PK_configuration_id" PRIMARY KEY ("id")
       )
     `);
-    // Database Sync (ongoing) — Automatic mode's twice-daily run times, per
-    // centre. Added after the table already existed on some DBs, so also
-    // guarded here for those (the CREATE TABLE above only helps fresh DBs).
+    // Automatic mode's run times were configurable per centre and read by
+    // nothing — no scheduler existed. The schedule is now fixed in code
+    // (SyncSchedulerService), so the columns are dropped rather than left as
+    // settings that appear to do something. Guarded because DBs created before
+    // this change still have them.
     await queryRunner.query(
-      `ALTER TABLE "core"."configuration" ADD COLUMN IF NOT EXISTS "sync_time_morning" character varying(5)`,
+      `ALTER TABLE "core"."configuration" DROP COLUMN IF EXISTS "sync_time_morning"`,
     );
     await queryRunner.query(
-      `ALTER TABLE "core"."configuration" ADD COLUMN IF NOT EXISTS "sync_time_evening" character varying(5)`,
+      `ALTER TABLE "core"."configuration" DROP COLUMN IF EXISTS "sync_time_evening"`,
     );
     await queryRunner.query(
       `CREATE UNIQUE INDEX IF NOT EXISTS "IDX_CONFIGURATION_CONFIGURATION_ID" ON "core"."configuration" ("configuration_id")`,

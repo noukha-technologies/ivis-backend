@@ -38,16 +38,17 @@ export class Configurations implements IConfigurationFields {
   @JoinColumn({ name: 'centre_id' })
   centre!: Centre;
 
-  /** 'Manual' → show the Sync Now button; 'Automatic' → run on the twice-daily schedule below. */
+  /**
+   * 'Manual' → show the Sync Now button; 'Automatic' → push to central on the
+   * fixed twice-daily schedule (SyncSchedulerService).
+   *
+   * The run times used to live here as sync_time_morning/sync_time_evening.
+   * They were never read by anything — no scheduler existed — and the only
+   * choice they offered was to move the run into the working day, so the
+   * schedule is now fixed in code. The columns are dropped in AlterSchema.
+   */
   @Column({ type: 'varchar', length: 16, default: 'Manual', nullable: false })
   sync_mode!: string;
-
-  /** Automatic-mode Database Sync clock times (Oman time, 'HH:mm') — only meaningful when sync_mode = 'Automatic'. */
-  @Column({ type: 'varchar', length: 5, nullable: true })
-  sync_time_morning?: string;
-
-  @Column({ type: 'varchar', length: 5, nullable: true })
-  sync_time_evening?: string;
 
   @Column({ type: 'boolean', default: true })
   redo_test_enabled!: boolean;

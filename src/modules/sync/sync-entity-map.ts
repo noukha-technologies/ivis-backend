@@ -23,6 +23,8 @@ import { RopVerification } from '../database/entity/rop-verification.entity';
 import { Appointment } from '../database/entity/appointment.entity';
 import { Job } from '../database/entity/job.entity';
 import { Payments } from '../database/entity/payments.entity';
+import { Configurations } from '../database/entity/configuration.entity';
+import { TajdeedOutbox } from '../database/entity/tajdeed-outbox.entity';
 
 export const SYNC_DIRECTION_VALUES = [
   'READ_ONLY',
@@ -284,12 +286,24 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     pull: async (ds, _centreId, cursor) => pullGlobal(ds, Vehicle, cursor),
   },
 
-  // ─── Bucket C — BIDIRECTIONAL (most-recent-updated_at-wins) ─────────────
   ChargeCategory: {
     entityKey: 'ChargeCategory',
     entityClass: ChargeCategory,
-    direction: 'BIDIRECTIONAL',
-    conditional: true,
+    // Central-owned, like every other shared master.
+    //
+    // Was BIDIRECTIONAL, and it was the only entity that was both pushed AND
+    // global — so one centre editing a category rewrote it for every other
+    // centre on their next pull, with nothing on screen to say where the change
+    // came from. Categories are a shared pricing vocabulary; they belong to
+    // central for the same reason Vehicle and Test do.
+    //
+    // NOTE: charges.charge_category_id has a hard FK to this table. Because
+    // categories no longer travel upward, a category created locally would
+    // never reach central, and the next push of a Charge referencing it would
+    // fail the FK there. Creating categories at a centre must therefore be
+    // blocked in the UI/API, not merely discouraged.
+    direction: 'READ_ONLY',
+    conditional: false,
     // Matched on its business key, not on `id`.
     //
     // Every box mints its own snowflake PKs and its own sequential
@@ -304,8 +318,9 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     // Global (no centre_id) — every centre sees the same category list.
     pull: async (ds, _centreId, cursor) =>
       pullGlobal(ds, ChargeCategory, cursor),
-    pushLocal: async (ds, cursor) => pullGlobal(ds, ChargeCategory, cursor),
   },
+
+  // ─── Bucket C — BIDIRECTIONAL (most-recent-updated_at-wins) ─────────────
   Line: {
     entityKey: 'Line',
     entityClass: Line,
@@ -531,6 +546,39 @@ export const SYNC_ENTITY_MAP: Record<string, SyncEntityDefinition> = {
     conditional: false,
     pushLocal: async (ds, cursor) => pullGlobal(ds, Payments, cursor),
   },
+  Configuration: {
+    entityKey: 'Configuration',
+    entityClass: Configurations,
+    // Authored at the centre, never sent back down.
+    //
+    // WRITE_ONLY rather than BIDIRECTIONAL because this row decides how the
+    // centre behaves — sync mode, working hours, auto-close, whether payment is
+    // mandatory. A pull could hand central the ability to change those under a
+    // running centre, including switching sync_mode itself. Central gets a
+    // read-only copy for reporting; the centre stays the author.
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    // `configuration_id` is MAX(...)+1 per box, so EVERY centre's row is
+    // number 1. Central's unique index on it would reject the second centre's
+    // push, so central mints its own — see localSequenceColumns in the util.
+    localSequenceColumns: ['configuration_id'],
+    pushLocal: async (ds, cursor) => pullGlobal(ds, Configurations, cursor),
+  },
+  TajdeedOutbox: {
+    entityKey: 'TajdeedOutbox',
+    entityClass: TajdeedOutbox,
+    // The provider-event audit trail. Centre-authored and append-mostly, so no
+    // conflict is possible: only the centre that raised an event ever writes
+    // its row.
+    //
+    // Volume note — LANE_STATUS heartbeats add ~288 rows per centre per day and
+    // nothing prunes them, so this is the entity most likely to make a run slow
+    // over time. A retention policy on the local table is the fix; capping the
+    // sync instead would just hide the growth.
+    direction: 'WRITE_ONLY',
+    conditional: false,
+    pushLocal: async (ds, cursor) => pullGlobal(ds, TajdeedOutbox, cursor),
+  },
 };
 
 /** Fixed pull order — central → centre. Respects dependency chains (Line before Camera/AdminPc mappings, matching the old registry's ordering). */
@@ -562,14 +610,16 @@ export const PUSH_ORDER = [
   'CameraLineMapping',
   'AdminPc',
   'AdminPcLineMapping',
-  'ChargeCategory',
   'UserLineMapping',
+  'Configuration',
   'Customer',
   'VehicleRecord',
   'AnprCapture',
   'RopVerification',
   'Appointment',
   'Job',
+  // After Job — tajdeed_outbox.job_id is an FK, so the jobs must land first.
+  'TajdeedOutbox',
   'Payments',
 ];
 

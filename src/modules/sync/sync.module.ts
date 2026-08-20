@@ -4,6 +4,7 @@ import { SyncController } from './sync.controller';
 import { SyncCentralService } from './service/sync-central.service';
 import { DatabaseSyncService } from './service/database-sync.service';
 import { CentralSyncHttpClientService } from './service/central-sync-http-client.service';
+import { SyncSchedulerService } from './service/sync-scheduler.service';
 import { ApiKeyGuard } from './guards/api-key.guard';
 import { SyncGateway } from './sync.gateway';
 
@@ -17,6 +18,7 @@ import { SyncGateway } from './sync.gateway';
     SyncCentralService,
     DatabaseSyncService,
     CentralSyncHttpClientService,
+    SyncSchedulerService,
     ApiKeyGuard,
     SyncGateway,
   ],

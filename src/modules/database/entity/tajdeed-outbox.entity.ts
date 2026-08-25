@@ -128,6 +128,33 @@ export class TajdeedOutbox {
   @Column({ type: 'text', nullable: true })
   last_error?: string | null;
 
+  /**
+   * The provider's raw body from the most recent `POST /events`, verbatim.
+   *
+   * Kept because `last_error` is a formatted summary, not evidence: when an
+   * operator asks why a result was refused, the answer has to be what the
+   * provider actually said, not our paraphrase of it. Stored for successes too
+   * — a 202 envelope carries their timestamp and echoed transaction_id, which
+   * is what proves delivery when the two sides disagree.
+   *
+   * Null on a transport failure that produced no body (timeout, connection
+   * refused), and on rows written before this column existed.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  last_push_response?: Record<string, unknown> | null;
+
+  /**
+   * The provider's raw body from the most recent status probe, verbatim.
+   *
+   * Separate from `last_push_response` because they answer different
+   * questions — one is "did it reach them", the other "what did their worker
+   * do with it" — and a row can be Accepted with a FAILED outcome. Collapsing
+   * them into one column would overwrite the delivery evidence with the
+   * processing evidence.
+   */
+  @Column({ type: 'jsonb', nullable: true })
+  last_status_response?: Record<string, unknown> | null;
+
   /** When the provider returned 202 (or told us it already held the event). */
   @Column({ type: 'timestamp', nullable: true })
   accepted_at?: Date | null;

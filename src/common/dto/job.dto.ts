@@ -440,6 +440,19 @@ export class ConvertAppointmentDto {
  * OutfileGeneratorService for why this exists and why it is refused in
  * production.
  */
+export class SetJobChargeDto {
+  @ApiPropertyOptional({
+    description:
+      "The Charges-master row to price this job from, when the vehicle's own type is not configured at this centre (e.g. a Sedan mapped onto SUV). Null clears the mapping and falls back to the vehicle's type.",
+    example: '2091839947215486977',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null)
+  @IsString({ message: 'charge_id must be a string' })
+  charge_id?: string | null;
+}
+
 export class GenerateOutfileDto {
   @ApiProperty({
     description: 'Plate to generate the result for, e.g. 3157BCD.',

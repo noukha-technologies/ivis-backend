@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   DatabaseException,
   DuplicateResourceException,
@@ -74,6 +74,8 @@ export class PaymentsService {
       }
 
       const resolved = await this.resolveReferences(createDto);
+
+      await this.assertAmountMatchesCharge(createDto);
 
       let paymentsId = createDto.payments_id;
       if (!paymentsId) {
@@ -415,6 +417,56 @@ export class PaymentsService {
       admin_pc_id: job.admin_pc_id ?? null,
       camera_id: job.camera_id ?? null,
     };
+  }
+
+  /**
+   * Checks the amount against what the job's charge actually prices at.
+   *
+   * The amount arrives computed by the browser, from a charge the operator
+   * picked on screen — including, for an unpriced vehicle type, one they
+   * mapped the job onto. Without this the collected figure is simply whatever
+   * was posted, and a mis-mapped or edited selection writes a wrong price with
+   * nothing to catch it.
+   *
+   * Deliberately narrow. It only runs for a payment attached to a job whose
+   * charge resolves, and it accepts:
+   *
+   *   • 0 — FOC and fully-prepaid online bookings both settle at zero, and
+   *     both are legitimate business states rather than mispriced payments.
+   *   • the payable (grand total less any advance) — the normal collection.
+   *   • the grand total — a centre collecting the full amount with the advance
+   *     recorded separately.
+   *
+   * Anything else is refused, because there is no reading of the configured
+   * charge that produces it.
+   */
+  private async assertAmountMatchesCharge(
+    createDto: CreatePaymentsDto,
+  ): Promise<void> {
+    if (!createDto.job_id) return;
+
+    const job = await this.jobDao.findActiveById(createDto.job_id);
+    if (!job) return;
+
+    const pricing = await this.jobService.resolvePricingForJob(job);
+    // Nothing configured to check against — the "no charge" warning on the job
+    // screen already covers this, and refusing here would block a centre that
+    // has not finished its master.
+    if (pricing.charge_missing) return;
+
+    const posted = Number(createDto.grand_total);
+    // Amounts are three-decimal OMR; compare with a tolerance so a float
+    // round-trip through JSON cannot fail an otherwise exact match.
+    const matches = [0, pricing.payable, pricing.grand_total].some(
+      (allowed) => Math.abs(posted - allowed) < 0.0005,
+    );
+    if (matches) return;
+
+    throw new BadRequestException(
+      `Amount ${posted.toFixed(3)} OMR does not match the configured charge for this job ` +
+        `(payable ${pricing.payable.toFixed(3)}, total ${pricing.grand_total.toFixed(3)} OMR). ` +
+        `Re-check the vehicle type and category before collecting.`,
+    );
   }
 
   private async resolveReferences(

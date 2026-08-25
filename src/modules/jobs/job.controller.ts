@@ -28,6 +28,7 @@ import {
   CreateJobIntakeDto,
   CreateJobRequestDto,
   GenerateOutfileDto,
+  SetJobChargeDto,
   UpdateJobDto,
 } from '../../common/dto/job.dto';
 import { isLegacyJobCreate } from '../../common/validators/job-create-request.validator';
@@ -182,6 +183,31 @@ export class JobController {
   async pricing(@Param('id', ParseSnowflakeIdPipe) id: string) {
     const data = await this.jobService.resolvePricing(id);
     return { message: 'Job pricing resolved', data };
+  }
+
+  @Patch(':id/charge')
+  @ApiOperation({
+    summary: "Map this job onto a Charges-master row (the operator's pricing choice)",
+    description:
+      "For a vehicle whose own type is not priced at this centre — a Sedan where only SUV is configured. The mapped charge is what the job is priced from, and the payment amount is derived from it server-side. Send charge_id: null to clear the mapping and fall back to the vehicle's type. Refused once the job has been paid.",
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })
+  @ApiResponse({ status: 200, description: 'Charge mapped; pricing returned.' })
+  @ApiResponse({
+    status: 400,
+    description:
+      'Unknown charge, a charge from another centre, or the job is already paid.',
+  })
+  async setCharge(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Body() body: SetJobChargeDto,
+  ) {
+    const data = await this.jobService.setCharge(id, body.charge_id ?? null);
+    const pricing = await this.jobService.resolvePricingForJob(data);
+    return {
+      message: 'Job charge updated successfully',
+      data: { ...data, pricing },
+    };
   }
 
   @Get(':id/in-file')

@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 21;
+export const ALTER_SCHEMA_VERSION = 23;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1246,6 +1246,27 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "test_results" jsonb`,
     );
+    // jobs: the Charges-master row an operator mapped this job onto, when the
+    // vehicle's own type is not priced at this centre. Nullable — the normal
+    // path prices from the vehicle type and leaves this unset. RESTRICT rather
+    // than SET NULL: a charge that priced a job must not be deletable out from
+    // under it, or the amount taken becomes unexplainable.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "charge_id" bigint`,
+    );
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_JOB_CHARGE_ID" ON "transaction"."jobs" ("charge_id")`,
+    );
+    await queryRunner.query(`
+      DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'FK_jobs_charge_id') THEN
+          ALTER TABLE "transaction"."jobs"
+            ADD CONSTRAINT "FK_jobs_charge_id"
+            FOREIGN KEY ("charge_id") REFERENCES "master"."charges"("id")
+            ON DELETE RESTRICT;
+        END IF;
+      END $$;
+    `);
     // jobs: driver columns removed (moved to customers).
     await queryRunner.query(
       `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "driver_name"`,
@@ -1440,6 +1461,8 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "attempt_count"    integer               NOT NULL DEFAULT 0,
         "next_attempt_at"  TIMESTAMP,
         "last_error"       text,
+        "last_push_response"   jsonb,
+        "last_status_response" jsonb,
         "accepted_at"      TIMESTAMP,
         "processed_at"     TIMESTAMP,
         "created_at"       TIMESTAMP             NOT NULL DEFAULT NOW(),
@@ -1464,6 +1487,11 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       ['attempt_count', 'integer NOT NULL DEFAULT 0'],
       ['next_attempt_at', 'TIMESTAMP'],
       ['last_error', 'text'],
+      // The provider's raw bodies, kept verbatim: last_error is our summary,
+      // these are the evidence behind it. Nullable with no backfill — rows
+      // written before this existed have no response to recover.
+      ['last_push_response', 'jsonb'],
+      ['last_status_response', 'jsonb'],
       ['accepted_at', 'TIMESTAMP'],
       ['processed_at', 'TIMESTAMP'],
     ]) {

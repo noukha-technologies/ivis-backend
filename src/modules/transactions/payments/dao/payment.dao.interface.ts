@@ -10,6 +10,9 @@ export interface IPaymentsDao {
   findActiveById(id: string): Promise<Payments | null>;
   findByPaymentsId(paymentsId: number): Promise<Payments | null>;
   findByJobId(jobId: string): Promise<Payments | null>;
+
+  /** Everything settled against a job (Cancelled excluded), oldest first. */
+  findSettledByJobId(jobId: string): Promise<Payments[]>;
   findPaginated(query: PaginationQueryDto): Promise<PaginatedResult<Payments>>;
   getNextPaymentsId(): Promise<number>;
 }

@@ -27,7 +27,9 @@ import { Customer } from './customer.entity';
 import { Appointment } from './appointment.entity';
 import { AnprCapture } from './anpr-capture.entity';
 import { VehicleRecord } from './vehicle-record.entity';
+import { Charge } from './charge.entity';
 import { JobImage } from './job-image.entity';
+import { Payments } from './payments.entity';
 import { User } from './user.entity';
 
 @Entity({ name: 'jobs', schema: DATABASE_SCHEMAS.TRANSACTION })
@@ -99,6 +101,20 @@ export class Job implements IJobFields {
   @OneToMany(() => JobImage, (jobImage) => jobImage.job)
   images?: JobImage[];
 
+  /**
+   * Payments settled against this job.
+   *
+   * A collection rather than a single row because the FK already permits more
+   * than one and history must stay readable — a cancelled payment followed by
+   * a replacement is two rows, and hiding either would misreport what was
+   * taken. In practice a job has one.
+   *
+   * Read-only from the job's side: payments are written by PaymentsService and
+   * by the appointment ingest, never through this relation.
+   */
+  @OneToMany(() => Payments, (payment) => payment.job)
+  payments?: Payments[];
+
   /* Centre FK */
   @Column({
     type: 'bigint',
@@ -122,6 +138,32 @@ export class Job implements IJobFields {
   @ManyToOne(() => Line, { nullable: true })
   @JoinColumn({ name: 'line_id' })
   line?: Line;
+
+  /**
+   * The Charges-master row an operator mapped this job onto.
+   *
+   * Exists because the vehicle's own type is not always configured: a Sedan
+   * arrives at a centre whose master only prices SUV, and the operator maps it
+   * to the comparable configured type so the job can be priced at all. Held on
+   * the JOB, not the vehicle record — it is a judgement about this visit, and
+   * writing it back to the vehicle master would silently reprice every future
+   * inspection of that plate.
+   *
+   * Null means "price it from the vehicle's own type", which is the normal
+   * path. When set, it OVERRIDES that lookup and is what the amount is
+   * computed from — so it is also the audit trail for why a job was charged
+   * what it was.
+   */
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
+  charge_id?: string | null;
+
+  @ManyToOne(() => Charge, { nullable: true })
+  @JoinColumn({ name: 'charge_id' })
+  charge?: Charge;
 
   /* Assigned user FK — who is responsible for this job.
    *

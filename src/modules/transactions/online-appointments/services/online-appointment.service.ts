@@ -9,9 +9,25 @@ import { Centre } from '../../../database/entity/centre.entity';
 import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
 import { AppointmentBooking } from '../../../../common/integrations/appointments/appointment.types';
 import { AppointmentBookingDao } from '../../../database/dao/appointment-booking.dao';
+import { TajdeedOutboxDao } from '../../../database/dao/tajdeed-outbox.dao';
+import { TajdeedOutbox } from '../../../database/entity/tajdeed-outbox.entity';
 import { AppointmentIngestService } from './appointment-ingest.service';
 import { OnlineAppointmentQueryDto } from '../../../../common/dto/online-appointment.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
+
+/**
+ * A mirrored booking as the list serves it: the provider's own payload, plus
+ * the few facts that belong to our row rather than theirs.
+ *
+ * `is_withdrawn` has to travel separately because the provider has no such
+ * field — a withdrawal is the ABSENCE of the booking from their day, which we
+ * record on our side. Without it the payload's last-seen status is all the
+ * client has, and a cancelled booking renders identically to a live one.
+ */
+export type MirroredBooking = AppointmentBooking & {
+  is_withdrawn: boolean;
+  last_seen_at: Date | null;
+};
 
 export interface OnlineAppointmentListResult {
   centre_id: string;
@@ -19,7 +35,7 @@ export interface OnlineAppointmentListResult {
   branch_code: string;
   date_from: string;
   date_to: string;
-  appointments: AppointmentBooking[];
+  appointments: MirroredBooking[];
   total: number;
   meta: PaginatedResult<unknown>['meta'];
 }
@@ -44,6 +60,7 @@ export class OnlineAppointmentService {
     private readonly centreDao: CentreDao,
     private readonly appointmentApi: AppointmentApiClientService,
     private readonly bookingDao: AppointmentBookingDao,
+    private readonly outboxDao: TajdeedOutboxDao,
     private readonly ingestService: AppointmentIngestService,
     private readonly logger: AppLogger,
   ) {}
@@ -82,10 +99,14 @@ export class OnlineAppointmentService {
       date_from: dateFrom,
       date_to: dateTo,
       // The stored payload IS the provider's response shape, so the client
-      // keeps the same contract it had when this was a live pass-through.
-      appointments: result.data.map(
-        (booking) => booking.payload as unknown as AppointmentBooking,
-      ),
+      // keeps the same contract it had when this was a live pass-through —
+      // widened only by the two facts the provider cannot tell us, because
+      // they describe our mirror rather than their booking.
+      appointments: result.data.map((booking) => ({
+        ...(booking.payload as unknown as AppointmentBooking),
+        is_withdrawn: booking.is_withdrawn ?? false,
+        last_seen_at: booking.last_seen_at ?? null,
+      })),
       total: result.meta.total,
       meta: result.meta,
     };
@@ -124,6 +145,23 @@ export class OnlineAppointmentService {
     }
 
     return booking;
+  }
+
+  /**
+   * Every event IVIS has pushed to the provider for one booking, newest first.
+   *
+   * Backs the Events panel on the booking drawer, which answers the question
+   * the outbox exists for: the result was submitted, so did the provider
+   * actually take it? Each row carries both verdicts — ours (did it reach
+   * them) and theirs (did their worker apply it) — plus the raw bodies from
+   * each side, because an operator disputing a rejection needs the provider's
+   * own words, not our summary of them.
+   *
+   * An empty list is a normal answer, not an error: a booking whose vehicle
+   * has not arrived has raised no events yet.
+   */
+  async findEventsForBooking(bookingId: string): Promise<TajdeedOutbox[]> {
+    return this.outboxDao.findByProviderBookingId(bookingId);
   }
 
   /**

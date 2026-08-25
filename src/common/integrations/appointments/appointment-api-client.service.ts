@@ -190,12 +190,19 @@ export class AppointmentApiClientService {
       const code = body?.status ?? null;
       const message = body?.message ?? `HTTP ${res.status}`;
 
+      // Their exact words, kept on every branch below. `reason` is our summary
+      // of it and is what drives retry decisions; this is the evidence an
+      // operator sees when they ask why a result was refused.
+      const response = (body ?? undefined) as
+        | Record<string, unknown>
+        | undefined;
+
       if (res.ok && code === APPOINTMENT_SUCCESS_CODE) {
-        return { ok: true, duplicate: false };
+        return { ok: true, duplicate: false, response };
       }
 
       if (code === APPOINTMENT_DUPLICATE_CODE) {
-        return { ok: true, duplicate: true };
+        return { ok: true, duplicate: true, response };
       }
 
       // 429 and 5xx are transient by contract; everything else in the 4xx
@@ -206,6 +213,7 @@ export class AppointmentApiClientService {
           ok: false,
           retryable: true,
           reason: `${code ?? res.status}: ${message}`,
+          response,
         };
       }
 
@@ -214,6 +222,7 @@ export class AppointmentApiClientService {
         retryable: false,
         code,
         reason: `${code ?? res.status}: ${message}`,
+        response,
       };
     } catch (err) {
       // Timeouts and connection failures never reached the provider (or we

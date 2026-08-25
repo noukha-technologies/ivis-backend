@@ -11,6 +11,13 @@ export interface ITajdeedOutboxDao {
 
   findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null>;
 
+  /**
+   * Every event raised for one provider booking, newest first, reached through
+   * the job created from its appointment. Empty for a booking whose vehicle
+   * has not arrived yet.
+   */
+  findByProviderBookingId(bookingId: string): Promise<TajdeedOutbox[]>;
+
   /** Any event already queued for this job — the enqueue idempotency guard. */
   findByJobAndType(
     jobId: string,

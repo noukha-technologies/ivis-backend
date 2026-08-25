@@ -67,14 +67,15 @@ export class CreateAppointmentDto {
   plate_number?: string;
 
   @ApiPropertyOptional({
-    description: 'Customer full name (alphabets only)',
+    description: 'Customer full name, stored as given',
     example: 'Ahmed Al Said',
   })
   @IsOptional()
+  // No character restriction on purpose. Names carry digits, Arabic script and
+  // punctuation in the real world, and the system only ever stores and
+  // displays this — nothing parses it — so rejecting a name the customer
+  // actually uses would block a legitimate job for no gain.
   @IsString({ message: 'customer_name must be a string' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'customer_name must contain only alphabets',
-  })
   customer_name?: string;
 
   @ApiPropertyOptional({
@@ -124,10 +125,8 @@ export class CreateAppointmentDto {
     example: 'Ahmed Al Said',
   })
   @IsOptional()
+  // Free text, same reasoning as customer_name above.
   @IsString({ message: 'driver_name must be a string' })
-  @Matches(/^[A-Za-z\s'-]+$/, {
-    message: 'driver_name must contain only alphabets',
-  })
   driver_name?: string;
 
   @ApiPropertyOptional({

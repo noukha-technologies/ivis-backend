@@ -134,6 +134,24 @@ export class OnlineAppointmentController {
     };
   }
 
+  @Get('bookings/:bookingId/events')
+  @Permissions(PermissionKeys.APPOINTMENTS_VIEW)
+  @ApiOperation({
+    summary: 'Events IVIS has pushed to the provider for this booking',
+    description:
+      'Newest first. Each row carries both verdicts — delivery status (did it reach them) and event status (did their worker apply it) — plus the payload we sent and the raw bodies they answered with. An empty list is normal: a booking whose vehicle has not arrived has raised no events. The centre-wide lane heartbeat belongs to no single booking and is not listed.',
+  })
+  @ApiParam({
+    name: 'bookingId',
+    description: 'Provider booking number, e.g. TJ-SBX-B6D727C6',
+  })
+  @ApiResponse({ status: 200, description: 'Events retrieved.' })
+  async findEvents(@Param('bookingId') bookingId: string) {
+    const data =
+      await this.onlineAppointmentService.findEventsForBooking(bookingId);
+    return { message: 'Provider events retrieved successfully', data };
+  }
+
   @Get('bookings/:bookingId')
   @Permissions(PermissionKeys.APPOINTMENTS_VIEW)
   @ApiOperation({

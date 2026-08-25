@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
 import {
@@ -20,6 +21,18 @@ export class TajdeedOutboxDao
   extends Repository<TajdeedOutbox>
   implements ITajdeedOutboxDao
 {
+  /**
+   * update() for rows carrying the jsonb response columns.
+   *
+   * TypeORM's update() signature deep-partials every property, which a jsonb
+   * column holding an arbitrary provider body cannot satisfy — the object IS
+   * the value, not a partial of one. The cast is confined to this one method
+   * rather than repeated at every dispatcher call site.
+   */
+  async patch(id: string, changes: Partial<TajdeedOutbox>): Promise<void> {
+    await this.update(id, changes as QueryDeepPartialEntity<TajdeedOutbox>);
+  }
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly paginationService: PaginationService,
@@ -137,6 +150,29 @@ export class TajdeedOutboxDao
 
     findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {
     return this.findOne({ where: { transaction_id: transactionId } });
+  }
+
+  /**
+   * Every event raised for one provider booking, newest first.
+   *
+   * The outbox holds no booking reference — events are keyed by job, because
+   * that is what raises them — so the booking is reached through the job that
+   * was created from its appointment. Joined rather than resolved in three
+   * round trips: each hop is an indexed FK, so the whole chain is one query.
+   *
+   * Two things are legitimately absent from the result. A booking whose
+   * vehicle has not arrived has no job, so no events — an empty list, not an
+   * error. And the 5-minute lane heartbeat is centre-wide with no job_id at
+   * all, so it belongs to no single booking and never appears here; only the
+   * per-transition lane events and the inspection result do.
+   */
+  findByProviderBookingId(bookingId: string): Promise<TajdeedOutbox[]> {
+    return this.createQueryBuilder('outbox')
+      .innerJoin('outbox.job', 'job')
+      .innerJoin('job.appointment', 'appointment')
+      .where('appointment.provider_booking_id = :bookingId', { bookingId })
+      .orderBy('outbox.created_at', 'DESC')
+      .getMany();
   }
 
   /**

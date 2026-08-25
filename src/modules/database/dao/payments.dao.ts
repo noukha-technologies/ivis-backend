@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, Not, Repository } from 'typeorm';
 
+import { PaymentStatusEnum } from '../../../common/enums/payment.enums';
 import { Payments } from '../entity/payments.entity';
 import { IPaymentsDao } from '../../transactions/payments/dao/payment.dao.interface';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -57,6 +58,24 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     return this.findOne({
       where: { job_id: jobId, is_deleted: false },
       relations: PaymentsDao.detailRelations,
+      order: { created_at: 'ASC' },
+    });
+  }
+
+  /**
+   * Everything settled against a job, oldest first.
+   *
+   * Cancelled rows are excluded: they represent money that did not stay taken
+   * (a withdrawn booking, a reversed entry), so counting them as an advance
+   * would under-charge the customer by the amount of a payment that was undone.
+   */
+  async findSettledByJobId(jobId: string): Promise<Payments[]> {
+    return this.find({
+      where: {
+        job_id: jobId,
+        is_deleted: false,
+        status: Not(PaymentStatusEnum.CANCELLED),
+      },
       order: { created_at: 'ASC' },
     });
   }

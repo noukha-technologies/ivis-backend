@@ -16,6 +16,7 @@ import {
 import {
   InspectionResultPayload,
   LaneStatusPayload,
+  ReconcileEntry,
   TajdeedEventEnvelope,
 } from '../../../../common/integrations/appointments/appointment.types';
 import { isCentreNode } from '../../../../common/config/env.config';
@@ -115,12 +116,18 @@ export class TajdeedDispatcherService {
 
     const outcome = await this.appointmentApi.pushEvent(envelope);
 
+    // Their raw body, recorded on every outcome. Undefined means no body came
+    // back at all (timeout, connection failure) — left untouched rather than
+    // nulled, so the last real answer survives a transport blip.
+    const response = outcome.response ?? undefined;
+
     if (outcome.ok) {
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.ACCEPTED,
         accepted_at: new Date(),
         next_attempt_at: null,
         last_error: null,
+        ...(response ? { last_push_response: response } : {}),
       });
       this.logger.log(
         `Delivered ${row.event_type} ${row.transaction_id}${outcome.duplicate ? ' (already held by provider)' : ''}`,
@@ -132,10 +139,11 @@ export class TajdeedDispatcherService {
     if (!outcome.retryable) {
       // A 4xx will answer identically until the payload or credential changes,
       // so retrying is pure noise. Park it for a human.
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.ABANDONED,
         next_attempt_at: null,
         last_error: outcome.reason,
+        ...(response ? { last_push_response: response } : {}),
       });
       this.logger.error(
         `Abandoned ${row.event_type} ${row.transaction_id}: ${outcome.reason}`,
@@ -147,10 +155,11 @@ export class TajdeedDispatcherService {
 
     const attempts = row.attempt_count + 1;
     if (attempts >= MAX_ATTEMPTS) {
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.ABANDONED,
         next_attempt_at: null,
         last_error: `Gave up after ${attempts} attempts. Last error: ${outcome.reason}`,
+        ...(response ? { last_push_response: response } : {}),
       });
       this.logger.error(
         `Abandoned ${row.event_type} ${row.transaction_id} after ${attempts} attempts: ${outcome.reason}`,
@@ -162,7 +171,10 @@ export class TajdeedDispatcherService {
 
     // Stays Pending; claimForSend already moved next_attempt_at out by the
     // backoff, so it simply becomes due again later.
-    await this.outboxDao.update(row.id, { last_error: outcome.reason });
+    await this.outboxDao.patch(row.id, {
+      last_error: outcome.reason,
+      ...(response ? { last_push_response: response } : {}),
+    });
     this.logger.warn(
       `Retrying ${row.event_type} ${row.transaction_id} (attempt ${attempts}): ${outcome.reason}`,
       TajdeedDispatcherService.context,
@@ -192,7 +204,10 @@ export class TajdeedDispatcherService {
 
       for (const result of results) {
         const row = byTransaction.get(result.transaction_id);
-        if (row) await this.applyStatus(row, result.event_status);
+        // The reconcile entry IS the provider's answer for this transaction,
+        // so it is passed through whole rather than reduced to its status —
+        // their received_at/processed_at instants are part of the evidence.
+        if (row) await this.applyStatus(row, result);
       }
     } catch (err) {
       this.logger.warn(
@@ -281,17 +296,19 @@ export class TajdeedDispatcherService {
 
     private async applyStatus(
     row: TajdeedOutbox,
-    rawStatus: string,
+    result: ReconcileEntry,
   ): Promise<void> {
     // The provider sends a bare string; narrow it once here so the branches
     // below compare enum to enum rather than guessing at each site.
-    const eventStatus = rawStatus as TajdeedEventStatus;
+    const eventStatus = result.event_status as TajdeedEventStatus;
+    const statusResponse = result as unknown as Record<string, unknown>;
 
     if (eventStatus === TajdeedEventStatus.PROCESSED) {
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.PROCESSED,
         event_status: TajdeedEventStatus.PROCESSED,
         processed_at: new Date(),
+        last_status_response: statusResponse,
       });
       this.logger.log(
         `Provider processed ${row.event_type} ${row.transaction_id}`,
@@ -309,10 +326,14 @@ export class TajdeedDispatcherService {
       // The original row is always closed as FAILED — a rejected transaction
       // id never becomes processed, and re-sending it only earns E0007. Any
       // recovery is a NEW event, queued below.
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.FAILED,
         event_status: TajdeedEventStatus.FAILED,
         last_error: reason,
+        // The single probe over the reconcile entry: only the probe carries
+        // error_message, which on a rejection is the whole point of looking.
+        last_status_response: (detail ??
+          statusResponse) as unknown as Record<string, unknown>,
       });
       this.logger.error(
         `Provider REJECTED ${row.event_type} ${row.transaction_id}: ${reason}`,
@@ -328,11 +349,12 @@ export class TajdeedDispatcherService {
       // They hold no such event, so our "accepted" was wrong — the safe answer
       // is to send it again under the SAME id, which is exactly what the
       // provider's guidance says NOT_FOUND licenses.
-      await this.outboxDao.update(row.id, {
+      await this.outboxDao.patch(row.id, {
         delivery_status: TajdeedDeliveryStatus.PENDING,
         event_status: TajdeedEventStatus.NOT_FOUND,
         accepted_at: null,
         next_attempt_at: new Date(),
+        last_status_response: statusResponse,
       });
       this.logger.warn(
         `Provider has no record of ${row.transaction_id} — re-queued for delivery`,
@@ -342,6 +364,9 @@ export class TajdeedDispatcherService {
     }
 
     // RECEIVED / PROCESSING — still in flight, ask again next sweep.
-    await this.outboxDao.update(row.id, { event_status: eventStatus });
+    await this.outboxDao.patch(row.id, {
+      event_status: eventStatus,
+      last_status_response: statusResponse,
+    });
   }
 }

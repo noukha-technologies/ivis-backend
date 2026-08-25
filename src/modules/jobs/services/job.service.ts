@@ -47,6 +47,14 @@ export interface JobPricingResult {
   charge_missing: boolean;
   vehicle_type: string | null;
   charge_category_id: string | null;
+  /** The Charges-master row this price came from. Null when none matched. */
+  charge_id?: string | null;
+  /**
+   * The vehicle's OWN type when an operator mapping was used instead of it —
+   * e.g. "sedan" on a job priced as SUV. Null on an unmapped job, so its
+   * presence is exactly "this price came from a mapping".
+   */
+  mapped_from_vehicle_type?: string | null;
   center_charges: number;
   rop_charges: number;
   vat_percent: number;
@@ -503,6 +511,71 @@ export class JobService {
   }
 
   /**
+   * Maps a job onto a Charges-master row, or clears the mapping with null.
+   *
+   * The case this exists for: a Sedan arrives at a centre whose master prices
+   * only SUV, so the job cannot be priced at all. The operator maps it to the
+   * comparable configured type and the job is priced from that.
+   *
+   * Allowed even when the job already has a payment, deliberately. An online
+   * booking is paid at the provider before the vehicle ever arrives, so a
+   * payment exists from the moment the appointment converts — refusing to map
+   * afterwards would block the mapping on every online job, which is the main
+   * case it exists for. What an existing payment IS, is an advance: pricing
+   * subtracts it, so re-mapping re-prices the job and shows what is still
+   * payable rather than double-charging.
+   */
+  async setCharge(id: string, chargeId: string | null): Promise<Job> {
+    const job = await this.findOne(id);
+
+    const existingPayment = await this.paymentsDao.findByJobId(job.id);
+    if (existingPayment) {
+      // Not refused, but worth a line: the job was re-priced after money had
+      // already been taken against it, and the two need to reconcile.
+      this.logger.log(
+        `Job ${job.id} is being re-priced although payment #${existingPayment.payment_id} (${existingPayment.grand_total}) already exists — it counts as an advance against the new amount`,
+        JobService.context,
+      );
+    }
+
+    if (chargeId) {
+      const charge = await this.chargeDao.findActiveById(chargeId);
+      if (!charge) {
+        throw new BadRequestException(
+          'That charge no longer exists in the Charges master.',
+        );
+      }
+
+      // A charge belongs to a centre, and pricing a job from another centre's
+      // master would quietly bill the customer at the wrong branch's rates.
+      // A centre-less charge is a global default and is allowed anywhere.
+      if (
+        charge.centre_id &&
+        job.centre_id &&
+        charge.centre_id !== job.centre_id
+      ) {
+        throw new BadRequestException(
+          'That charge belongs to a different centre and cannot be used to price this job.',
+        );
+      }
+
+      await this.jobDao.update(job.id, { charge_id: charge.id });
+      this.logger.log(
+        `Job ${job.id} mapped to charge ${charge.id} (${charge.vehicle_type}) — vehicle type is ${job.vehicleRecord?.vehicle_type ?? 'unset'}`,
+        JobService.context,
+      );
+    } else {
+      await this.jobDao.update(job.id, { charge_id: null });
+      this.logger.log(
+        `Job ${job.id} charge mapping cleared — pricing falls back to the vehicle type`,
+        JobService.context,
+      );
+    }
+
+    return this.findOne(id);
+  }
+
+  /**
    * Resolve the payment for a job from the configured charges, filtered by the
    * job's vehicle type (lowercased). Uses the (centre, vehicle_type, category)
    * combo when a charge category is known, otherwise falls back to matching by
@@ -522,7 +595,22 @@ export class JobService {
     const nextPaymentId = await this.paymentsDao.getNextPaymentsId();
 
     let charge: Charge | null = null;
-    if (vehicleType) {
+
+    // An operator mapping wins over the vehicle's own type. A Sedan at a centre
+    // that only prices SUV is priced as the SUV the operator mapped it to —
+    // that decision is the whole point of the mapping, so it must not be
+    // second-guessed by re-running the type lookup underneath it.
+    if (job.charge_id) {
+      charge = await this.chargeDao.findActiveById(job.charge_id);
+      if (!charge) {
+        this.logger.warn(
+          `Job ${job.id} is mapped to charge ${job.charge_id}, which no longer exists — falling back to the vehicle type`,
+          JobService.context,
+        );
+      }
+    }
+
+    if (!charge && vehicleType) {
       charge = chargeCategoryId
         ? await this.chargeDao.findByCombo(
             job.centre_id ?? undefined,
@@ -558,11 +646,34 @@ export class JobService {
     const paymentInfo = plate
       ? await this.paymentApi.fetchByPlate(plate)
       : null;
-    const advance = paymentInfo?.advance ?? 0;
+
+    // Money already taken against THIS job counts as an advance too.
+    //
+    // An online booking is settled at the provider before the vehicle arrives,
+    // so by the time the job is priced the customer has already paid. Ignoring
+    // that made `payable` the full charge again — asking them to pay twice, and
+    // it is precisely what the operator sees after re-mapping a vehicle type on
+    // a job that already carries a provider payment.
+    const settled = await this.paymentsDao.findSettledByJobId(job.id);
+    const collected = settled.reduce(
+      (sum, payment) => sum + Number(payment.grand_total ?? 0),
+      0,
+    );
+
+    const advance = (paymentInfo?.advance ?? 0) + collected;
+    const mapped = Boolean(job.charge_id) && charge.id === job.charge_id;
     return {
       charge_missing: false,
-      vehicle_type: vehicleType,
-      charge_category_id: chargeCategoryId,
+      // The type the price actually came from. On a mapped job that is the
+      // operator's chosen type, not the vehicle's own — reporting the vehicle's
+      // would show a price next to a type that did not produce it.
+      vehicle_type: mapped ? charge.vehicle_type : vehicleType,
+      charge_category_id: mapped
+        ? (charge.charge_category_id ?? null)
+        : chargeCategoryId,
+      charge_id: charge.id,
+      /** True when this price came from an operator mapping, not the vehicle's type. */
+      mapped_from_vehicle_type: mapped ? vehicleType : null,
       center_charges: Number(charge.center_charges),
       rop_charges: Number(charge.rop_charges),
       vat_percent: Number(charge.vat_percent),

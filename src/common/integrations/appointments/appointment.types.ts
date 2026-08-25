@@ -228,14 +228,21 @@ export interface EventStatusResult extends AppointmentEnvelope {
   error_message?: string | null;
 }
 
+/**
+ * One transaction's outcome inside a reconcile sweep. Entries that came back
+ * NOT_FOUND carry only the id and the status — the provider omits the rest
+ * rather than nulling it, so every other field is optional.
+ */
+export interface ReconcileEntry {
+  transaction_id: string;
+  event_status: string;
+  event_type?: string;
+  received_at?: string;
+  processed_at?: string;
+}
+
 export interface ReconcileResponse extends AppointmentEnvelope {
-  results?: {
-    transaction_id: string;
-    event_status: string;
-    event_type?: string;
-    received_at?: string;
-    processed_at?: string;
-  }[];
+  results?: ReconcileEntry[];
   total?: number;
 }
 
@@ -247,7 +254,16 @@ export interface ReconcileResponse extends AppointmentEnvelope {
  * collapsing them would either lose events or hammer the provider with a
  * request that can never succeed.
  */
-export type PushOutcome =
+export type PushOutcome = {
+  /**
+   * The provider's raw body, verbatim, whatever the outcome. Undefined only
+   * when no body was received at all — a timeout, a connection failure, or a
+   * response that was not JSON. Carried on the outcome rather than logged and
+   * dropped, so the caller can persist the evidence alongside its own verdict.
+   */
+  response?: Record<string, unknown>;
+} & (
   | { ok: true; duplicate: boolean }
   | { ok: false; retryable: true; reason: string }
-  | { ok: false; retryable: false; code: string | null; reason: string };
+  | { ok: false; retryable: false; code: string | null; reason: string }
+);

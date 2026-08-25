@@ -21,6 +21,10 @@ export class JobDao extends Repository<Job> implements IJobDao {
     line: true,
     adminPc: true,
     camera: true,
+    // The job screen shows what was actually collected, so the payment has to
+    // travel with the job. paymentType comes too — the row stores the mode as
+    // an FK to the master, and the id alone is not something to show anyone.
+    payments: { paymentType: true },
   } as const;
 
   constructor(

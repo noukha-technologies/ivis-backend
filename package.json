@@ -17,6 +17,7 @@
     "db:bootstrap": "ts-node -r tsconfig-paths/register src/scripts/bootstrap-db.ts",
     "migration:create-schema": "cross-env RUN_CREATE_SCHEMA=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts CreateSchema1782000000000",
     "migration:alter": "cross-env RUN_ALTER_SCHEMA=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts AlterSchema1782010000000",
+    "tajdeed:e2e": "ts-node -r tsconfig-paths/register src/scripts/tajdeed-e2e.ts",
     "migration:wipe": "cross-env ALLOW_DATA_WIPE=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts WipeData1782020000000",
     "migration:wipe-transactions": "cross-env ALLOW_DATA_WIPE=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts WipeTransactions1782030000000",
     "onboarding:super-admin": "ts-node -r tsconfig-paths/register src/scripts/onboard-super-admin.ts",

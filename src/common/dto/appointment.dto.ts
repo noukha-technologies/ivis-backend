@@ -159,6 +159,24 @@ export class CreateAppointmentDto {
   vehicle_color?: string;
 
   @ApiPropertyOptional({
+    description: 'Vehicle manufacturer / brand',
+    example: 'Toyota',
+  })
+  @IsOptional()
+  @IsString({ message: 'vehicle_make must be a string' })
+  @Length(0, 64, { message: 'vehicle_make must be at most 64 characters' })
+  vehicle_make?: string;
+
+  @ApiPropertyOptional({
+    description: 'Vehicle model',
+    example: 'Land Cruiser',
+  })
+  @IsOptional()
+  @IsString({ message: 'vehicle_model must be a string' })
+  @Length(0, 64, { message: 'vehicle_model must be at most 64 characters' })
+  vehicle_model?: string;
+
+  @ApiPropertyOptional({
     description:
       'Vehicle VIN / chassis number (optional; up to 17 alphanumeric chars)',
     example: 'JT2BF22K0W0123456',
@@ -257,14 +275,10 @@ export class CreateAppointmentDto {
 
   @ApiPropertyOptional({ description: 'Payment amount', example: 150.5 })
   @IsOptional()
-  @IsNumber(
-    { maxDecimalPlaces: 2 },
-    { message: 'amount must be a valid number' },
-  )
-  @Min(1, { message: 'amount must be at least 1' })
+  @IsNumber()
   amount?: number;
 }
 
 export class UpdateAppointmentDto extends PartialType(
   OmitType(CreateAppointmentDto, ['appointment_id'] as const),
-) {}
+) { }

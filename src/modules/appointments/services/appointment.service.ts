@@ -193,11 +193,11 @@ export class AppointmentService {
         }
       }
 
-      // Resolved BEFORE the vehicle record, not after, because ROP is the only
-      // source of make/model — the ANPR capture and the walk-in form carry
-      // neither. Looking it up afterwards (as this used to) meant the vehicle
-      // record was written without them and stayed empty for the vehicle's
-      // whole life.
+      // Resolved BEFORE the vehicle record, not after, because ROP is the
+      // fallback source of make/model — the ANPR capture carries neither, and
+      // the walk-in form only supplies them when the operator types them in.
+      // Looking it up afterwards (as this used to) meant the vehicle record was
+      // written without them and stayed empty for the vehicle's whole life.
       const rop = plateNumber
         ? await this.ropVerificationDao.findLatestByRegNo(plateNumber)
         : null;
@@ -213,8 +213,8 @@ export class AppointmentService {
         actor,
         createDto.plate_color,
         createDto.vehicle_color,
-        rop?.vehicle_make ?? undefined,
-        rop?.vehicle_model ?? undefined,
+        createDto.vehicle_make ?? rop?.vehicle_make ?? undefined,
+        createDto.vehicle_model ?? rop?.vehicle_model ?? undefined,
       );
 
       // Create / link the customer with all entered details (#4) and link it to
@@ -340,6 +340,8 @@ export class AppointmentService {
       actor,
       updateDto.plate_color,
       updateDto.vehicle_color,
+      updateDto.vehicle_make,
+      updateDto.vehicle_model,
     );
 
     // Update the linked customer's details (#4). Reuse the existing customer id.

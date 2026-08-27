@@ -1,8 +1,14 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import {
   CreateRopVerificationDto,
   UpdateRopVerificationDto,
 } from '../../../../common/dto/rop-verification.dto';
+import { omanDayRange } from '../../../../common/utils/util';
 import { PaginationQueryDto } from '../../../../common/dto/pagination.dto';
 import { PaginatedResult } from '../../../../common/interfaces/pagination.interface';
 import {
@@ -26,6 +32,10 @@ import {
   EMPTY_ROP_VERIFICATION_AUDIT,
   snapshotRopVerification,
 } from '../../../../common/audit/rop-verification-audit';
+
+/** `fetch_status` is a string column, so the enum member is compared as one. */
+const isFetched = (status: string | null | undefined): boolean =>
+  status === (RopVerificationStatus.VALIDATED as string);
 
 @Injectable()
 export class RopVerificationService {
@@ -115,6 +125,118 @@ export class RopVerificationService {
       }
     }
 
+    return saved;
+  }
+
+  /**
+   * Look a plate up with ROP on demand, from the operator's own request.
+   *
+   * The automatic path leaves a verification at Pending when ROP had no record
+   * for the plate, and nothing retries those — the sweep only re-attempts
+   * Failed. This is how an operator asks again later in the day, once ROP has
+   * had a chance to catch up, without needing a capture to hang it off.
+   *
+   * A plate already Fetched today is refused rather than looked up again. The
+   * answer is on file, ROP does not change intraday, and a second request
+   * would only spend a call to overwrite a record with itself.
+   */
+  async fetchOnDemandByPlate(
+    regNo: string,
+    actor: UserContext,
+  ): Promise<RopVerification> {
+    const plate = regNo.trim().toUpperCase();
+    if (!plate) {
+      throw new BadRequestException('Enter a plate number to look up.');
+    }
+
+    const today = omanDayRange();
+    const existing = await this.ropVerificationDao.findLatestByPlateLoose(
+      plate,
+      today,
+    );
+
+    if (existing && isFetched(existing.fetch_status)) {
+      const when = existing.fetched_at
+        ? ` at ${existing.fetched_at.toLocaleTimeString('en-GB', {
+            timeZone: 'Asia/Muscat',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}`
+        : '';
+      throw new ConflictException(
+        `ROP details for ${plate} were already fetched${when} — there is nothing left to request.`,
+      );
+    }
+
+    // A row already on file goes through refetch, so the manual button and the
+    // background sweep share one code path and cannot drift apart.
+    if (existing) {
+      const updated = await this.refetch(existing.id);
+      if (!isFetched(updated.fetch_status)) {
+        throw new NotFoundException(
+          `ROP returned no record for ${plate}. Enter the details manually if the vehicle is on site.`,
+        );
+      }
+      return updated;
+    }
+
+    const result = await this.ropApiClient.fetchByPlate(plate);
+    const matches =
+      result != null &&
+      (result.reg_no ?? plate).replace(/[^A-Za-z0-9]/g, '').toUpperCase() ===
+        plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+    if (!result || !matches) {
+      this.logger.warn(
+        `On-demand ROP lookup for ${plate} found nothing (${result ? 'plate mismatch' : 'no data'})`,
+        RopVerificationService.context,
+      );
+      throw new NotFoundException(
+        `ROP returned no record for ${plate}. Enter the details manually if the vehicle is on site.`,
+      );
+    }
+
+    // No capture to hang this off — the vehicle may not have driven in yet, or
+    // its capture failed. anpr_capture_id stays null exactly as it does for a
+    // walk-in plate lookup, and is backfilled when a real capture arrives.
+    const verification = this.ropVerificationDao.create({
+      id: generateSnowflakeId(),
+      rop_verification_id:
+        await this.ropVerificationDao.getNextRopVerificationId(),
+      owner_name: result.owner_name,
+      owner_phone: result.owner_phone,
+      mulkiya_id: result.mulkiya_id,
+      vehicle_make: result.vehicle_make,
+      vehicle_model: result.vehicle_model,
+      plate_color: result.plate_color,
+      vehicle_color: result.vehicle_color,
+      vehicle_type: result.vehicle_type,
+      reg_no: result.reg_no ?? plate,
+      chassis_no: result.chassis_no,
+      insurance: result.insurance,
+      reg_expiry: result.reg_expiry,
+      raw_response: result.raw_response,
+      fetch_status: RopVerificationStatus.VALIDATED,
+      fetched_at: new Date(),
+      created_by: getCreatedById(actor),
+    });
+
+    applyRopVerificationAuditContext(
+      verification.id,
+      EMPTY_ROP_VERIFICATION_AUDIT,
+      snapshotRopVerification(verification, plate),
+    );
+    let saved: RopVerification;
+    try {
+      saved = await this.ropVerificationDao.save(verification);
+    } finally {
+      clearRopVerificationAuditContext();
+    }
+
+    this.logger.log(
+      `On-demand ROP lookup succeeded for ${plate} — verification ${saved.id} created as Fetched`,
+      RopVerificationService.context,
+    );
     return saved;
   }
 

@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  MaxLength,
   Min,
 } from 'class-validator';
 import {
@@ -12,6 +13,17 @@ import {
   OmitType,
   PartialType,
 } from '@nestjs/swagger';
+
+export class FetchRopByPlateDto {
+  @ApiProperty({
+    description: 'Plate number to look up with ROP',
+    example: '23547DD',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(32)
+  reg_no!: string;
+}
 
 export class CreateRopVerificationDto {
   @ApiPropertyOptional({

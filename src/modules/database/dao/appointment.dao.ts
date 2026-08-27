@@ -21,6 +21,7 @@ export class AppointmentDao
     // Loaded because converting to a job requires a Fetched ROP verification —
     // see JobService.createFromAppointment.
     ropVerification: true,
+    payments: true,
     customer: { vehicleRecord: true },
     vehicleRecord: { vehicleMaster: true },
     centre: true,
@@ -71,7 +72,10 @@ export class AppointmentDao
       // be refused there.
       .leftJoinAndSelect('appointment.ropVerification', 'ropVerification')
       .leftJoinAndSelect('appointment.centre', 'centre')
-      .leftJoinAndSelect('appointment.line', 'line');
+      .leftJoinAndSelect('appointment.line', 'line')
+      // The queue shows the payment reference against the visit it was taken
+      // for, which is knowable before any job exists.
+      .leftJoinAndSelect('appointment.payments', 'payments');
 
     const options = buildTypeOrmPaginationOptions<Appointment, Appointment>(
       query,
@@ -115,6 +119,7 @@ export class AppointmentDao
   async findQueuedOnlineByPlate(
     plate: string,
     centreId: string | null,
+    within: { start: Date; end: Date },
   ): Promise<Appointment | null> {
     const qb = this.createQueryBuilder('appointment')
       .where('appointment.is_deleted = false')
@@ -122,7 +127,12 @@ export class AppointmentDao
         status: AppointmentStatus.QUEUED,
       })
       .andWhere('appointment.anpr_capture_id IS NULL')
-      .andWhere('UPPER(appointment.plate_number) = UPPER(:plate)', { plate });
+      .andWhere('UPPER(appointment.plate_number) = UPPER(:plate)', { plate })
+      // Same-day only, like the walk-in matcher. A booking dated for next week
+      // is not what the car on the lane today is here for, and an expired one
+      // from last week is dead — either way the arrival gets its own row.
+      .andWhere('appointment.appointment_at >= :start', { start: within.start })
+      .andWhere('appointment.appointment_at < :end', { end: within.end });
 
     if (centreId) {
       qb.andWhere('appointment.centre_id = :centreId', { centreId });
@@ -137,7 +147,21 @@ export class AppointmentDao
     });
   }
 
-  async findLatestQueuedByPlate(plate: string): Promise<Appointment | null> {
+  /**
+   * The walk-in an operator pre-created at the counter for this plate, waiting
+   * on the car to arrive.
+   *
+   * Bounded to a single Oman day on purpose. Without it, a walk-in abandoned
+   * days ago stays eligible forever and silently absorbs an unrelated arrival
+   * of the same plate — the customer standing at the lane then inherits a
+   * stale row, with someone else's entered details and a payment that was
+   * never for this visit. A counter walk-in is same-day by definition, so
+   * anything older is abandoned, not waiting.
+   */
+  async findLatestQueuedByPlate(
+    plate: string,
+    within: { start: Date; end: Date },
+  ): Promise<Appointment | null> {
     return this.createQueryBuilder('appointment')
       .innerJoin('appointment.vehicleRecord', 'vehicleRecord')
       .where('appointment.is_deleted = false')
@@ -146,6 +170,8 @@ export class AppointmentDao
       })
       .andWhere('appointment.anpr_capture_id IS NULL')
       .andWhere('vehicleRecord.plate_number = :plate', { plate })
+      .andWhere('appointment.created_at >= :start', { start: within.start })
+      .andWhere('appointment.created_at < :end', { end: within.end })
       .orderBy('appointment.created_at', 'DESC')
       .getOne();
   }
@@ -169,6 +195,7 @@ export class AppointmentDao
    */
   async findOpenByPlate(
     plate: string,
+    activeFrom: Date,
     excludeAppointmentRowId?: string,
   ): Promise<Appointment | null> {
     const qb = this.createQueryBuilder('appointment')
@@ -177,6 +204,13 @@ export class AppointmentDao
       .andWhere('appointment.status NOT IN (:...terminal)', {
         terminal: [AppointmentStatus.CONVERTED, AppointmentStatus.CANCELLED],
       })
+      // An expired queued row is not "open" — it is dead, and it must not stop
+      // the same vehicle being registered again today. Scheduled rows are
+      // unaffected: they are a future commitment, not a stale one.
+      .andWhere(
+        '(appointment.status <> :queuedStatus OR appointment.appointment_at >= :activeFrom)',
+        { queuedStatus: AppointmentStatus.QUEUED, activeFrom },
+      )
       .andWhere(
         '(UPPER(appointment.plate_number) = UPPER(:plate) OR UPPER(vehicleRecord.plate_number) = UPPER(:plate))',
         { plate },

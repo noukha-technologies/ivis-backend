@@ -1,9 +1,23 @@
 import { normalizeAnprColour } from './anpr-colour.util';
 
-const OVERLAY_LABEL =
-  '(?:Camera\\s*Info|Device\\s*No\\.?|Capture\\s*Time|Plate\\s*No\\.?|Vehicle\\s*Colou?r|Vehicle\\s*Type|Vehicle\\s*Brand|Uehicle\\s*Brand|Moving\\s*Direction|Confidence|Camera\\s*No\\.?|Area[s\\-/]?Country|Plate\\s*Colou?r|Plate\\s*(?:Size|Siz|3ize)|Plate\\s*Type|Province|Category)';
-
-const NEXT_LABEL_RE = new RegExp(`\\s+(?=${OVERLAY_LABEL}\\s*:)`, 'i');
+/**
+ * Parser for the text strip Hikvision burns into the detection JPEG.
+ *
+ * The strip is a flat run of `Label:Value` pairs. The camera is consistent —
+ * every field is separated by a colon — but the OCR pass over it is not: it
+ * splits words ("Veh icle Brand"), confuses characters (V→U, S→3, W→U, /→~),
+ * drops the odd colon, and wraps mid-token.
+ *
+ * So the colon is the anchor, not the label text. Every colon is treated as a
+ * candidate separator: the text immediately before it is stripped to bare
+ * letters and matched against the known label set, tolerating one or two
+ * wrong characters. That recovers "Veh icle Brand:" and "Uehicle Color :" and
+ * "Plate 3ize:" without needing a repair rule written for each one.
+ *
+ * Labels whose colon the OCR lost entirely are still found by a second,
+ * regex-based pass, so a dropped colon costs that one field rather than
+ * swallowing everything up to the next recognised label.
+ */
 
 export type HikvisionOverlayFields = {
   plateNumber?: string;
@@ -20,23 +34,113 @@ export type HikvisionOverlayFields = {
   category?: string;
 };
 
+/** A field the strip carries, or a label we only need as a value boundary. */
 type LabelSpec = {
-  field: keyof HikvisionOverlayFields;
+  /** Absent for boundary-only labels (Camera Info, Device No., …). */
+  field?: keyof HikvisionOverlayFields;
+  /** Canonical label as the camera renders it. */
+  label: string;
+  /** Extra spellings the OCR produces that fuzzy matching alone will not reach. */
+  aliases?: string[];
+  /** Regex for the colon-less fallback pass. */
   pattern: RegExp;
   transform?: (raw: string) => string | number | undefined;
 };
 
+/**
+ * Vehicle classes the camera reports.
+ *
+ * Doubles as an OCR-repair map (a misread "3edan" is still a Sedan) and as the
+ * canonical spelling, so the same physical class is not stored three ways.
+ * Anything outside the list is kept as read rather than discarded — an
+ * unfamiliar class is data we do not want to lose — but only the entries here
+ * are corrected.
+ */
 const VEHICLE_TYPE_FIXES: Record<string, string> = {
   '3edan': 'Sedan',
   sedan: 'Sedan',
+  saloon: 'Sedan',
   suv: 'SUV',
   mpv: 'MPV',
   truck: 'Truck',
+  lorry: 'Truck',
   bus: 'Bus',
+  minibus: 'Minibus',
+  coach: 'Bus',
   van: 'Van',
   pickup: 'Pickup',
+  'pick-up': 'Pickup',
   hatchback: 'Hatchback',
+  estate: 'Estate',
+  coupe: 'Coupe',
+  motorcycle: 'Motorcycle',
+  motorbike: 'Motorcycle',
+  motorcyle: 'Motorcycle',
+  bike: 'Motorcycle',
+  scooter: 'Motorcycle',
+  trailer: 'Trailer',
+  tanker: 'Tanker',
+  taxi: 'Taxi',
+  ambulance: 'Ambulance',
+  tractor: 'Tractor',
 };
+
+/** Values the camera writes when it has nothing — never stored. */
+const EMPTY_VALUES = new Set([
+  'unknown',
+  'unkown',
+  'unknwon',
+  'none',
+  'null',
+  'na',
+  'n/a',
+  '-',
+  '--',
+]);
+
+function stripToLetters(value: string): string {
+  return value.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+/** Levenshtein distance, capped — used only on short label/value tokens. */
+function editDistance(a: string, b: string): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > 2) return 99;
+  const prev = new Array<number>(b.length + 1);
+  const curr = new Array<number>(b.length + 1);
+  for (let j = 0; j <= b.length; j++) prev[j] = j;
+  for (let i = 1; i <= a.length; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      curr[j] = Math.min(
+        prev[j] + 1,
+        curr[j - 1] + 1,
+        prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
+      );
+    }
+    for (let j = 0; j <= b.length; j++) prev[j] = curr[j];
+  }
+  return prev[b.length];
+}
+
+/** One wrong character per six is the observed OCR error rate on this strip. */
+function labelBudget(target: string): number {
+  if (target.length < 5) return 0;
+  return target.length >= 12 ? 2 : 1;
+}
+
+function fuzzyEquals(candidate: string, target: string): boolean {
+  if (candidate === target) return true;
+  return editDistance(candidate, target) <= labelBudget(target);
+}
+
+function isEmptyValue(raw: string): boolean {
+  const flat = stripToLetters(raw);
+  if (!flat) return EMPTY_VALUES.has(raw.trim().toLowerCase());
+  if (EMPTY_VALUES.has(flat)) return true;
+  // "unkn oun" → "unknoun" → one character off "unknown".
+  return fuzzyEquals(flat, 'unknown');
+}
 
 export function normalizeOcrOverlayText(text: string): string {
   let flat = text
@@ -44,131 +148,65 @@ export function normalizeOcrOverlayText(text: string): string {
     .replace(/\n/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+  // Rejoin a timestamp the wrap split mid-seconds ("10:36:2 9" → "10:36:29").
   flat = flat.replace(
     /(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:)(\d)\s+(\d)\b/g,
     '$1$2$3',
   );
-  const repairs: Array<[RegExp, string]> = [
-    [/\bVe\s+hicle\b/gi, 'Vehicle'],
-    [/\bVehi\s+cle\b/gi, 'Vehicle'],
-    [/\bhicle\s+Brand\b/gi, 'Vehicle Brand'],
-    [/\bUehicle\b/gi, 'Vehicle'],
-    [/\bConf\s+idence\b/gi, 'Confidence'],
-    [/\bC\s+amera\b/gi, 'Camera'],
-    [/\bArea\s+Country\b/gi, 'Area/Country'],
-    [/\bPlate\s+3ize\b/gi, 'Plate Size'],
-    [/\bPlate\s+Siz\b/gi, 'Plate Size'],
-    [/\bPlate\s+Si\s+ze\b/gi, 'Plate Size'],
-    [/\bLon\s+q\b/gi, 'Long'],
-    [/\b3edan\b/gi, 'Sedan'],
-    [/\b0OMN\b/gi, 'OMN'],
-    [/\b0MN\b/gi, 'OMN'],
-    [/\b96\s*x\b/gi, '96%'],
-    [/\bProvince\s+unknown\b/gi, 'Province:unknown'],
-  ];
-  for (const [pattern, replacement] of repairs) {
-    flat = flat.replace(pattern, replacement);
-  }
   return flat;
 }
 
 function trimFieldValue(raw: string): string {
-  let value = raw.replace(/\|/g, ' ').trim();
-  const boundary = value.search(NEXT_LABEL_RE);
-  if (boundary > 0) value = value.slice(0, boundary).trim();
-  return value.replace(/\s+/g, ' ').trim();
+  return raw.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-type LabelHit = {
-  field: keyof HikvisionOverlayFields;
-  start: number;
-  valueStart: number;
-  spec: LabelSpec;
-};
-
-function collectLabelHits(flat: string): LabelHit[] {
-  const hits: Array<LabelHit & { labelLen: number }> = [];
-  for (const spec of LABEL_SPECS) {
-    const re = new RegExp(spec.pattern.source, 'gi');
-    let match: RegExpExecArray | null;
-    while ((match = re.exec(flat)) !== null) {
-      hits.push({
-        field: spec.field,
-        start: match.index,
-        valueStart: match.index + match[0].length,
-        spec,
-        labelLen: match[0].length,
-      });
-    }
-  }
-  hits.sort((a, b) => a.start - b.start || b.labelLen - a.labelLen);
-  const deduped: LabelHit[] = [];
-  let lastStart = -1;
-  for (const hit of hits) {
-    if (hit.start === lastStart) continue;
-    if (
-      deduped.length > 0 &&
-      hit.start < deduped[deduped.length - 1].valueStart
-    )
-      continue;
-    deduped.push({
-      field: hit.field,
-      start: hit.start,
-      valueStart: hit.valueStart,
-      spec: hit.spec,
-    });
-    lastStart = hit.start;
-  }
-  return deduped;
+function firstWord(raw: string): string | undefined {
+  return trimFieldValue(raw).split(/\s+/).filter(Boolean)[0];
 }
 
-function normalizeVehicleType(
-  raw: string | null | undefined,
-): string | undefined {
-  if (!raw?.trim()) return undefined;
-  let value = trimFieldValue(raw);
-  value = value.replace(/\s+Vehicle\s*Brand.*/i, '').trim();
-  const word = value.split(/\s+/).filter(Boolean)[0];
-  if (!word) return undefined;
-  const fixed = VEHICLE_TYPE_FIXES[word.toLowerCase()];
-  if (fixed) return fixed;
-  if (/^[A-Za-z]{2,}$/.test(word))
-    return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
-  return word;
-}
-
-function normalizePlateSize(
-  raw: string | null | undefined,
-): string | undefined {
-  if (!raw?.trim()) return undefined;
-  const value = trimFieldValue(raw).replace(/^e:/i, '');
-  const lower = value.toLowerCase();
-  if (/\blong\b/.test(lower) || lower === 'l' || lower.startsWith('lon'))
-    return 'Long';
-  if (/\bshort\b/.test(lower) || lower.startsWith('sho')) return 'Short';
-  return undefined;
-}
-
-function normalizePlateType(
-  raw: string | null | undefined,
-): string | undefined {
-  if (!raw?.trim()) return undefined;
-  const value = trimFieldValue(raw);
-  const word = value.split(/\s+/)[0];
-  if (!word) return undefined;
+function titleCase(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
 }
 
-function normalizeVehicleBrand(
-  raw: string | null | undefined,
-): string | undefined {
-  if (!raw?.trim()) return undefined;
-  // Keep the full brand (make + model, e.g. "GWM Haval") — trimFieldValue already
-  // bounds it to the next overlay label. Strip a stray leading colon only.
-  const value = trimFieldValue(raw)
-    .replace(/^:+\s*/, '')
-    .trim();
-  if (!value) return undefined;
+function normalizeVehicleType(raw: string): string | undefined {
+  const value = trimFieldValue(raw);
+  if (!value || isEmptyValue(value)) return undefined;
+  const word = firstWord(value);
+  if (!word) return undefined;
+
+  const key = word.toLowerCase().replace(/[^a-z-]/g, '');
+  if (VEHICLE_TYPE_FIXES[key]) return VEHICLE_TYPE_FIXES[key];
+
+  // One character out from a class we know — "Truok", "8us".
+  const letters = stripToLetters(word);
+  for (const [candidate, canonical] of Object.entries(VEHICLE_TYPE_FIXES)) {
+    if (fuzzyEquals(letters, stripToLetters(candidate))) return canonical;
+  }
+
+  return /^[A-Za-z-]{2,}$/.test(word) ? titleCase(word) : word;
+}
+
+function normalizePlateSize(raw: string): string | undefined {
+  const value = trimFieldValue(raw).replace(/^e:/i, '');
+  if (!value || isEmptyValue(value)) return undefined;
+  const letters = stripToLetters(value);
+  if (letters.startsWith('lon') || letters === 'l') return 'Long';
+  if (letters.startsWith('sho') || letters === 's') return 'Short';
+  return undefined;
+}
+
+function normalizeSimpleWord(raw: string): string | undefined {
+  const value = trimFieldValue(raw);
+  if (!value || isEmptyValue(value)) return undefined;
+  const word = firstWord(value);
+  return word ? titleCase(word) : undefined;
+}
+
+function normalizeVehicleBrand(raw: string): string | undefined {
+  // Keep make and model together ("GWM Haval"); the value already ends at the
+  // next label. Only a stray leading colon needs removing.
+  const value = trimFieldValue(raw).replace(/^:+\s*/, '');
+  if (!value || isEmptyValue(value)) return undefined;
   return value
     .split(/\s+/)
     .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
@@ -178,81 +216,221 @@ function normalizeVehicleBrand(
 const LABEL_SPECS: LabelSpec[] = [
   {
     field: 'plateNumber',
+    label: 'Plate No.',
     pattern: /Plate\s*No\.?\s*:?\s*/i,
-    transform: (raw) => raw.replace(/[^A-Za-z0-9؀-ۿ-]/g, '').toUpperCase(),
+    transform: (raw) => {
+      const value = trimFieldValue(raw);
+      if (isEmptyValue(value)) return undefined;
+      const cleaned = value
+        .split(/\s+/)[0]
+        .replace(/[^A-Za-z0-9\u0600-\u06FF-]/g, '')
+        .toUpperCase();
+      return cleaned || undefined;
+    },
   },
   {
     field: 'captureTimeLabel',
+    label: 'Capture Time',
     pattern: /Capture\s*Time\s*:?\s*/i,
-    transform: (raw) => {
-      const m = trimFieldValue(raw).match(
+    transform: (raw) =>
+      trimFieldValue(raw).match(
         /^(\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}:\d{2})/,
-      );
-      return m?.[1];
-    },
+      )?.[1],
   },
   {
     field: 'vehicleColour',
-    pattern: /Vehicle\s*Colou?r\s*:?\s*/i,
-    transform: (raw) => normalizeAnprColour(raw) ?? undefined,
+    label: 'Vehicle Color',
+    aliases: ['Vehicle Colour', 'Uehicle Color'],
+    pattern: /(?:Vehicle|Uehicle)\s*Colou?r\s*:?\s*/i,
+    transform: (raw) =>
+      isEmptyValue(raw) ? undefined : (normalizeAnprColour(raw) ?? undefined),
   },
   {
     field: 'vehicleType',
-    pattern: /Vehicle\s*Type\s*:?\s*/i,
-    transform: (raw) => normalizeVehicleType(raw),
+    label: 'Vehicle Type',
+    aliases: ['Uehicle Type'],
+    pattern: /(?:Vehicle|Uehicle)\s*Type\s*:?\s*/i,
+    transform: normalizeVehicleType,
   },
   {
     field: 'vehicleBrand',
+    label: 'Vehicle Brand',
+    aliases: ['Uehicle Brand'],
     pattern: /(?:Vehicle|Uehicle)\s*Brand\s*:?\s*/i,
-    transform: (raw) => normalizeVehicleBrand(raw),
+    transform: normalizeVehicleBrand,
   },
   {
     field: 'direction',
+    label: 'Moving Direction',
     pattern: /Moving\s*Direction\s*:?\s*/i,
-    transform: (raw) => {
-      const v = trimFieldValue(raw).split(/\s+/)[0];
-      return v
-        ? v.charAt(0).toUpperCase() + v.slice(1).toLowerCase()
-        : undefined;
-    },
+    transform: normalizeSimpleWord,
   },
   {
     field: 'confidence',
-    pattern: /Confidence\s*:?\s*/i,
+    label: 'Confidence',
+    pattern: /Conf\s*idence\s*:?\s*/i,
     transform: (raw) => {
       const digits = trimFieldValue(raw).match(/(\d{1,3})/);
-      return digits ? parseInt(digits[1], 10) : undefined;
+      if (!digits) return undefined;
+      const value = parseInt(digits[1], 10);
+      return value >= 0 && value <= 100 ? value : undefined;
     },
   },
   {
     field: 'plateColour',
+    label: 'Plate Color',
+    aliases: ['Plate Colour'],
     pattern: /Plate\s*Colou?r\s*:?\s*/i,
-    transform: (raw) => normalizeAnprColour(raw) ?? undefined,
+    transform: (raw) =>
+      isEmptyValue(raw) ? undefined : (normalizeAnprColour(raw) ?? undefined),
   },
   {
     field: 'plateSize',
+    label: 'Plate Size',
+    aliases: ['Plate 3ize', 'Plate Siz'],
     pattern: /Plate\s*(?:Size|Siz|3ize)\s*:?\s*/i,
-    transform: (raw) => normalizePlateSize(raw),
+    transform: normalizePlateSize,
   },
   {
     field: 'plateType',
+    label: 'Plate Type',
     pattern: /Plate\s*Type\s*:?\s*/i,
-    transform: (raw) => normalizePlateType(raw),
+    transform: normalizeSimpleWord,
   },
   {
     field: 'province',
+    label: 'Province',
     pattern: /Province\s*:?\s*/i,
-    transform: (raw) => trimFieldValue(raw),
+    transform: (raw) => (isEmptyValue(raw) ? undefined : trimFieldValue(raw)),
   },
   {
     field: 'category',
+    label: 'Category',
     pattern: /Category\s*:?\s*/i,
-    transform: (raw) =>
-      trimFieldValue(raw)
+    transform: (raw) => {
+      const value = trimFieldValue(raw)
         .replace(/[^A-Za-z0-9]/g, '')
-        .toUpperCase(),
+        .toUpperCase();
+      return value || undefined;
+    },
+  },
+  // Boundary-only: never stored, but a value must stop when one begins.
+  { label: 'Camera Info', pattern: /Camera\s*Info\s*:?\s*/i },
+  { label: 'Device No.', pattern: /Device\s*No\.?\s*:?\s*/i },
+  { label: 'Camera No.', pattern: /Camera\s*No\.?\s*:?\s*/i },
+  {
+    label: 'Area/Country',
+    aliases: ['Area~Country', 'Area-Country', 'AreaCountry'],
+    pattern: /Area[\s\-~/]*Country\s*:?\s*/i,
   },
 ];
+
+/** Canonical letter-only key → spec, including declared aliases. */
+const LABEL_INDEX: Array<{ key: string; spec: LabelSpec }> =
+  LABEL_SPECS.flatMap((spec) =>
+    [spec.label, ...(spec.aliases ?? [])].map((name) => ({
+      key: stripToLetters(name),
+      spec,
+    })),
+  );
+
+/** Longest label, in characters, plus room for OCR-injected spaces. */
+const MAX_LABEL_LOOKBACK = 24;
+
+type Hit = { spec: LabelSpec; labelStart: number; valueStart: number };
+
+/**
+ * Every colon is a candidate separator: walk back over the text before it and
+ * take the longest run that matches a known label.
+ */
+function colonAnchoredHits(flat: string): Hit[] {
+  const hits: Hit[] = [];
+  for (let i = 0; i < flat.length; i++) {
+    if (flat[i] !== ':') continue;
+    // A colon inside a timestamp is not a separator.
+    if (/\d/.test(flat[i - 1] ?? '') && /\d/.test(flat[i + 1] ?? '')) continue;
+
+    const from = Math.max(0, i - MAX_LABEL_LOOKBACK);
+    const before = flat.slice(from, i);
+
+    // Score every start against every label and keep the closest fit. Taking
+    // the first match instead let a leading fragment of the PREVIOUS value be
+    // absorbed as edit distance — "an Veh icle Brand" matched "Vehicle Brand"
+    // within budget, so the label appeared to start two characters early and
+    // "Sedan" was truncated to "Sed".
+    let best: (Hit & { distance: number; keyLength: number }) | null = null;
+    for (let start = 0; start < before.length; start++) {
+      const candidate = stripToLetters(before.slice(start));
+      if (candidate.length < 4) break;
+      for (const entry of LABEL_INDEX) {
+        const distance = editDistance(candidate, entry.key);
+        if (distance > labelBudget(entry.key)) continue;
+        // Ties break toward the TIGHTEST span. stripToLetters discards digits,
+        // so a window opening 20 characters early yields the same letters as
+        // one opening on the label itself — "2026 09:34:22 Plate No." and
+        // "Plate No." both reduce to "plateno". Preferring the later start
+        // keeps the previous field's value out of this label's span.
+        const better =
+          !best ||
+          distance < best.distance ||
+          (distance === best.distance && entry.key.length > best.keyLength) ||
+          (distance === best.distance &&
+            entry.key.length === best.keyLength &&
+            from + start > best.labelStart);
+        if (better) {
+          best = {
+            spec: entry.spec,
+            labelStart: from + start,
+            valueStart: i + 1,
+            distance,
+            keyLength: entry.key.length,
+          };
+        }
+      }
+    }
+    if (best) {
+      hits.push({
+        spec: best.spec,
+        labelStart: best.labelStart,
+        valueStart: best.valueStart,
+      });
+    }
+  }
+  return hits;
+}
+
+/** Fallback for labels whose colon the OCR dropped entirely. */
+function regexHits(flat: string): Hit[] {
+  const hits: Hit[] = [];
+  for (const spec of LABEL_SPECS) {
+    const re = new RegExp(spec.pattern.source, 'gi');
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(flat)) !== null) {
+      hits.push({
+        spec,
+        labelStart: match.index,
+        valueStart: match.index + match[0].length,
+      });
+    }
+  }
+  return hits;
+}
+
+function mergeHits(flat: string): Hit[] {
+  const all = [...colonAnchoredHits(flat), ...regexHits(flat)].sort(
+    (a, b) => a.labelStart - b.labelStart || b.valueStart - a.valueStart,
+  );
+
+  const merged: Hit[] = [];
+  for (const hit of all) {
+    const last = merged[merged.length - 1];
+    // Overlapping hits describe the same label — the colon-anchored one sorts
+    // first and wins, since it knows where the value actually begins.
+    if (last && hit.labelStart < last.valueStart) continue;
+    merged.push(hit);
+  }
+  return merged;
+}
 
 export function flattenHikvisionOverlayText(text: string): string {
   return normalizeOcrOverlayText(text);
@@ -262,21 +440,25 @@ export function parseHikvisionOverlayFields(
   text: string,
 ): HikvisionOverlayFields {
   const flat = normalizeOcrOverlayText(text);
-  const hits = collectLabelHits(flat);
+  const hits = mergeHits(flat);
   const result: HikvisionOverlayFields = {};
+
   for (let i = 0; i < hits.length; i++) {
-    const { field, valueStart, spec } = hits[i];
-    const valueEnd = i + 1 < hits.length ? hits[i + 1].start : flat.length;
+    const { spec, valueStart } = hits[i];
+    if (!spec.field) continue; // boundary-only label
+    const valueEnd = i + 1 < hits.length ? hits[i + 1].labelStart : flat.length;
     const raw = flat.slice(valueStart, valueEnd).trim();
     if (!raw) continue;
+
     const transformed = spec.transform
       ? spec.transform(raw)
       : trimFieldValue(raw);
     if (transformed === undefined || transformed === '') continue;
-    if (result[field] === undefined) {
-      (result as Record<string, string | number>)[field] = transformed;
+    if (result[spec.field] === undefined) {
+      (result as Record<string, string | number>)[spec.field] = transformed;
     }
   }
+
   return result;
 }
 

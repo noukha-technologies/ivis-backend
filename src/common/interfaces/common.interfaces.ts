@@ -20,6 +20,28 @@ export interface FtpCursor {
 }
 
 /** Per-centre system configuration (one row per centre). */
+/**
+ * Whether a plate may be registered at reception, and why not when it may not.
+ *
+ * A vehicle must have been seen by ANPR and verified against ROP before an
+ * inspection can be booked for it — the result is filed to ROP under those
+ * details, so booking on unverified ones is not allowed. `anpr_today` marks
+ * the preferred case (the car is here now); an older capture for the same
+ * vehicle still passes, as a secondary check.
+ */
+export interface PlateEligibility {
+  plate: string;
+  anpr_found: boolean;
+  anpr_today: boolean;
+  anpr_capture_id: string | null;
+  anpr_capture_time: Date | null;
+  rop_found: boolean;
+  rop_status: string | null;
+  rop_verified: boolean;
+  eligible: boolean;
+  reason: string | null;
+}
+
 export interface IConfigurationFields {
   id: string;
   configuration_id: number;
@@ -30,7 +52,6 @@ export interface IConfigurationFields {
   auto_close: boolean;
   /** Time-of-day (Oman) to auto-close jobs from available OUT files, 'HH:mm'. */
   auto_close_time?: string;
-  payment_mandatory: boolean;
   /** Centre working hours (Oman), 'HH:mm'. */
   working_hours_start?: string;
   working_hours_end?: string;

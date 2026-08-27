@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import {
   CreateRopVerificationDto,
   UpdateRopVerificationDto,
@@ -19,6 +19,7 @@ import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { RopVerificationDao } from '../../../database/dao/rop-verification.dao';
 import { RopVerification } from '../../../database/entity/rop-verification.entity';
 import { CaptureValidationService } from '../../anpr-captures/services/capture-validation.service';
+import { RopApiClientService } from '../../../../common/integrations/rop/rop-api-client.service';
 import {
   applyRopVerificationAuditContext,
   clearRopVerificationAuditContext,
@@ -34,8 +35,88 @@ export class RopVerificationService {
     private readonly ropVerificationDao: RopVerificationDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly captureValidation: CaptureValidationService,
+    private readonly ropApiClient: RopApiClientService,
     private readonly logger: AppLogger,
   ) {}
+
+  /**
+   * Re-runs the ROP lookup for a verification that ended Failed.
+   *
+   * A Failed row used to be terminal: nothing retried it, so the vehicle was
+   * stuck behind the ROP gate for good. This is the single recovery path —
+   * the operator's button and the background sweep both come through here, so
+   * they cannot drift apart.
+   *
+   * fetchByPlate already retries transient failures three times internally, so
+   * this is one more genuine attempt rather than a loop around a loop. On
+   * success the capture is re-validated, which resumes the normal pipeline
+   * (vehicle record enriched, appointment matched or queued, auto-convert
+   * attempted) exactly as if ROP had answered first time.
+   */
+  async refetch(id: string): Promise<RopVerification> {
+    const verification = await this.findOne(id);
+    const plate = verification.reg_no?.trim();
+    if (!plate) {
+      throw new BadRequestException(
+        'This verification has no plate number to look up.',
+      );
+    }
+
+    const result = await this.ropApiClient.fetchByPlate(plate);
+    const matches =
+      result != null &&
+      (result.reg_no ?? plate).replace(/[^A-Za-z0-9]/g, '').toUpperCase() ===
+        plate.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+
+    if (!result || !matches) {
+      this.logger.warn(
+        `ROP re-fetch for ${plate} did not succeed (${result ? 'plate mismatch' : 'no data'}) — still Failed`,
+        RopVerificationService.context,
+      );
+      return verification;
+    }
+
+    const merged = this.ropVerificationDao.merge(verification, {
+      owner_name: result.owner_name ?? verification.owner_name,
+      owner_phone: result.owner_phone ?? verification.owner_phone,
+      driver_name: result.driver_name ?? verification.driver_name,
+      driver_phone: result.driver_phone ?? verification.driver_phone,
+      mulkiya_id: result.mulkiya_id ?? verification.mulkiya_id,
+      vehicle_make: result.vehicle_make ?? verification.vehicle_make,
+      vehicle_model: result.vehicle_model ?? verification.vehicle_model,
+      plate_color: result.plate_color ?? verification.plate_color,
+      vehicle_color: result.vehicle_color ?? verification.vehicle_color,
+      vehicle_type: result.vehicle_type ?? verification.vehicle_type,
+      chassis_no: result.chassis_no ?? verification.chassis_no,
+      insurance: result.insurance ?? verification.insurance,
+      reg_expiry: result.reg_expiry ?? verification.reg_expiry,
+      raw_response: result.raw_response ?? verification.raw_response,
+      fetch_status: RopVerificationStatus.VALIDATED,
+      fetched_at: new Date(),
+    });
+    const saved = await this.ropVerificationDao.save(merged);
+
+    this.logger.log(
+      `ROP re-fetch succeeded for ${plate} — verification ${saved.id} is now Fetched`,
+      RopVerificationService.context,
+    );
+
+    // Resume the pipeline the original failure interrupted.
+    if (saved.anpr_capture_id) {
+      const capture = await this.anprCaptureDao.findActiveById(
+        saved.anpr_capture_id,
+      );
+      if (capture) {
+        await this.captureValidation.applyRopFetched(
+          capture,
+          saved,
+          'rop-refetch',
+        );
+      }
+    }
+
+    return saved;
+  }
 
   private async resolvePlateNumber(
     anprCaptureId: string | null | undefined,

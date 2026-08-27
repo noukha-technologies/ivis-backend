@@ -11,7 +11,7 @@ import {
 import { AppLogger } from '../../../common/logger/app.logger';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { getCreatedById } from '../../../common/utils/created-by.util';
-import { OmanTimeZone } from '../../../common/utils/util';
+import { appointmentExpiry, OmanTimeZone } from '../../../common/utils/util';
 import { generateSnowflakeId } from '../../../common/shared/snowflakeIdGeneration';
 import { patchAuditContext } from '../../../common/audit/audit-context';
 import {
@@ -391,6 +391,55 @@ export class JobService {
         ropStatus === RopVerificationStatus.FAILED
           ? 'ROP verification failed for this vehicle. Resolve it before converting to a job.'
           : 'ROP verification is still pending. Wait for it to complete before converting to a job.',
+      );
+    }
+
+    // An expired appointment is dead, not dormant. Its details were gathered
+    // for a visit that did not happen, so it is never revived or updated —
+    // a vehicle that comes back gets a new appointment, on today's ANPR
+    // reading, today's ROP verification and its own payment.
+    const { is_expired } = appointmentExpiry(appt.status, appt.appointment_at);
+    if (is_expired) {
+      throw new BadRequestException(
+        'This appointment has expired. Register the vehicle again to create a new appointment for today.',
+      );
+    }
+
+    // The chassis / VIN identifies the physical vehicle on the IN file and on
+    // everything filed back to ROP, so it is not optional. ROP supplies it on
+    // arrival for most vehicles; when it does not, the operator enters it on
+    // the convert screen. Either way it must exist before a job is raised.
+    const chassisOnFile = (
+      appt.vehicleRecord?.chassis_no ??
+      appt.customer?.chassis_no ??
+      ''
+    ).trim();
+    if (!chassisOnFile) {
+      throw new BadRequestException(
+        'Chassis / VIN number is missing for this vehicle. Enter it before converting to a job.',
+      );
+    }
+
+    // A job is chargeable work, so it may not be raised until the fee is
+    // settled. ROP supplies vehicle details only — it never carries money — so
+    // payment is always either entered by an operator here or settled upstream
+    // by the appointment provider. Both count:
+    //   • a local Payments row that is not Cancelled. FOC needs no special
+    //     case: it is stored PAID with grand_total 0, so a free inspection
+    //     reads as settled exactly like a paid one.
+    //   • the provider having settled an online booking. Ingest normally
+    //     mirrors that into a Payments row, but only when the booking carries
+    //     a payment_reference — without one there is no local row to find,
+    //     while the booking is genuinely paid.
+    const settledPayment = await this.paymentsDao.findSettledByAppointmentId(
+      appt.id,
+    );
+    const providerSettled =
+      appt.provider_payment_status === 'PAID' ||
+      appt.provider_payment_status === 'FREE';
+    if (!settledPayment && !providerSettled) {
+      throw new BadRequestException(
+        'Payment has not been recorded for this appointment. Collect the payment (or mark it FOC) before converting to a job.',
       );
     }
 

@@ -20,6 +20,8 @@ import { ParseSnowflakeIdPipe } from '../../common/pipes/parse-snowflake-id.pipe
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { UserContext } from '../../common/dto/auth.dto';
 import { AppointmentService } from './services/appointment.service';
+import { Permissions } from '../../common/decorators/permissions.decorator';
+import { PermissionKeys } from '../../common/constants/permissions';
 
 @ApiTags('Appointments')
 @Controller('appointments')
@@ -47,6 +49,34 @@ export class AppointmentController {
   async findAll(@Query() query: PaginationQueryDto) {
     const result = await this.appointmentService.findAll(query);
     return { message: 'Appointments retrieved successfully', ...result };
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @Permissions(PermissionKeys.APPOINTMENTS_DELETE)
+  @ApiOperation({
+    summary: 'Cancel an appointment that has not been converted to a job',
+    description:
+      'Sets the appointment to Cancelled and cancels any settled payment. Refused once the appointment has become a job.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'Appointment ID' })
+  async cancel(
+    @Param('id', ParseSnowflakeIdPipe) id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const data = await this.appointmentService.cancel(id, body?.reason);
+    return { message: 'Appointment cancelled', data };
+  }
+
+  @Get('plate-eligibility')
+  @ApiOperation({
+    summary:
+      'Whether a plate may be registered at reception (ANPR captured + ROP fetched)',
+  })
+  @ApiQuery({ name: 'plate', required: true, type: String })
+  async plateEligibility(@Query('plate') plate: string) {
+    const data = await this.appointmentService.checkPlateEligibility(plate);
+    return { message: 'Plate eligibility checked', data };
   }
 
   @Get('plate-lookup')
@@ -80,6 +110,7 @@ export class AppointmentController {
   }
 
   @Delete(':id')
+  @Permissions(PermissionKeys.APPOINTMENTS_DELETE)
   @ApiOperation({ summary: 'Soft-delete appointment' })
   async remove(@Param('id', ParseSnowflakeIdPipe) id: string) {
     await this.appointmentService.remove(id);

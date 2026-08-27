@@ -49,6 +49,19 @@ export class RopVerificationController {
     return { message: 'ROP verification created successfully', data };
   }
 
+  @Post(':id/refetch')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Re-run the ROP lookup for a Failed verification',
+    description:
+      'Retries the ROP fetch for this plate. On success the verification flips to Fetched and the capture is re-validated, which resumes the normal pipeline. Returns the verification unchanged when ROP still has no usable answer.',
+  })
+  @ApiParam({ name: 'id', type: String, description: 'ROP verification ID' })
+  async refetch(@Param('id', ParseSnowflakeIdPipe) id: string) {
+    const data = await this.ropVerificationService.refetch(id);
+    return { message: 'ROP re-fetch completed', data };
+  }
+
   @Get()
   @ApiOperation({
     summary: 'Retrieve ROP verifications (paginated, filterable, sortable)',

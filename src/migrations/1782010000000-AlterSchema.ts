@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 23;
+export const ALTER_SCHEMA_VERSION = 24;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -401,9 +401,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTER_ROLE_NAME"`,
     );
-    await queryRunner.query(
-      `DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTER_ID"`,
-    );
+    await queryRunner.query(`DROP INDEX IF EXISTS "core"."IDX_ROLE_CENTER_ID"`);
     await queryRunner.query(
       `ALTER TABLE "core"."roles" DROP CONSTRAINT IF EXISTS "FK_roles_center_id"`,
     );
@@ -416,7 +414,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
 
     // configuration: one settings row per centre (sync mode, redo test,
-    // auto-close, payment mandatory, working hours).
+    // auto-close, working hours).
     await queryRunner.query(`
       CREATE TABLE IF NOT EXISTS "core"."configuration" (
         "id"                  bigint                NOT NULL,
@@ -426,7 +424,6 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         "redo_test_enabled"   boolean               NOT NULL DEFAULT true,
         "auto_close"          boolean               NOT NULL DEFAULT false,
         "auto_close_time"     character varying(5),
-        "payment_mandatory"   boolean               NOT NULL DEFAULT true,
         "working_hours_start" character varying(5),
         "working_hours_end"   character varying(5),
         "status"              character varying(32) NOT NULL DEFAULT 'Active',
@@ -437,6 +434,13 @@ export class AlterSchema1782010000000 implements MigrationInterface {
         CONSTRAINT "PK_configuration_id" PRIMARY KEY ("id")
       )
     `);
+    // payment_mandatory is gone: payment is unconditionally required for every
+    // job, enforced in JobService.createFromAppointment. The column had zero
+    // consumers, so the toggle could only ever mislead whoever set it.
+    await queryRunner.query(
+      `ALTER TABLE "core"."configuration" DROP COLUMN IF EXISTS "payment_mandatory"`,
+    );
+
     // Automatic mode's run times were configurable per centre and read by
     // nothing — no scheduler existed. The schedule is now fixed in code
     // (SyncSchedulerService), so the columns are dropped rather than left as
@@ -494,7 +498,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     // HTTPS-only architecture (Database_sync_arch_replan.md). Explicit DROPs
     // here (not just removed CREATE blocks) so any DB that already ran the
     // old version of this migration gets cleaned up on next boot too.
-    await queryRunner.query(`DROP TABLE IF EXISTS "core"."sync_entity_config" CASCADE`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "core"."sync_entity_config" CASCADE`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "core"."sync_state" CASCADE`);
 
     // sync_run_log table (new HTTPS-only Database Sync, see
@@ -1360,6 +1366,14 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `CREATE INDEX IF NOT EXISTS "IDX_APPOINTMENT_PLATE_NUMBER" ON "transaction"."appointments" ("plate_number")`,
     );
 
+    // appointments: why an unattended conversion last refused this booking.
+    // The refusal was previously a log line only, so a paid car could sit in
+    // the queue with nothing on screen saying what to fix. Written on every
+    // skip and cleared the moment the appointment converts.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "auto_convert_blocked_reason" character varying(255)`,
+    );
+
     // appointments: the provider's own view of the booking, kept alongside (not
     // merged into) the IVIS columns. provider_status is their lifecycle;
     // status is ours. The payment fields record what they say was paid — job
@@ -2039,6 +2053,12 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_PLATE_NUMBER"`,
     );
     await queryRunner.query(
+      `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "auto_convert_blocked_reason"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "core"."configuration" ADD COLUMN IF NOT EXISTS "payment_mandatory" boolean NOT NULL DEFAULT true`,
+    );
+    await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "provider_booking_id"`,
     );
     await queryRunner.query(
@@ -2396,9 +2416,7 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."centre_api_keys" CASCADE`,
     );
-    await queryRunner.query(
-      `DROP TABLE IF EXISTS "core"."audit_logs" CASCADE`,
-    );
+    await queryRunner.query(`DROP TABLE IF EXISTS "core"."audit_logs" CASCADE`);
     await queryRunner.query(
       `DROP TABLE IF EXISTS "core"."sync_run_log" CASCADE`,
     );
@@ -2663,7 +2681,10 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
 
     // 3. Migrate existing data from cameras table if line_id column exists
-    const hasLineIdCol = await queryRunner.hasColumn('master.cameras', 'line_id');
+    const hasLineIdCol = await queryRunner.hasColumn(
+      'master.cameras',
+      'line_id',
+    );
     if (hasLineIdCol) {
       await queryRunner.query(`
         INSERT INTO "master"."camera_line_mappings" ("id", "camera_id", "line_id", "created_by", "created_at", "updated_at", "is_deleted")
@@ -2695,7 +2716,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     queryRunner: QueryRunner,
   ): Promise<void> {
     // Drop mapping table and restore column on cameras if mapping exists
-    const hasMappingsTable = await queryRunner.hasTable('master.camera_line_mappings');
+    const hasMappingsTable = await queryRunner.hasTable(
+      'master.camera_line_mappings',
+    );
     if (hasMappingsTable) {
       await queryRunner.query(
         `ALTER TABLE "master"."cameras" ADD COLUMN IF NOT EXISTS "line_id" bigint`,
@@ -2709,7 +2732,9 @@ export class AlterSchema1782010000000 implements MigrationInterface {
           LIMIT 1
         )
       `);
-      await queryRunner.query(`DROP TABLE IF EXISTS "master"."camera_line_mappings"`);
+      await queryRunner.query(
+        `DROP TABLE IF EXISTS "master"."camera_line_mappings"`,
+      );
       await queryRunner.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS "UQ_CAMERA_LINE_ID" ON "master"."cameras" ("line_id")`,
       );

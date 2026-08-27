@@ -12,6 +12,7 @@ import { RopApiClientService } from '../../../../common/integrations/rop/rop-api
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { CaptureValidationService } from './capture-validation.service';
+import { omanDayRange } from '../../../../common/utils/util';
 import {
   applyRopVerificationAuditContext,
   clearRopVerificationAuditContext,
@@ -123,13 +124,19 @@ export class AnprOrchestrationService {
       // ownership/registration data doesn't change intraday, and reusing the
       // same row (rather than inserting a second one) is what lets a walk-in
       // appointment's rop_verification_id stay valid after real arrival.
-      const onFile = await this.ropVerificationDao.findLatestByRegNo(plate);
+      //
+      // Bounded to the capture's own day, which is what "intraday" above always
+      // meant: the same car returning next week is a new visit and must be
+      // verified again, not answered with a record whose insurance and expiry
+      // dates have since moved on.
+      const onFile = await this.ropVerificationDao.findLatestByRegNo(
+        plate,
+        omanDayRange(anprCapture.capture_time ?? new Date()),
+      );
       const ropResult = onFile
         ? {
             owner_name: onFile.owner_name,
             owner_phone: onFile.owner_phone,
-            driver_name: onFile.driver_name,
-            driver_phone: onFile.driver_phone,
             mulkiya_id: onFile.mulkiya_id,
             vehicle_make: onFile.vehicle_make,
             vehicle_model: onFile.vehicle_model,
@@ -192,8 +199,10 @@ export class AnprOrchestrationService {
           // while their own columns stayed empty — and every screen reading
           // the columns showed blanks for data we already had.
           owner_phone: ropResult?.owner_phone,
-          driver_name: ropResult?.driver_name,
-          driver_phone: ropResult?.driver_phone,
+          // Driver details are deliberately not stored. ROP registers a
+          // vehicle and its owner; whoever is driving it today is not on that
+          // record, so anything a feed returns under those names is not
+          // authoritative and would present a guess as a government fact.
           mulkiya_id: ropResult?.mulkiya_id,
           vehicle_make: ropResult?.vehicle_make,
           vehicle_model: ropResult?.vehicle_model,

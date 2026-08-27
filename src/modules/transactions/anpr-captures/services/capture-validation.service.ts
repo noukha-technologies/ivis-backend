@@ -13,6 +13,9 @@ import { VehicleDao } from '../../../database/dao/vehicle.dao';
 import { ChargeDao } from '../../../database/dao/charge.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
 import { AppointmentDao } from '../../../database/dao/appointment.dao';
+import { JobDao } from '../../../database/dao/job.dao';
+import { UsersDao } from '../../../database/dao/users.dao';
+import { Appointment } from '../../../database/entity/appointment.entity';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
 import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
@@ -21,6 +24,8 @@ import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
 import { RopVerification } from '../../../database/entity/rop-verification.entity';
 import { patchAuditContext } from '../../../../common/audit/audit-context';
+import { omanDayRange } from '../../../../common/utils/util';
+import { vehicleTypesAgree } from '../../../../common/utils/normalize-vehicle-type.util';
 
 /**
  * Shared validation pipeline for ANPR captures. Centralizes the "capture is
@@ -46,7 +51,60 @@ export class CaptureValidationService {
     private readonly centreDao: CentreDao,
     private readonly appointmentApi: AppointmentApiClientService,
     private readonly jobService: JobService,
+    private readonly jobDao: JobDao,
+    private readonly usersDao: UsersDao,
   ) {}
+
+  /**
+   * Picks the line and the responsible user for a conversion nobody is
+   * watching.
+   *
+   * The lane the camera read wins outright: the IN file is written to that
+   * lane's Admin PC folder and the OUT file comes back against it, so a car
+   * sitting on lane 2 cannot be given a job on lane 1 however free lane 1 is.
+   * Only when the arrival carries no lane at all does it fall back to the
+   * first free lane in the centre — free meaning no job on it is still
+   * Pending or In Progress, the same definition the lane-status heartbeat
+   * uses.
+   *
+   * Returns null when no line has anyone mapped to it: a job must belong to
+   * someone, and inventing an owner is worse than leaving the booking for an
+   * operator to convert by hand.
+   */
+  private async resolveAutoAssignment(
+    appointment: Appointment,
+    capture: AnprCapture,
+  ): Promise<{ line_id: string; assigned_user_id: string } | null> {
+    const preferred = appointment.line_id ?? capture.line_id ?? null;
+    const candidates: string[] = [];
+
+    if (preferred) {
+      candidates.push(preferred);
+    } else {
+      const centreId =
+        appointment.centre_id ??
+        (capture.line_id
+          ? ((await this.lineDao.findActiveById(capture.line_id))?.centre_id ??
+            null)
+          : null);
+      if (!centreId) return null;
+
+      const lines = await this.lineDao.findActiveByCentreId(centreId);
+      for (const line of lines) {
+        const occupying = await this.jobDao.findActiveByLineId(line.id);
+        if (occupying.length === 0) candidates.push(line.id);
+      }
+    }
+
+    for (const lineId of candidates) {
+      const users = await this.usersDao.findActiveByLineId(lineId);
+      if (users.length > 0) {
+        return { line_id: lineId, assigned_user_id: users[0].id };
+      }
+    }
+
+    return null;
+  }
 
   /**
    * ROP verification became "Fetched" for this capture: enrich the vehicle
@@ -58,6 +116,19 @@ export class CaptureValidationService {
     rop: RopVerification,
     createdBy: string,
   ): Promise<void> {
+    // The camera classifies the vehicle it saw; ROP states what is registered.
+    // They should describe the same thing. A disagreement means one of them is
+    // wrong about the car on the lane — which changes what it is priced as and
+    // what is filed back to ROP — so it is recorded now, while both values are
+    // in hand. Deliberately not a block: overlay OCR is lossy enough that
+    // refusing the vehicle would strand real cars on a bad frame.
+    if (!vehicleTypesAgree(capture.vehicle_type, rop.vehicle_type)) {
+      this.logger.warn(
+        `Vehicle type disagreement for capture ${capture.id} (${capture.plate_number}): camera read "${capture.vehicle_type}", ROP holds "${rop.vehicle_type}"`,
+        CaptureValidationService.context,
+      );
+    }
+
     await this.ensureQueuedAppointment(capture, createdBy, rop);
     patchAuditContext({ suppressAnprCaptureAudit: true });
     try {
@@ -91,6 +162,28 @@ export class CaptureValidationService {
    * Queued for an operator to convert by hand; failing here would undo a
    * capture validation that is otherwise correct.
    */
+  /**
+   * Records why this booking was not converted, so the queue row can say so.
+   * Never throws: failing to write an explanation must not also lose the
+   * capture validation that produced it.
+   */
+  private async noteBlocked(
+    appointment: Appointment,
+    reason: string | null,
+  ): Promise<void> {
+    if ((appointment.auto_convert_blocked_reason ?? null) === reason) return;
+    try {
+      await this.appointmentDao.update(appointment.id, {
+        auto_convert_blocked_reason: reason,
+      });
+    } catch (err) {
+      this.logger.warn(
+        `Could not record block reason for appointment ${appointment.id}: ${(err as Error).message}`,
+        CaptureValidationService.context,
+      );
+    }
+  }
+
   private async autoConvertPaidOnlineBooking(
     capture: AnprCapture,
     createdBy: string,
@@ -112,36 +205,100 @@ export class CaptureValidationService {
         appointment.provider_payment_status === 'PAID' ||
         appointment.provider_payment_status === 'FREE';
       if (!paid) {
+        const reason = `Payment not settled with the provider (${appointment.provider_payment_status ?? 'unknown'})`;
         this.logger.log(
-          `Appointment ${appointment.id} not auto-converted: provider payment status is ${appointment.provider_payment_status ?? 'unknown'}`,
+          `Appointment ${appointment.id} not auto-converted: ${reason}`,
           CaptureValidationService.context,
         );
+        await this.noteBlocked(appointment, reason);
         return;
       }
 
       // Job creation requires a customer; the booking usually supplies one, but
       // not when the provider sent no phone number.
       if (!appointment.customer_id) {
+        const reason = 'No customer on the booking — enter customer details';
         this.logger.log(
-          `Appointment ${appointment.id} not auto-converted: no customer on the booking`,
+          `Appointment ${appointment.id} not auto-converted: ${reason}`,
           CaptureValidationService.context,
         );
+        await this.noteBlocked(appointment, reason);
         return;
       }
 
-      const job = await this.jobService.createFromAppointment(appointment.id, {
-        user: { id: createdBy, center_id: appointment.centre_id ?? undefined },
-      } as never);
+      // Driver details are required on a job and the provider does not send
+      // them, so they are filled in by hand on the convert screen. Converting
+      // unattended would bury a blank the operator never gets asked for —
+      // leave it queued and let them complete it, which is the same rule the
+      // list applies when it withholds "Ready to Convert".
+      const customer = await this.customerDao.findActiveById(
+        appointment.customer_id,
+      );
+      const driverIncomplete =
+        !customer?.driver_name?.trim() ||
+        !customer?.driver_phone_number?.trim();
+      if (driverIncomplete) {
+        const reason =
+          'Driver name and phone are missing — enter them to convert';
+        this.logger.log(
+          `Appointment ${appointment.id} not auto-converted: ${reason}`,
+          CaptureValidationService.context,
+        );
+        await this.noteBlocked(appointment, reason);
+        return;
+      }
+
+      // A job runs on a line and belongs to someone. An operator picks both on
+      // the convert screen; an unattended conversion has to resolve them
+      // itself, and without them createFromAppointment refuses — which is
+      // exactly what used to happen here, silently, on every arrival.
+      const assignment = await this.resolveAutoAssignment(appointment, capture);
+      if (!assignment) {
+        const reason =
+          'No free line with an assigned user — convert manually and pick one';
+        this.logger.warn(
+          `Appointment ${appointment.id} not auto-converted: ${reason}`,
+          CaptureValidationService.context,
+        );
+        await this.noteBlocked(appointment, reason);
+        return;
+      }
+
+      const job = await this.jobService.createFromAppointment(
+        appointment.id,
+        {
+          user: {
+            id: createdBy,
+            center_id: appointment.centre_id ?? undefined,
+          },
+        } as never,
+        assignment,
+      );
+
+      // Converted: nothing is blocking it any more.
+      await this.noteBlocked(appointment, null);
 
       this.logger.log(
         `Auto-converted paid booking ${appointment.provider_booking_id} → job ${job?.id ?? '(created)'}`,
         CaptureValidationService.context,
       );
     } catch (err) {
+      // The gates inside createFromAppointment throw with operator-facing
+      // messages — surface whichever one refused rather than only logging it.
+      const message = (err as Error).message;
       this.logger.warn(
-        `Auto-convert skipped for capture ${capture.id}: ${(err as Error).message}`,
+        `Auto-convert skipped for capture ${capture.id}: ${message}`,
         CaptureValidationService.context,
       );
+      try {
+        const appointment = await this.appointmentDao.findByAnprCaptureId(
+          capture.id,
+        );
+        if (appointment)
+          await this.noteBlocked(appointment, message.slice(0, 255));
+      } catch {
+        // Already in the failure path — nothing further to do.
+      }
     }
   }
 
@@ -161,8 +318,9 @@ export class CaptureValidationService {
       rop,
       createdBy,
     );
-    // Pre-fill the customer from the ROP owner details when available; the
-    // operator completes the remaining required fields (phone, driver, mulkiya).
+    // Pre-fill the customer from the ROP owner details when available (name,
+    // chassis and Mulkiya ID); the operator completes what ROP cannot give -
+    // phone and driver details.
     const customerId = await this.ensureCustomerFromRop(
       rop,
       vehicleRecord,
@@ -179,13 +337,24 @@ export class CaptureValidationService {
       ? await this.lineDao.findActiveById(capture.line_id)
       : null;
 
+    // Both matchers are bounded to the capture's own Oman day. An expired
+    // booking is never revived and a future one is not what this car is here
+    // for — in either case the arrival gets a fresh appointment instead.
+    const captureDay = omanDayRange(capture.capture_time ?? new Date());
     const onlineMatch = await this.appointmentDao.findQueuedOnlineByPlate(
       capture.plate_number,
       captureLine?.centre_id ?? null,
+      captureDay,
     );
+    // Today only for the walk-in fallback — see findLatestQueuedByPlate. The
+    // capture's own time is the reference, not the wall clock, so a capture
+    // processed just after midnight still matches the day it was taken.
     const walkInMatch =
       onlineMatch ??
-      (await this.appointmentDao.findLatestQueuedByPlate(capture.plate_number));
+      (await this.appointmentDao.findLatestQueuedByPlate(
+        capture.plate_number,
+        captureDay,
+      ));
     if (walkInMatch) {
       const patch: {
         anpr_capture_id: string;
@@ -299,6 +468,20 @@ export class CaptureValidationService {
   }
 
   /**
+   * ROP's Mulkiya ID in the shape the rest of the app stores it. Mirrors the
+   * @Transform on mulkiya_id in appointment.dto.ts so a value arriving through
+   * ROP and one typed by an operator are stored identically. Returns undefined
+   * for anything that would not satisfy isValidMulkiyaId (10 digits + 1
+   * letter), leaving the field blank for the operator rather than seeding the
+   * form with a value the save would reject.
+   */
+  private static normalizeMulkiyaId(value?: string | null): string | undefined {
+    const cleaned = value?.replace(/\s+/g, '').toUpperCase();
+    if (!cleaned) return undefined;
+    return /^\d{10}[A-Z]$/.test(cleaned) ? cleaned : undefined;
+  }
+
+  /**
    * Pre-fill / link a customer from the ROP owner details when the ROP row
    * carries an owner name. ROP has no phone, so owner_phone_number is left
    * blank for the operator to complete (surfaced by the required-field checks).
@@ -320,7 +503,12 @@ export class CaptureValidationService {
     if (existing) {
       const merged = this.customerDao.merge(existing, {
         owner_name: existing.owner_name || ownerName,
+        owner_phone_number:
+          existing.owner_phone_number || (rop?.owner_phone ?? ''),
         chassis_no: existing.chassis_no ?? rop?.chassis_no,
+        mulkiya_id:
+          existing.mulkiya_id ??
+          CaptureValidationService.normalizeMulkiyaId(rop?.mulkiya_id),
         plate_number: existing.plate_number ?? vehicleRecord.plate_number,
         id_number: existing.id_number ?? generateIdNumber(),
       });
@@ -332,8 +520,13 @@ export class CaptureValidationService {
       customer_id: await this.customerDao.getNextCustomerId(),
       id_number: generateIdNumber(),
       owner_name: ownerName,
-      owner_phone_number: '', // ROP provides no phone — operator completes it
+      // ROP does carry the owner's phone, already normalised to the bare
+      // 8-digit local form by the API client. It used to be hardcoded blank
+      // here, so every ANPR-created appointment showed the phone as missing
+      // and withheld "Ready to Convert" over a value we already held.
+      owner_phone_number: rop?.owner_phone ?? '',
       chassis_no: rop?.chassis_no,
+      mulkiya_id: CaptureValidationService.normalizeMulkiyaId(rop?.mulkiya_id),
       plate_number: vehicleRecord.plate_number,
       vehicle_record_id: vehicleRecord.id,
       created_by: createdBy,
@@ -395,11 +588,14 @@ export class CaptureValidationService {
     const existing = await this.vehicleDao.findByCode(code);
     const vehicleType = capture.vehicle_type ?? existing?.vehicle_type;
 
-    // Map the vehicle category from the configured charges by matching the
-    // vehicle type (centre-specific charge preferred, then global).
+    // An operator's explicit choice wins over anything derived here. A walk-in
+    // registered at reception already carries the category the operator picked,
+    // and deriving one from the vehicle type on arrival would silently replace
+    // a real decision with a guess — then re-price the job against it. Only a
+    // vehicle nobody has categorised yet gets the lookup.
     const chargeCategoryId =
-      (await this.resolveChargeCategory(capture, vehicleType)) ??
       existing?.charge_category_id ??
+      (await this.resolveChargeCategory(capture, vehicleType)) ??
       null;
 
     const enrich = {

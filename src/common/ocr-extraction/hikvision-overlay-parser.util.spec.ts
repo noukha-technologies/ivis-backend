@@ -24,7 +24,8 @@ describe('parseHikvisionOverlayFields', () => {
     assert.strictEqual(f.plateColour, 'Yellow');
     assert.strictEqual(f.plateSize, 'Long');
     assert.strictEqual(f.plateType, 'Private');
-    assert.strictEqual(f.province, 'unknown');
+    // "unknown" is the camera saying it has no value — not a value.
+    assert.strictEqual(f.province, undefined);
     assert.strictEqual(f.category, 'R');
   });
 
@@ -39,6 +40,50 @@ describe('parseHikvisionOverlayFields', () => {
     assert.strictEqual(f.plateSize, 'Long');
     assert.strictEqual(f.plateType, 'Private');
     assert.strictEqual(f.category, 'R');
+  });
+
+  /**
+   * Verbatim OCR from examples/192.168.7.190_01_20260827103629771_OCR.txt —
+   * a real frame with a wrapped timestamp, a split label ("Veh icle Brand"),
+   * V→U and S→3 substitutions, and six fields the camera reported as unknown.
+   */
+  it('parses a real garbled frame exactly', () => {
+    const real = `Camera Info:Cl1l Device No. :Cl Capture Time:08-27-2026 10:36:2
+9 Plate No. unknown Uehicle Color :Red Vehicle Type:Sedan Veh
+icle Brand:BMU Moving Direction:Forward Conf idence:0x Camera
+No. : 1 Area~Country:NON Plate Color unknown Plate 3ize:unkn
+oun Plate Type unknown Province unknown Category:`;
+    const f = parseHikvisionOverlayFields(real);
+
+    // Recovered despite the wrap and the substitutions.
+    assert.strictEqual(f.captureTimeLabel, '08-27-2026 10:36:29');
+    assert.strictEqual(f.vehicleColour, 'Red');
+    assert.strictEqual(f.vehicleType, 'Sedan');
+    assert.strictEqual(f.vehicleBrand, 'BMU');
+    assert.strictEqual(f.direction, 'Forward');
+    assert.strictEqual(f.confidence, 0);
+
+    // Reported as unknown by the camera — absent, not the string "unknown".
+    assert.strictEqual(f.plateNumber, undefined);
+    assert.strictEqual(f.plateColour, undefined);
+    assert.strictEqual(f.plateSize, undefined);
+    assert.strictEqual(f.plateType, undefined);
+    assert.strictEqual(f.province, undefined);
+    assert.strictEqual(f.category, undefined);
+  });
+
+  it('canonicalises vehicle classes, including motorcycles', () => {
+    const t = (raw: string) =>
+      parseHikvisionOverlayFields(
+        `Vehicle Type:${raw} Moving Direction:Forward`,
+      ).vehicleType;
+    assert.strictEqual(t('Motorcycle'), 'Motorcycle');
+    assert.strictEqual(t('Motorbike'), 'Motorcycle');
+    assert.strictEqual(t('Bus'), 'Bus');
+    assert.strictEqual(t('Truck'), 'Truck');
+    assert.strictEqual(t('Lorry'), 'Truck');
+    assert.strictEqual(t('3edan'), 'Sedan');
+    assert.strictEqual(t('unknown'), undefined);
   });
 
   it('returns only present fields when overlay is partial', () => {

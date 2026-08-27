@@ -5,6 +5,7 @@ import {
   Index,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
 import { SnowflakePrimaryColumn } from './snowflake-id.column';
@@ -15,6 +16,7 @@ import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 import { IAppointmentFields } from 'src/common/interfaces/transaction.interface';
 
 import { Line } from './line.entity';
+import { Payments } from './payments.entity';
 import { Centre } from './centre.entity';
 import { Customer } from './customer.entity';
 import { AnprCapture } from './anpr-capture.entity';
@@ -174,6 +176,40 @@ export class Appointment implements IAppointmentFields {
 
   @Column({ type: 'varchar', nullable: true })
   created_by?: string;
+
+  /**
+   * Money taken for this visit. A walk-in pays at reception and an online
+   * booking is settled at the provider, so the row exists before the job does
+   * — the queue reads its payment_id straight off here rather than joining
+   * through a job that may not have been created yet.
+   */
+  @OneToMany(() => Payments, (payment) => payment.appointment)
+  payments?: Payments[];
+
+  /**
+   * Why an unattended conversion last refused this booking, or null when
+   * nothing is blocking it. Persisted (unlike is_expired) because the reason
+   * is decided in a background pipeline the operator never sees — without it
+   * a paid car sits in the queue with nothing on screen saying what to fix.
+   * Cleared the moment the appointment converts.
+   */
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  auto_convert_blocked_reason?: string | null;
+
+  /**
+   * Set when the camera's vehicle class and ROP's disagree for this vehicle.
+   * Derived on read from the two linked records — see AppointmentService.
+   */
+  vehicle_type_mismatch?: { camera: string; rop: string } | null;
+
+  /**
+   * Derived on read by AppointmentService, never persisted — no @Column, so
+   * TypeORM ignores it. See appointmentExpiry().
+   */
+  is_expired?: boolean;
+
+  /** When this appointment expired; null while it has not. */
+  expired_since?: Date | null;
 
   @CreateDateColumn({ type: 'timestamp', default: () => 'NOW()' })
   created_at!: Date;

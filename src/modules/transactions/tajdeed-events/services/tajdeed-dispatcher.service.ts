@@ -217,7 +217,7 @@ export class TajdeedDispatcherService {
     }
   }
 
-/**
+  /**
    * Only a rejection that can plausibly clear on its own is worth retrying.
    *
    * The provider rejects an INSPECTION_RESULT for several reasons, and most are
@@ -294,7 +294,7 @@ export class TajdeedDispatcherService {
     );
   }
 
-    private async applyStatus(
+  private async applyStatus(
     row: TajdeedOutbox,
     result: ReconcileEntry,
   ): Promise<void> {
@@ -332,8 +332,10 @@ export class TajdeedDispatcherService {
         last_error: reason,
         // The single probe over the reconcile entry: only the probe carries
         // error_message, which on a rejection is the whole point of looking.
-        last_status_response: (detail ??
-          statusResponse) as unknown as Record<string, unknown>,
+        last_status_response: (detail ?? statusResponse) as unknown as Record<
+          string,
+          unknown
+        >,
       });
       this.logger.error(
         `Provider REJECTED ${row.event_type} ${row.transaction_id}: ${reason}`,

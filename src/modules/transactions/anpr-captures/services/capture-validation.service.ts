@@ -4,11 +4,10 @@ import { AppLogger } from '../../../../common/logger/app.logger';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import { generateIdNumber } from '../../../../common/shared/id-number.util';
 import { AnprCaptureStatus } from 'src/common/enums/camera.enums';
-import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
+import { AppointmentStatus } from 'src/common/enums/common.enums';
 import { JobService } from '../../../jobs/services/job.service';
 
 import { LineDao } from '../../../database/dao/line.dao';
-import { CentreDao } from '../../../database/dao/centre.dao';
 import { VehicleDao } from '../../../database/dao/vehicle.dao';
 import { ChargeDao } from '../../../database/dao/charge.dao';
 import { CustomerDao } from '../../../database/dao/customer.dao';
@@ -18,7 +17,6 @@ import { UsersDao } from '../../../database/dao/users.dao';
 import { Appointment } from '../../../database/entity/appointment.entity';
 import { AnprCaptureDao } from '../../../database/dao/anpr-capture.dao';
 import { VehicleRecordDao } from '../../../database/dao/vehicle-record.dao';
-import { AppointmentApiClientService } from '../../../../common/integrations/appointments/appointment-api-client.service';
 
 import { AnprCapture } from '../../../database/entity/anpr-capture.entity';
 import { VehicleRecord } from '../../../database/entity/vehicle-record.entity';
@@ -48,8 +46,6 @@ export class CaptureValidationService {
     private readonly appointmentDao: AppointmentDao,
     private readonly anprCaptureDao: AnprCaptureDao,
     private readonly vehicleRecordDao: VehicleRecordDao,
-    private readonly centreDao: CentreDao,
-    private readonly appointmentApi: AppointmentApiClientService,
     private readonly jobService: JobService,
     private readonly jobDao: JobDao,
     private readonly usersDao: UsersDao,
@@ -129,7 +125,7 @@ export class CaptureValidationService {
       );
     }
 
-    await this.ensureQueuedAppointment(capture, createdBy, rop);
+    await this.attachCaptureToAppointment(capture, createdBy, rop);
     patchAuditContext({ suppressAnprCaptureAudit: true });
     try {
       await this.anprCaptureDao.update(capture.id, {
@@ -303,12 +299,20 @@ export class CaptureValidationService {
   }
 
   /**
-   * Upsert the vehicle record for the capture's plate and queue a thin
-   * appointment (customer entered later). Idempotent — skips if an appointment
-   * already exists for the capture. When a ROP verification is supplied, its
-   * owner/vehicle details enrich the vehicle record too.
+   * Upsert the vehicle record for the capture's plate, then attach the capture
+   * to today's appointment for it — never to a new one.
+   *
+   * The appointment always exists first: an online booking arrives through the
+   * ingest service before the car does, and a walk-in is raised at reception
+   * with payment taken. The camera's job is to say which of them just drove in,
+   * not to invent a third. A plate with neither leaves with its capture
+   * recorded and nothing queued, and pairs up when reception raises the
+   * walk-in.
+   *
+   * Idempotent. When a ROP verification is supplied, its owner/vehicle details
+   * enrich the vehicle record too.
    */
-  async ensureQueuedAppointment(
+  async attachCaptureToAppointment(
     capture: AnprCapture,
     createdBy: string,
     rop?: RopVerification | null,
@@ -337,23 +341,34 @@ export class CaptureValidationService {
       ? await this.lineDao.findActiveById(capture.line_id)
       : null;
 
-    // Both matchers are bounded to the capture's own Oman day. An expired
-    // booking is never revived and a future one is not what this car is here
-    // for — in either case the arrival gets a fresh appointment instead.
-    const captureDay = omanDayRange(capture.capture_time ?? new Date());
+    // A capture may only touch today's records.
+    //
+    // Everything downstream of this is same-day work: the ROP submission must
+    // happen on the day the visit was initiated, so an appointment from any
+    // other day belongs to a visit that is already over. A capture replayed
+    // from a backlog after downtime is a car that left hours ago, and pairing
+    // it with a live booking would put the wrong arrival against it.
+    const today = omanDayRange();
+    const captureTime = capture.capture_time ?? new Date();
+    if (captureTime < today.start || captureTime >= today.end) {
+      this.logger.warn(
+        `Capture ${capture.id} (${capture.plate_number}) is not from today — leaving appointments untouched`,
+        CaptureValidationService.context,
+      );
+      return;
+    }
     const onlineMatch = await this.appointmentDao.findQueuedOnlineByPlate(
       capture.plate_number,
       captureLine?.centre_id ?? null,
-      captureDay,
+      today,
     );
-    // Today only for the walk-in fallback — see findLatestQueuedByPlate. The
-    // capture's own time is the reference, not the wall clock, so a capture
-    // processed just after midnight still matches the day it was taken.
+    // The walk-in reception raised for this car, if the online lookup found
+    // nothing. Same window as above — see findLatestQueuedByPlate.
     const walkInMatch =
       onlineMatch ??
       (await this.appointmentDao.findLatestQueuedByPlate(
         capture.plate_number,
-        captureDay,
+        today,
       ));
     if (walkInMatch) {
       const patch: {
@@ -424,45 +439,19 @@ export class CaptureValidationService {
       return;
     }
 
-    // Carry the capture's line (and its centre) onto the appointment so the
-    // queue shows Centre / Line.
-    const line = captureLine;
-
-    // If the plate is a pre-booked online appointment, mark it Online;
-    // otherwise Walk-in. The lookup is per branch, so resolve the capture's
-    // centre first — an unlinked centre yields null, i.e. Walk-in.
-    // ANPR rarely reads plate type, hence the PRIVATE default, which covers
-    // the overwhelming majority of inspections.
-    const centre = line?.centre_id
-      ? await this.centreDao.findActiveById(line.centre_id)
-      : null;
-    const online = centre?.provider_branch_code
-      ? await this.appointmentApi.findByPlate(
-          centre.provider_branch_code,
-          capture.plate_type?.trim() || 'PRIVATE',
-          capture.plate_number,
-        )
-      : null;
-
-    const appointment = this.appointmentDao.create({
-      id: generateSnowflakeId(),
-      appointment_id: await this.appointmentDao.getNextAppointmentId(),
-      anpr_capture_id: capture.id,
-      rop_verification_id: rop?.id ?? null,
-      customer_id: customerId ?? null,
-      vehicle_record_id: vehicleRecord?.id ?? null,
-      centre_id: line?.centre_id ?? null,
-      line_id: capture.line_id ?? null,
-      booking_type: online ? BookingType.ONLINE : BookingType.WALK_IN,
-      status: AppointmentStatus.QUEUED,
-      appointment_at: online?.appointment_at
-        ? new Date(online.appointment_at)
-        : new Date(),
-      created_by: createdBy,
-    });
-    await this.appointmentDao.save(appointment);
+    // NOT creating one is the point.
+    //
+    // An arrival is not a booking. A vehicle reaches the lane either against
+    // an online booking or against a walk-in reception raised and took payment
+    // for — both of which already exist by the time the camera sees the car,
+    // and both of which are matched above. Inventing a third kind of
+    // appointment here put vehicles in the queue that nobody had booked and
+    // nobody had paid for, and job creation would refuse them anyway.
+    //
+    // The capture is still recorded. It simply waits for reception to raise
+    // the walk-in, at which point the plate matches and this runs again.
     this.logger.log(
-      `Appointment queued for capture ${capture.id}: ${appointment.id}`,
+      `No appointment today for capture ${capture.id} (${capture.plate_number}) — capture recorded, nothing queued`,
       CaptureValidationService.context,
     );
   }

@@ -471,7 +471,32 @@ export class FtpMethodService {
 
     const plateNumber = bestPlate?.plate;
     const confidence = metadata?.confidence;
-    const captureTime = metadata?.captureTime ?? bundle.captureTime;
+    /**
+     * The filename's timestamp wins over the overlay's.
+     *
+     * Both name the same instant, but the filename was written by the camera
+     * and the overlay was read back out of a picture of itself — one is a
+     * value, the other is a guess at a value. A real capture made the cost
+     * concrete: the overlay read 13:05:50 where the filename said 13:05:58,
+     * which would have filed the arrival in the wrong minute.
+     *
+     * The overlay stays as the fallback for a filename we could not parse, and
+     * a disagreement is worth saying out loud — beyond a couple of seconds it
+     * means the strip is being misread, not merely rendered late.
+     */
+    const captureTime = bundle.captureTime ?? metadata?.captureTime;
+    if (metadata?.captureTime && bundle.captureTime) {
+      const drift = Math.abs(
+        metadata.captureTime.getTime() - bundle.captureTime.getTime(),
+      );
+      if (drift > 5000) {
+        this.logger.warn(
+          `[FTP JPEG] Overlay time ${metadata.captureTime.toISOString()} disagrees with filename ` +
+            `${bundle.captureTime.toISOString()} by ${Math.round(drift / 1000)}s for ${bundle.eventKey} ` +
+            `(${camera.cameraCode}) — using the filename`,
+        );
+      }
+    }
 
     if (!plateNumber) {
       this.logger.warn(

@@ -116,6 +116,57 @@ oun Plate Type unknown Province unknown Category:`;
     assert.strictEqual(t('Lamborghini'), 'Lamborghini');
   });
 
+  /**
+   * The frame the live camera produced on 27 Aug, read with the settings the
+   * service now uses. Every field on this strip is correct, so it is the
+   * regression guard for the whole pipeline: the wrap splits the timestamp
+   * seconds and both "Vehicle Type" and "Confidence", and the plate, class,
+   * brand and category all still come out.
+   */
+  it('parses the live 23547DD capture exactly', () => {
+    const live = `Camera Info:C1 Device No.:C1 Capture Time:08-27-2026 13:05:5
+8 Plate No. :23547DD Vehicle Color :Gray Vehicle Type:5UV or H
+PU Uehicle Brand:Toyota Moving Direction:Reverse Conf idence:
+96 Camera No. :Cl Area Country:0MN Plate Color:Yellow Plate
+S5ize:Long Plate Type:Private Province unknown Category:DD`;
+    const f = parseHikvisionOverlayFields(live);
+    assert.strictEqual(f.plateNumber, '23547DD');
+    assert.strictEqual(f.captureTimeLabel, '08-27-2026 13:05:58');
+    assert.strictEqual(f.confidence, 96);
+    assert.strictEqual(f.vehicleColour, 'Gray');
+    // The camera's class is "SUV or MPV"; the head of it is what we store.
+    assert.strictEqual(f.vehicleType, 'SUV');
+    assert.strictEqual(f.vehicleBrand, 'Toyota');
+    assert.strictEqual(f.direction, 'Reverse');
+    assert.strictEqual(f.plateColour, 'Yellow');
+    assert.strictEqual(f.plateSize, 'Long');
+    assert.strictEqual(f.plateType, 'Private');
+    assert.strictEqual(f.province, undefined);
+    assert.strictEqual(f.category, 'DD');
+  });
+
+  it('snaps direction and plate type back to the camera vocabulary', () => {
+    const f = parseHikvisionOverlayFields(
+      'Moving Direction:Reuerse Plate Type:Priuate Category:R',
+    );
+    assert.strictEqual(f.direction, 'Reverse');
+    assert.strictEqual(f.plateType, 'Private');
+
+    const g = parseHikvisionOverlayFields(
+      'Moving Direction:Foruard Plate Type:Gouernment Category:R',
+    );
+    assert.strictEqual(g.direction, 'Forward');
+    assert.strictEqual(g.plateType, 'Government');
+  });
+
+  it('keeps a vocabulary word it does not recognise rather than dropping it', () => {
+    const f = parseHikvisionOverlayFields(
+      'Moving Direction:Sideways Plate Type:Consular Category:R',
+    );
+    assert.strictEqual(f.direction, 'Sideways');
+    assert.strictEqual(f.plateType, 'Consular');
+  });
+
   it('returns only present fields when overlay is partial', () => {
     const f = parseHikvisionOverlayFields('Plate No.:1234AB Confidence:88%');
     assert.strictEqual(f.plateNumber, '1234AB');

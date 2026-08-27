@@ -85,6 +85,27 @@ const VEHICLE_TYPE_FIXES: Record<string, string> = {
   tractor: 'Tractor',
 };
 
+/**
+ * The camera's own words for these fields, in its spelling.
+ *
+ * Both are closed sets, so a value that is one OCR slip away from a known word
+ * IS that word — "Reuerse" and "Priuate" are not new categories. Snapping them
+ * back stops the same direction being stored under three spellings and the
+ * reports grouping by them separately.
+ */
+const DIRECTION_WORDS = ['Forward', 'Reverse', 'Approaching', 'Leaving'];
+
+const PLATE_TYPE_WORDS = [
+  'Private',
+  'Taxi',
+  'Government',
+  'Police',
+  'Commercial',
+  'Trailer',
+  'Diplomatic',
+  'Military',
+];
+
 /** Values the camera writes when it has nothing — never stored. */
 const EMPTY_VALUES = new Set([
   'unknown',
@@ -204,6 +225,14 @@ function titleCase(word: string): string {
 function normalizeVehicleType(raw: string): string | undefined {
   const value = trimFieldValue(raw);
   if (!value || isEmptyValue(value)) return undefined;
+  // "SUV or MPV" is a single class in the camera's vocabulary, not a class
+  // followed by a stray word. Recognise the phrase before splitting, so a
+  // mangled "5UV or HPU" cannot be read as anything else, and store the head
+  // of it — that is the word the Charges master and ROP both use.
+  if (editDistance(ocrFold(value).slice(0, 8), ocrFold('SUVorMPV')) <= 2) {
+    return 'SUV';
+  }
+
   const word = firstWord(value);
   if (!word) return undefined;
 
@@ -243,6 +272,37 @@ function normalizeSimpleWord(raw: string): string | undefined {
   if (!value || isEmptyValue(value)) return undefined;
   const word = firstWord(value);
   return word ? titleCase(word) : undefined;
+}
+
+/**
+ * The vocabulary word a value was meant to be, or the value as read.
+ *
+ * Folds the confusable characters first — the same trick the vehicle classes
+ * need — then allows one genuine error on top. Anything that matches nothing
+ * is kept rather than dropped: an unfamiliar word is still data, and a camera
+ * configured for a category we have not seen should not read as empty.
+ */
+function snapToVocabulary(
+  raw: string,
+  vocabulary: readonly string[],
+): string | undefined {
+  const asRead = normalizeSimpleWord(raw);
+  if (!asRead) return undefined;
+
+  const folded = ocrFold(asRead);
+  if (!folded) return asRead;
+
+  let best: { word: string; distance: number } | null = null;
+  for (const word of vocabulary) {
+    const target = ocrFold(word);
+    if (!target) continue;
+    const distance = editDistance(folded, target);
+    // One slip in a short word, two in a long one — the same budget the
+    // labels use, since the failure is the same font and the same pass.
+    if (distance > (target.length >= 8 ? 2 : 1)) continue;
+    if (!best || distance < best.distance) best = { word, distance };
+  }
+  return best ? best.word : asRead;
 }
 
 function normalizeVehicleBrand(raw: string): string | undefined {
@@ -306,7 +366,7 @@ const LABEL_SPECS: LabelSpec[] = [
     field: 'direction',
     label: 'Moving Direction',
     pattern: /Moving\s*Direction\s*:?\s*/i,
-    transform: normalizeSimpleWord,
+    transform: (raw) => snapToVocabulary(raw, DIRECTION_WORDS),
   },
   {
     field: 'confidence',
@@ -338,7 +398,7 @@ const LABEL_SPECS: LabelSpec[] = [
     field: 'plateType',
     label: 'Plate Type',
     pattern: /Plate\s*Type\s*:?\s*/i,
-    transform: normalizeSimpleWord,
+    transform: (raw) => snapToVocabulary(raw, PLATE_TYPE_WORDS),
   },
   {
     field: 'province',

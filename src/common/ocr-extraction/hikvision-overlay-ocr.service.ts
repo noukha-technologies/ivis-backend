@@ -1,6 +1,6 @@
 import sharp from 'sharp';
-import { createWorker } from 'tesseract.js';
-import { Injectable, Logger } from '@nestjs/common';
+import { createWorker, PSM, type Worker } from 'tesseract.js';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 
 import {
   HikvisionOverlayMetadata,
@@ -13,17 +13,49 @@ import {
   parseHikvisionOverlayFields,
 } from './hikvision-overlay-parser.util';
 
+/** Every character the overlay strip can contain. Nothing else is Latin text. */
+const OVERLAY_WHITELIST =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 .:,-/%';
+
+/** How a single OCR pass should be run. */
+type OcrProfile = {
+  lang: string;
+  psm?: PSM;
+  /** Empty means no restriction. */
+  whitelist?: string;
+};
+
 @Injectable()
-export class HikvisionOverlayOcrService {
+export class HikvisionOverlayOcrService implements OnModuleDestroy {
   private readonly logger = new Logger(HikvisionOverlayOcrService.name);
 
-  private readonly ocrLang: string;
   private readonly minConfidence: number;
 
+  /**
+   * One worker per language, kept alive.
+   *
+   * Building a worker loads the trained data from disk, which costs far more
+   * than the recognition itself — doing it per image made the FTP sweep spend
+   * most of its time on setup. Recognitions are serialised through `queue`
+   * because parameters live on the worker, so two overlapping passes with
+   * different whitelists would read each other's settings.
+   */
+  private readonly workers = new Map<string, Promise<Worker>>();
+  private queue: Promise<unknown> = Promise.resolve();
+
   constructor() {
-    this.ocrLang = 'eng+ara';
     const min = parseInt('80', 10);
     this.minConfidence = Number.isFinite(min) ? min : 80;
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const pending = [...this.workers.values()];
+    this.workers.clear();
+    await Promise.all(
+      pending.map((w) =>
+        w.then((worker) => worker.terminate()).catch(() => undefined),
+      ),
+    );
   }
 
   async extractFromDetectionImage(
@@ -46,7 +78,16 @@ export class HikvisionOverlayOcrService {
         .png()
         .toBuffer();
 
-      const text = await this.runOcr(strip);
+      // The strip is Latin, laid out as one uniform block, drawn from a fixed
+      // alphabet — say so, and Tesseract stops inventing alternatives. Loading
+      // Arabic alongside English here was actively harmful: on a real capture
+      // it read "Camera No.:C1" as an Arabic glyph and misread the timestamp
+      // seconds, both of which came out right the moment `ara` was dropped.
+      const text = await this.runOcr(strip, {
+        lang: 'eng',
+        psm: PSM.SINGLE_BLOCK,
+        whitelist: OVERLAY_WHITELIST,
+      });
       return this.parseOverlayText(text);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -66,10 +107,10 @@ export class HikvisionOverlayOcrService {
       .sharpen()
       .png()
       .toBuffer();
-    const text = await this.runOcr(
-      prepped,
-      '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
-    );
+    const text = await this.runOcr(prepped, {
+      lang: 'eng',
+      whitelist: '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    });
     const cleaned = text
       .replace(/[^A-Za-z0-9؀-ۿ]/g, '')
       .trim()
@@ -113,7 +154,10 @@ export class HikvisionOverlayOcrService {
         .png()
         .toBuffer();
 
-      const digitText = await this.runOcr(digitRegion, '0123456789');
+      const digitText = await this.runOcr(digitRegion, {
+        lang: 'eng',
+        whitelist: '0123456789',
+      });
       const digits = digitText.replace(/\D/g, '');
       if (digits.length >= 3 && digits.length <= 5) {
         return {
@@ -172,7 +216,9 @@ export class HikvisionOverlayOcrService {
         .png()
         .toBuffer();
 
-      const text = await this.runOcr(region);
+      // No whitelist and both scripts: a scene plate is read from the vehicle
+      // itself, where the Arabic half of an Oman plate is really present.
+      const text = await this.runOcr(region, { lang: 'eng+ara' });
       const parsed = this.parsePlateFromOcrText(text);
       return {
         ...parsed,
@@ -189,22 +235,36 @@ export class HikvisionOverlayOcrService {
     return this.minConfidence;
   }
 
-  private async runOcr(
-    imageBuffer: Buffer,
-    whitelist?: string,
-  ): Promise<string> {
-    const worker = await createWorker(this.ocrLang);
-    try {
-      if (whitelist) {
-        await worker.setParameters({
-          tessedit_char_whitelist: whitelist,
-        });
-      }
+  private worker(lang: string): Promise<Worker> {
+    const existing = this.workers.get(lang);
+    if (existing) return existing;
+    // A worker that failed to build must not stay cached as a rejection, or
+    // every later pass in this language inherits the same failure.
+    const created = createWorker(lang).catch((err: unknown) => {
+      this.workers.delete(lang);
+      throw err;
+    });
+    this.workers.set(lang, created);
+    return created;
+  }
+
+  private runOcr(imageBuffer: Buffer, profile: OcrProfile): Promise<string> {
+    const run = this.queue.then(async () => {
+      const worker = await this.worker(profile.lang);
+      // Set every parameter on every pass. They persist on the worker, so a
+      // value left behind by the previous caller would silently apply here.
+      await worker.setParameters({
+        tessedit_pageseg_mode: profile.psm ?? PSM.AUTO,
+        tessedit_char_whitelist: profile.whitelist ?? '',
+        preserve_interword_spaces: '1',
+      });
       const { data } = await worker.recognize(imageBuffer);
       return data.text ?? '';
-    } finally {
-      await worker.terminate();
-    }
+    });
+    // The chain must survive a failed pass, otherwise one bad image stops
+    // every image queued behind it.
+    this.queue = run.catch(() => undefined);
+    return run;
   }
 
   private normalizeOverlayPlate(

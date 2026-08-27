@@ -1,0 +1,46 @@
+IVIS ANPR — OCR extraction debug
+Event key: 192.168.7.190_01_20260827103629771
+Camera: OM-CAM-001
+Written at: 2026-08-27T09:39:22.124Z
+
+=== Source files ===
+Detection: C:\Users\Ranjeeth\Documents\anprftp\192.168.7.190\C1\2026_08_27-2026_08_27\192.168.7.190_01_20260827103629771_VEHICLE_DETECTION.jpg
+Plate crop: —
+Scene: C:\Users\Ranjeeth\Documents\anprftp\192.168.7.190\C1\2026_08_27-2026_08_27\192.168.7.190_01_20260827103629771_VEHICLE_PICTURE.jpg
+
+=== Detection image — overlay strip OCR (raw) ===
+Camera Info:Cl1l Device No. :Cl Capture Time:08-27-2026 10:36:2
+9 Plate No. unknown Uehicle Color :Red Vehicle Type:Sedan Veh
+icle Brand:BMU Moving Direction:Forward Conf idence:0x Camera
+No. : ‏1ن‎ Area~Country:NON Plate Color unknown Plate 3ize:unkn
+oun Plate Type unknown Province unknown Category:
+
+
+=== Detection image — parsed overlay fields ===
+plateNumber: UNKNOWN
+normalizedPlate: UNKNOWN
+category: —
+plateSize: —
+plateColour: —
+plateType: Unknown
+vehicleType: Sedan
+vehicleColour: Red
+vehicleBrand: —
+direction: Forward
+confidence: 0
+province: unknown
+
+=== Scene image — OCR (raw) ===
+| 0 0
+
+
+=== Scene image — normalized plate ===
+—
+
+=== Final plate selection ===
+chosen: UNKNOWN
+source: overlay
+- plate_crop: raw="" normalized=""
+- overlay: raw="UNKNOWN" normalized="UNKNOWN"
+- scene: raw="| 0 0
+" normalized=""

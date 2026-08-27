@@ -77,38 +77,6 @@ export class RopVerificationDao
    * vehicle is plausibly still on site — retrying last week's plate forever
    * would hammer ROP for a car that left long ago.
    */
-  /**
-   * The latest row for a plate, ignoring case and punctuation.
-   *
-   * `findLatestByRegNo` compares the stored string exactly, which is right for
-   * machine-supplied plates but wrong for one an operator typed: "23547 dd"
-   * and "23547DD" are the same car, and matching only the second would create
-   * a duplicate verification beside the row that already exists.
-   */
-  async findLatestByPlateLoose(
-    regNo: string,
-    within?: { start: Date; end: Date },
-  ): Promise<RopVerification | null> {
-    const normalized = regNo.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-    if (!normalized) return null;
-
-    const qb = this.createQueryBuilder('rop')
-      .where('rop.is_deleted = false')
-      .andWhere(
-        "UPPER(REGEXP_REPLACE(rop.reg_no, '[^A-Za-z0-9]', '', 'g')) = :normalized",
-        { normalized },
-      );
-
-    if (within) {
-      qb.andWhere('rop.created_at >= :start', { start: within.start }).andWhere(
-        'rop.created_at < :end',
-        { end: within.end },
-      );
-    }
-
-    return qb.orderBy('rop.created_at', 'DESC').getOne();
-  }
-
   async findFailedWithin(within: {
     start: Date;
     end: Date;

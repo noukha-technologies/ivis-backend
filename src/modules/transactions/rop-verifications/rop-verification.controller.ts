@@ -19,7 +19,6 @@ import {
 } from '@nestjs/swagger';
 import {
   CreateRopVerificationDto,
-  FetchRopByPlateDto,
   UpdateRopVerificationDto,
 } from '../../../common/dto/rop-verification.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -48,33 +47,6 @@ export class RopVerificationController {
   ) {
     const data = await this.ropVerificationService.create(createDto, actor);
     return { message: 'ROP verification created successfully', data };
-  }
-
-  @Post('fetch-by-plate')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Look a plate up with ROP on demand',
-    description:
-      'Fetches ROP details for a plate the operator types in. Updates the existing verification for that plate when there is one, otherwise creates a new Fetched record. Refuses with 409 when the plate was already fetched today, and 404 when ROP has no record for it.',
-  })
-  @ApiResponse({ status: 200, description: 'ROP details fetched.' })
-  @ApiResponse({
-    status: 404,
-    description: 'ROP has no record for this plate.',
-  })
-  @ApiResponse({
-    status: 409,
-    description: 'This plate was already fetched today.',
-  })
-  async fetchByPlate(
-    @CurrentUser() actor: UserContext,
-    @Body() dto: FetchRopByPlateDto,
-  ) {
-    const data = await this.ropVerificationService.fetchOnDemandByPlate(
-      dto.reg_no,
-      actor,
-    );
-    return { message: 'ROP details fetched successfully', data };
   }
 
   @Post(':id/refetch')

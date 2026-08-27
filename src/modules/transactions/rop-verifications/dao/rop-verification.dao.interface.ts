@@ -18,10 +18,6 @@ export interface IRopVerificationDao {
     regNo: string,
     within?: { start: Date; end: Date },
   ): Promise<RopVerification | null>;
-  findLatestByPlateLoose(
-    regNo: string,
-    within?: { start: Date; end: Date },
-  ): Promise<RopVerification | null>;
   findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<RopVerification>>;

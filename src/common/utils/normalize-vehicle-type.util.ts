@@ -61,7 +61,48 @@ export function vehicleClassOf(value: unknown): string | null {
     .replace(/[^a-z-]/g, '')
     .replace(/-/g, '');
   if (!word || word === 'unknown' || word === 'none') return null;
-  return VEHICLE_CLASS_SYNONYMS[word] ?? word;
+
+  const direct = VEHICLE_CLASS_SYNONYMS[word];
+  if (direct) return direct;
+
+  // Fold the characters OCR confuses before giving up. A capture stored as
+  // "5uv" or "Suu" is an SUV, and reporting it as disagreeing with ROP's
+  // "SUV" would be an alarm about the reader, not about the vehicle.
+  const folded = ocrFoldClass(value);
+  if (folded) {
+    for (const [candidate, canonical] of Object.entries(
+      VEHICLE_CLASS_SYNONYMS,
+    )) {
+      if (ocrFoldClass(candidate) === folded) return canonical;
+    }
+  }
+
+  return word;
+}
+
+/** Mirrors the fold in hikvision-overlay-parser.util — see the note there. */
+const OCR_CONFUSIONS: Record<string, string> = {
+  '0': 'o',
+  '1': 'i',
+  '2': 'z',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '6': 'g',
+  '7': 't',
+  '8': 'b',
+  '9': 'g',
+  l: 'i',
+  v: 'u',
+};
+
+function ocrFoldClass(value: string): string {
+  return value
+    .toLowerCase()
+    .split('')
+    .map((ch) => OCR_CONFUSIONS[ch] ?? ch)
+    .filter((ch) => ch >= 'a' && ch <= 'z')
+    .join('');
 }
 
 /**

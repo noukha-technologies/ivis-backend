@@ -127,7 +127,11 @@ export function groupJpegFilesIntoBundles(
 
   const bundles: JpegEventBundle[] = [];
   for (const b of byKey.values()) {
-    if (!b.vehicleDetectionPath && !b.platePath && !b.vehiclePicturePath) {
+    // The DETECTION image carries the overlay strip, which is the whole of the
+    // event's data — a bundle without it is three pictures and no reading. The
+    // plate crop and the scene photograph are supplementary; on their own they
+    // yield nothing to record.
+    if (!b.vehicleDetectionPath) {
       continue;
     }
     bundles.push({

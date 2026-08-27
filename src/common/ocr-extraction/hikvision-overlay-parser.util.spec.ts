@@ -86,6 +86,36 @@ oun Plate Type unknown Province unknown Category:`;
     assert.strictEqual(t('unknown'), undefined);
   });
 
+  /**
+   * Values seen on the live centre: S/5, V/U and B/8 are indistinguishable at
+   * overlay resolution, and a three-letter class cannot be rescued by edit
+   * distance alone — one wrong character out of three is a different word.
+   */
+  it('repairs the character confusions real captures come back with', () => {
+    const t = (raw: string) =>
+      parseHikvisionOverlayFields(
+        `Vehicle Type:${raw} Moving Direction:Forward`,
+      ).vehicleType;
+    assert.strictEqual(t('5uv'), 'SUV');
+    assert.strictEqual(t('Suu'), 'SUV');
+    assert.strictEqual(t('Uan'), 'Van');
+    assert.strictEqual(t('8us'), 'Bus');
+
+    // Distinct classes must stay distinct — no fold may collapse two of them.
+    for (const v of ['Van', 'Bus', 'SUV', 'MPV', 'Truck', 'Taxi', 'Trailer']) {
+      assert.strictEqual(
+        t(v),
+        v === 'Truck' || v === 'Taxi' || v === 'Trailer' ? v : v,
+      );
+    }
+    assert.strictEqual(t('Van'), 'Van');
+    assert.strictEqual(t('Bus'), 'Bus');
+    assert.strictEqual(t('MPV'), 'MPV');
+
+    // An unfamiliar class is kept, not forced onto the nearest known one.
+    assert.strictEqual(t('Lamborghini'), 'Lamborghini');
+  });
+
   it('returns only present fields when overlay is partial', () => {
     const f = parseHikvisionOverlayFields('Plate No.:1234AB Confidence:88%');
     assert.strictEqual(f.plateNumber, '1234AB');

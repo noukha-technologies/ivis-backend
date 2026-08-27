@@ -102,6 +102,39 @@ function stripToLetters(value: string): string {
   return value.toLowerCase().replace(/[^a-z]/g, '');
 }
 
+/**
+ * Characters this font's OCR confuses, folded onto one representative.
+ *
+ * Real captures come back with "5uv" and "Suu" for SUV, "8us" for Bus, "Uan"
+ * for Van — S/5, B/8, U/V and friends are indistinguishable at overlay
+ * resolution. Edit distance alone cannot rescue a three-letter class (one
+ * wrong character out of three is not a typo, it is a different word), so the
+ * confusable pairs are collapsed before comparing instead.
+ */
+const OCR_CONFUSIONS: Record<string, string> = {
+  '0': 'o',
+  '1': 'i',
+  '2': 'z',
+  '3': 'e',
+  '4': 'a',
+  '5': 's',
+  '6': 'g',
+  '7': 't',
+  '8': 'b',
+  '9': 'g',
+  l: 'i',
+  v: 'u',
+};
+
+function ocrFold(value: string): string {
+  return value
+    .toLowerCase()
+    .split('')
+    .map((ch) => OCR_CONFUSIONS[ch] ?? ch)
+    .filter((ch) => ch >= 'a' && ch <= 'z')
+    .join('');
+}
+
 /** Levenshtein distance, capped — used only on short label/value tokens. */
 function editDistance(a: string, b: string): number {
   if (a === b) return 0;
@@ -177,10 +210,20 @@ function normalizeVehicleType(raw: string): string | undefined {
   const key = word.toLowerCase().replace(/[^a-z-]/g, '');
   if (VEHICLE_TYPE_FIXES[key]) return VEHICLE_TYPE_FIXES[key];
 
-  // One character out from a class we know — "Truok", "8us".
-  const letters = stripToLetters(word);
-  for (const [candidate, canonical] of Object.entries(VEHICLE_TYPE_FIXES)) {
-    if (fuzzyEquals(letters, stripToLetters(candidate))) return canonical;
+  // Fold the confusable characters, then allow one genuine error on top.
+  // "5uv" and "Suu" both fold to "suu", which is what "suv" folds to.
+  const folded = ocrFold(word);
+  if (folded) {
+    for (const [candidate, canonical] of Object.entries(VEHICLE_TYPE_FIXES)) {
+      const target = ocrFold(candidate);
+      if (!target) continue;
+      if (folded === target) return canonical;
+      // Every pair of real classes differs by at least two characters once
+      // folded, so a single edit cannot turn one into another.
+      if (target.length >= 3 && editDistance(folded, target) <= 1) {
+        return canonical;
+      }
+    }
   }
 
   return /^[A-Za-z-]{2,}$/.test(word) ? titleCase(word) : word;

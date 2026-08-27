@@ -318,12 +318,27 @@ export class FtpMethodService {
       return null;
     }
 
+    // The DETECTION image is the only one that carries data. The camera burns
+    // a `Label:Value` strip across its foot — plate, type, colour, brand,
+    // direction, confidence — and that strip is the record of what drove onto
+    // the lane. The plate crop is a thumbnail and the scene picture is a
+    // photograph; neither states anything, they only look like the vehicle.
+    //
+    // So without the detection image there is nothing to extract. Running on
+    // the other two produced captures whose "plate" was OCR of whatever text
+    // happened to be in frame — a windscreen sticker, a hoarding — recorded
+    // with the same confidence as a real read.
+    if (!bundle.vehicleDetectionPath) {
+      this.logger.warn(
+        `[FTP JPEG] Skipping ${bundle.eventKey} (${camera.cameraCode}) — no VEHICLE_DETECTION image, so no overlay to read`,
+      );
+      return null;
+    }
+
     const start = Date.now();
-    const metadata = bundle.vehicleDetectionPath
-      ? await this.overlayOcr.extractFromDetectionImage(
-          bundle.vehicleDetectionPath,
-        )
-      : null;
+    const metadata = await this.overlayOcr.extractFromDetectionImage(
+      bundle.vehicleDetectionPath,
+    );
 
     const plateHints = {
       category: metadata?.category,
@@ -466,6 +481,10 @@ export class FtpMethodService {
     }
 
     const minConf = this.overlayOcr.getMinConfidence();
+    // A plate read only from the scene photograph is a guess: it is OCR of the
+    // whole frame, so it picks up signage and stickers as readily as a plate.
+    // It stays as a last resort, but never inherits a confidence it did not
+    // earn — the overlay reported none, so neither does this.
     const sceneOnly =
       Boolean(bundle.vehiclePicturePath) &&
       !bundle.platePath &&

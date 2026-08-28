@@ -42,6 +42,47 @@ export class JobDao extends Repository<Job> implements IJobDao {
   }
 
   /**
+   * The vehicle's most recent finished inspection.
+   *
+   * Completed is the moment the result was pushed to ROP — `submitJob` sets the
+   * status and files the result together — so a Completed job is by definition
+   * one whose results are with ROP. A vehicle returning after one of these is
+   * re-testing.
+   *
+   * Deliberately unbounded in time: the rule is "has this vehicle been through
+   * before", not "was it recent".
+   */
+  findLastCompletedByPlate(plate: string): Promise<Job | null> {
+    return this.createQueryBuilder('job')
+      .leftJoin('job.vehicleRecord', 'vehicleRecord')
+      .where('job.is_deleted = false')
+      .andWhere('job.status = :status', { status: 'Completed' })
+      .andWhere('vehicleRecord.plate_number = :plate', { plate })
+      .orderBy('job.created_at', 'DESC')
+      .getOne();
+  }
+
+  /**
+   * An inspection for this plate that has not finished yet.
+   *
+   * A second job while one is still running cannot be told apart from the first
+   * when the OUT file arrives — the watcher matches results to jobs by plate and
+   * refuses an ambiguous file rather than guessing, which would strand the
+   * result for both.
+   */
+  findUnfinishedByPlate(plate: string): Promise<Job | null> {
+    return this.createQueryBuilder('job')
+      .leftJoin('job.vehicleRecord', 'vehicleRecord')
+      .where('job.is_deleted = false')
+      .andWhere('job.status IN (:...statuses)', {
+        statuses: ['Pending', 'In Progress'],
+      })
+      .andWhere('vehicleRecord.plate_number = :plate', { plate })
+      .orderBy('job.created_at', 'DESC')
+      .getOne();
+  }
+
+  /**
    * Jobs still tied to a line's lane. Pending counts as active: its IN file has
    * already been written against the current lane, so changing the lane id
    * would leave that file — and the OUT file that answers it — pointing at the
@@ -99,6 +140,7 @@ export class JobDao extends Repository<Job> implements IJobDao {
         'job_id',
         'status',
         'source',
+        'job_type',
         'overall_result',
         'created_at',
         'updated_at',

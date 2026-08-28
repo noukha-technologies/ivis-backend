@@ -8,7 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * real schema change just means the next boot re-applies it anyway (every
  * statement here is idempotent), so it fails safe, not silently stale.
  */
-export const ALTER_SCHEMA_VERSION = 24;
+export const ALTER_SCHEMA_VERSION = 25;
 
 /**
  * Standalone ALTER migration — apply all structural changes to an existing database.
@@ -1374,6 +1374,20 @@ export class AlterSchema1782010000000 implements MigrationInterface {
       `ALTER TABLE "transaction"."appointments" ADD COLUMN IF NOT EXISTS "auto_convert_blocked_reason" character varying(255)`,
     );
 
+    // jobs: first inspection or return visit, and the job being returned to.
+    // Existing rows are all first inspections, which is what the default says —
+    // no backfill is needed because nothing before this had a predecessor.
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "job_type" character varying(16) NOT NULL DEFAULT 'Test'`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" ADD COLUMN IF NOT EXISTS "previous_job_id" bigint`,
+    );
+    // Looked up by predecessor when walking a vehicle's chain of return visits.
+    await queryRunner.query(
+      `CREATE INDEX IF NOT EXISTS "IDX_JOB_PREVIOUS_JOB_ID" ON "transaction"."jobs" ("previous_job_id")`,
+    );
+
     // appointments: the provider's own view of the booking, kept alongside (not
     // merged into) the IVIS columns. provider_status is their lifecycle;
     // status is ours. The payment fields record what they say was paid — job
@@ -2051,6 +2065,15 @@ export class AlterSchema1782010000000 implements MigrationInterface {
     );
     await queryRunner.query(
       `DROP INDEX IF EXISTS "transaction"."IDX_APPOINTMENT_PLATE_NUMBER"`,
+    );
+    await queryRunner.query(
+      `DROP INDEX IF EXISTS "transaction"."IDX_JOB_PREVIOUS_JOB_ID"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "previous_job_id"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transaction"."jobs" DROP COLUMN IF EXISTS "job_type"`,
     );
     await queryRunner.query(
       `ALTER TABLE "transaction"."appointments" DROP COLUMN IF EXISTS "auto_convert_blocked_reason"`,

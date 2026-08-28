@@ -138,7 +138,7 @@ export class JobController {
     return { message: 'Jobs retrieved successfully', ...result };
   }
 
-@Get('provider-events')
+  @Get('provider-events')
   @ApiOperation({
     summary: 'Latest provider delivery state for several jobs',
     description:
@@ -160,7 +160,7 @@ export class JobController {
     return { message: 'Provider events retrieved', data };
   }
 
-    @Get(':id')
+  @Get(':id')
   @ApiOperation({
     summary: 'Retrieve job by ID (with customer, vehicle, and site details)',
   })
@@ -187,7 +187,8 @@ export class JobController {
 
   @Patch(':id/charge')
   @ApiOperation({
-    summary: "Map this job onto a Charges-master row (the operator's pricing choice)",
+    summary:
+      "Map this job onto a Charges-master row (the operator's pricing choice)",
     description:
       "For a vehicle whose own type is not priced at this centre — a Sedan where only SUV is configured. The mapped charge is what the job is priced from, and the payment amount is derived from it server-side. Send charge_id: null to clear the mapping and fall back to the vehicle's type. Refused once the job has been paid.",
   })
@@ -226,7 +227,7 @@ export class JobController {
     return { message: 'OUT file retrieved', data };
   }
 
-@Get(':id/provider-event')
+  @Get(':id/provider-event')
   @ApiOperation({
     summary: "This job's latest inspection-result event at the provider",
     description:
@@ -255,7 +256,7 @@ export class JobController {
     return { message: 'Inspection result re-queued for the provider', data };
   }
 
-    @Post(':id/images')
+  @Post(':id/images')
   @ApiOperation({ summary: 'Upload or capture a photo for a job' })
   @ApiConsumes('multipart/form-data')
   @ApiParam({ name: 'id', type: String, description: 'Job snowflake ID' })

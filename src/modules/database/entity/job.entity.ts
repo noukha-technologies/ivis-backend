@@ -17,6 +17,7 @@ import { DATABASE_SCHEMAS } from '../../../common/constants/database-schemas';
 import type {
   JobOverallResult,
   JobStatus,
+  JobType,
 } from '../../../common/enums/job.enums';
 
 import { Line } from './line.entity';
@@ -219,6 +220,24 @@ export class Job implements IJobFields {
   /** Derived from OUT file — not stored per-test in DB */
   @Column({ type: 'varchar', length: 16, nullable: true })
   overall_result?: JobOverallResult | null;
+
+  /** First inspection, or a return visit. See JOB_TYPES. */
+  @Column({ type: 'varchar', length: 16, default: 'Test' })
+  job_type!: JobType;
+
+  /**
+   * The completed job this one re-tests, when there is one.
+   *
+   * Kept as a link rather than a counter so the chain can be walked: how many
+   * returns a vehicle has made is the length of the chain, which cannot drift
+   * out of step with the jobs themselves.
+   */
+  @Column({
+    type: 'bigint',
+    transformer: bigintAsStringTransformer,
+    nullable: true,
+  })
+  previous_job_id?: string | null;
 
   @Column({ type: 'varchar', length: 256, nullable: true })
   infile_name?: string;

@@ -23,7 +23,9 @@ import {
   JOB_PAYMENT_TYPES,
   JOB_SOURCES,
   JOB_STATUSES,
+  JOB_TYPES,
 } from '../enums/job.enums';
+import type { JobType } from '../enums/job.enums';
 import {
   CreateJobRequestConstraint,
   isLegacyJobCreate,
@@ -324,6 +326,22 @@ export class CreateJobDto {
   @IsOptional()
   @IsString()
   anpr_capture_id?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'First inspection or return visit. Resolved from the vehicle history on conversion; only set directly for a manual job.',
+    enum: JOB_TYPES,
+  })
+  @IsOptional()
+  @IsIn(JOB_TYPES)
+  job_type?: JobType;
+
+  @ApiPropertyOptional({
+    description: 'The completed job this one re-tests, when there is one.',
+  })
+  @IsOptional()
+  @IsString()
+  previous_job_id?: string | null;
 
   @ApiPropertyOptional({ description: 'Centre snowflake ID' })
   @IsOptional()

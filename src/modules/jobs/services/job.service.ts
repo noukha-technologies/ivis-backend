@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import type { JobType } from '../../../common/enums/job.enums';
 import * as fs from 'fs/promises';
 import { CreateJobDto, UpdateJobDto } from '../../../common/dto/job.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -302,6 +303,8 @@ export class JobService {
         line_id: createDto.line_id,
         admin_pc_id: createDto.admin_pc_id,
         camera_id: createDto.camera_id,
+        job_type: createDto.job_type ?? 'Test',
+        previous_job_id: createDto.previous_job_id ?? null,
         created_by: getCreatedById(actor),
       });
 
@@ -446,10 +449,12 @@ export class JobService {
     // Ensure a vehicle record exists for the plate (jobs require one). Plate +
     // vehicle type are read from the appointment's relations (record / ANPR).
     let vehicleRecordId = appt.vehicle_record_id ?? null;
+    // Needed beyond the record lookup: the vehicle's history is keyed by plate,
+    // and that is what decides whether this visit is a re-test.
+    const plate = (
+      appt.vehicleRecord?.plate_number ?? appt.anprCapture?.plate_number
+    )?.trim();
     if (!vehicleRecordId) {
-      const plate = (
-        appt.vehicleRecord?.plate_number ?? appt.anprCapture?.plate_number
-      )?.trim();
       if (!plate) {
         throw new BadRequestException('Appointment has no plate number');
       }
@@ -499,6 +504,36 @@ export class JobService {
       );
     }
 
+    /**
+     * First inspection or return visit, decided from the vehicle's own history.
+     *
+     * Completed is the moment a result was pushed to ROP, so a plate with a
+     * Completed job behind it has been through before and this visit is a
+     * re-test. Pass or fail does not enter into it — the label describes the
+     * visit, not the verdict.
+     *
+     * Also refuses a second job while one is still running for the plate. The
+     * OUT file watcher matches results to jobs by plate and skips an ambiguous
+     * file rather than guessing, so a duplicate would strand the result for
+     * both inspections rather than merely cluttering the queue.
+     */
+    let jobType: JobType = 'Test';
+    let previousJobId: string | null = null;
+    if (plate) {
+      const unfinished = await this.jobDao.findUnfinishedByPlate(plate);
+      if (unfinished) {
+        throw new BadRequestException(
+          `Job #J${unfinished.job_id} for ${plate} is still ${unfinished.status}. Finish or cancel it before starting another inspection for this vehicle.`,
+        );
+      }
+
+      const previous = await this.jobDao.findLastCompletedByPlate(plate);
+      if (previous) {
+        jobType = 'Re-test';
+        previousJobId = previous.id;
+      }
+    }
+
     const job = await this.create(
       {
         appointment_id: appt.id,
@@ -509,9 +544,18 @@ export class JobService {
         line_id: lineId,
         assigned_user_id: assignment.assigned_user_id,
         anpr_capture_id: appt.anpr_capture_id ?? undefined,
+        job_type: jobType,
+        previous_job_id: previousJobId,
       },
       actor,
     );
+
+    if (previousJobId) {
+      this.logger.log(
+        `Job ${job.id} for ${plate} is a re-test of job ${previousJobId}`,
+        JobService.context,
+      );
+    }
 
     await this.appointmentDao.save(
       this.appointmentDao.merge(appt, { status: AppointmentStatus.CONVERTED }),

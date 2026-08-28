@@ -21,6 +21,8 @@
     "migration:wipe": "cross-env ALLOW_DATA_WIPE=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts WipeData1782020000000",
     "migration:wipe-transactions": "cross-env ALLOW_DATA_WIPE=true ts-node -r tsconfig-paths/register src/scripts/run-migration.ts WipeTransactions1782030000000",
     "onboarding:super-admin": "ts-node -r tsconfig-paths/register src/scripts/onboard-super-admin.ts",
+    "seed:previous-job": "ts-node -r tsconfig-paths/register src/scripts/seed-previous-job.ts",
+    "backdate": "ts-node -r tsconfig-paths/register src/scripts/backdate-visit.ts",
     "env:check": "ts-node -r tsconfig-paths/register src/scripts/check-env.ts"
   },
   "dependencies": {

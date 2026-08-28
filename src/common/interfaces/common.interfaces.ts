@@ -40,6 +40,42 @@ export interface PlateEligibility {
   rop_verified: boolean;
   eligible: boolean;
   reason: string | null;
+  /** Set once ROP has answered, so the appointment can adopt the verification. */
+  rop_verification_id: string | null;
+  /**
+   * What the camera and ROP already know about this vehicle.
+   *
+   * Read from records that exist — the capture, the ROP verification, the
+   * vehicle record and any customer on file. Nothing here triggers a ROP call:
+   * the operator is typing a plate, not asking us to go and look it up.
+   *
+   * Lets a walk-in raised AFTER the car arrived be filled from what the lane
+   * already established, instead of retyping details ROP has stated.
+   */
+  known: PlateKnownDetails | null;
+}
+
+/** Vehicle and owner details already recorded for a plate. */
+export interface PlateKnownDetails {
+  owner_name: string | null;
+  owner_phone: string | null;
+  mulkiya_id: string | null;
+  chassis_no: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_type: string | null;
+  vehicle_color: string | null;
+  plate_color: string | null;
+  /** What the lane camera photographed, so the operator sees the actual car. */
+  plate_image_url: string | null;
+  scene_image_url: string | null;
+  /**
+   * The lane the camera read this vehicle on.
+   *
+   * The car is physically on that lane, so it answers the lane question better
+   * than any mapping does — the camera is the proof of where the vehicle is.
+   */
+  line_id: string | null;
 }
 
 export interface IConfigurationFields {

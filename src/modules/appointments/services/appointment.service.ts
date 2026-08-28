@@ -99,6 +99,8 @@ export class AppointmentService {
       rop_verified: false,
       eligible: false,
       reason: null,
+      rop_verification_id: null,
+      known: null,
     };
 
     if (!p) {
@@ -120,6 +122,21 @@ export class AppointmentService {
       anpr_today: captureTime ? isSameOmanDay(captureTime, new Date()) : false,
       anpr_capture_id: capture.id,
       anpr_capture_time: captureTime,
+      // The camera saw the car; report what it read even before ROP answers.
+      known: {
+        owner_name: null,
+        owner_phone: null,
+        mulkiya_id: null,
+        chassis_no: null,
+        vehicle_make: null,
+        vehicle_model: null,
+        vehicle_type: capture.vehicle_type ?? null,
+        vehicle_color: capture.vehicle_color ?? null,
+        plate_color: capture.plate_color ?? null,
+        plate_image_url: capture.image_url ?? null,
+        scene_image_url: capture.scene_image_url ?? null,
+        line_id: capture.line_id ?? null,
+      },
     };
 
     const rop = await this.ropVerificationDao.findLatestByRegNo(p);
@@ -134,12 +151,47 @@ export class AppointmentService {
     // rest reads as the enum it actually holds.
     const ropStatus = rop.fetch_status as RopVerificationStatus | undefined;
     const verified = ropStatus === RopVerificationStatus.VALIDATED;
+
+    // Anything an operator already saved wins over ROP: a customer standing at
+    // the counter can correct a record ROP has not caught up with.
+    const record = await this.vehicleRecordDao.findByPlateNumber(p);
+    const customer = record
+      ? await this.customerDao.findByVehicleRecordId(record.id)
+      : null;
+
     return {
       ...withAnpr,
       rop_found: true,
       rop_status: rop.fetch_status ?? null,
       rop_verified: verified,
       eligible: verified,
+      rop_verification_id: rop.id,
+      known: {
+        owner_name: customer?.owner_name ?? rop.owner_name ?? null,
+        owner_phone: customer?.owner_phone_number ?? rop.owner_phone ?? null,
+        mulkiya_id: customer?.mulkiya_id ?? rop.mulkiya_id ?? null,
+        chassis_no:
+          customer?.chassis_no ?? record?.chassis_no ?? rop.chassis_no ?? null,
+        vehicle_make: record?.vehicle_make ?? rop.vehicle_make ?? null,
+        vehicle_model: record?.vehicle_model ?? rop.vehicle_model ?? null,
+        // The camera's reading of the car in front of us is preferred over
+        // ROP's registration record, which can be years out of date.
+        vehicle_type:
+          capture.vehicle_type ??
+          record?.vehicle_type ??
+          rop.vehicle_type ??
+          null,
+        vehicle_color:
+          capture.vehicle_color ??
+          record?.vehicle_color ??
+          rop.vehicle_color ??
+          null,
+        plate_color:
+          capture.plate_color ?? record?.plate_color ?? rop.plate_color ?? null,
+        plate_image_url: capture.image_url ?? null,
+        scene_image_url: capture.scene_image_url ?? null,
+        line_id: capture.line_id ?? null,
+      },
       reason: verified
         ? null
         : ropStatus === RopVerificationStatus.FAILED
@@ -269,6 +321,39 @@ export class AppointmentService {
         plateNumber = plateNumber || capture.plate_number;
       }
 
+      /**
+       * Adopt the arrival this registration is for.
+       *
+       * Reception-first and lane-first are the same visit in a different order.
+       * When reception goes first the appointment is already waiting and the
+       * arriving capture attaches itself to it. When the car goes first there is
+       * nothing to attach to — the capture has already been processed and is
+       * never revisited — so the registration has to reach back and pick it up.
+       *
+       * Without this the inspector's walk-in carried the customer and the
+       * payment but no capture, and Convert to Job refused it for having none.
+       * (The ROP verification is already resolved by plate further down, so
+       * only the arrival itself was missing.)
+       *
+       * Today's arrival only — an older capture is a previous visit.
+       */
+      if (!capture && plateNumber) {
+        const today = omanDayRange();
+        const arrival =
+          await this.anprCaptureDao.findLatestByPlate(plateNumber);
+        if (
+          arrival?.capture_time != null &&
+          arrival.capture_time >= today.start &&
+          arrival.capture_time < today.end
+        ) {
+          capture = arrival;
+          this.logger.log(
+            `Walk-in for ${plateNumber} adopted today's capture ${arrival.id}`,
+            AppointmentService.context,
+          );
+        }
+      }
+
       // Payment is mandatory for every job, and reception is where a walk-in
       // pays. Unlike ANPR and ROP — which the customer cannot influence and
       // which the appointment can simply wait for — the money is settled at the
@@ -345,8 +430,19 @@ export class AppointmentService {
         ? await this.ensureCustomer(createDto, vehicleRecordId, actor)
         : undefined;
 
+      // The lane the car actually drove onto, when the form did not name one.
+      // This is what fills Centre / Line on the queue row for a lane-first
+      // arrival; without it both columns read "—" and the convert screen has
+      // to ask for a lane the camera already knows.
+      const captureLine = capture?.line_id
+        ? await this.lineDao.findActiveById(capture.line_id)
+        : null;
+
       const resolvedCentreId =
-        createDto.centre_id ?? actor.user.center_id ?? undefined;
+        createDto.centre_id ??
+        captureLine?.centre_id ??
+        actor.user.center_id ??
+        undefined;
 
       // `rop` is resolved above, before the vehicle record — linking it here
       // means a later real ANPR arrival for the same plate can be matched back
@@ -354,12 +450,12 @@ export class AppointmentService {
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
         appointment_id: appointmentId,
-        anpr_capture_id: createDto.anpr_capture_id,
+        anpr_capture_id: createDto.anpr_capture_id ?? capture?.id ?? null,
         rop_verification_id: rop?.id ?? null,
         customer_id: customerId,
         vehicle_record_id: vehicleRecordId,
         centre_id: resolvedCentreId,
-        line_id: createDto.line_id,
+        line_id: createDto.line_id ?? capture?.line_id ?? null,
         appointment_at: new Date(createDto.appointment_at),
         status: AppointmentStatus.QUEUED,
         notes: createDto.notes,

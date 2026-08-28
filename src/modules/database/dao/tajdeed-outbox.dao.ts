@@ -83,14 +83,14 @@ export class TajdeedOutboxDao
     });
   }
 
-/**
+  /**
    * The newest inspection-result event raised for a job.
    *
    * A job can have several over its life: one per submit, plus a successor for
    * every automatic or manual retry. Only the latest describes where the job
    * currently stands with the provider — the earlier ones are the audit trail.
    */
-/**
+  /**
    * Does this job already have an inspection result that is still going to be
    * tried — queued, or delivered but unconfirmed?
    *
@@ -114,7 +114,7 @@ export class TajdeedOutboxDao
     return count > 0;
   }
 
-    findLatestInspectionResultByJobId(
+  findLatestInspectionResultByJobId(
     jobId: string,
   ): Promise<TajdeedOutbox | null> {
     return this.createQueryBuilder('outbox')
@@ -148,7 +148,7 @@ export class TajdeedOutboxDao
       .getMany();
   }
 
-    findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {
+  findByTransactionId(transactionId: string): Promise<TajdeedOutbox | null> {
     return this.findOne({ where: { transaction_id: transactionId } });
   }
 

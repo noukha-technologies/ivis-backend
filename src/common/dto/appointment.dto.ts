@@ -273,7 +273,11 @@ export class CreateAppointmentDto {
   @IsString({ message: 'charge_category_id must be a string' })
   charge_category_id?: string;
 
-  @ApiPropertyOptional({ description: 'Payment amount', example: 150.5 })
+  @ApiPropertyOptional({
+    description:
+      'Payment amount collected at reception, inc VAT. Required on create — 0 means FOC. Recorded as a Payments row against the appointment.',
+    example: 150.5,
+  })
   @IsOptional()
   @IsNumber()
   amount?: number;
@@ -281,4 +285,4 @@ export class CreateAppointmentDto {
 
 export class UpdateAppointmentDto extends PartialType(
   OmitType(CreateAppointmentDto, ['appointment_id'] as const),
-) { }
+) {}

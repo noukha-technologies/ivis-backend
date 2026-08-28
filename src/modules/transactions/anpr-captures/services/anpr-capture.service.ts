@@ -445,7 +445,7 @@ export class AnprCaptureService {
 
       // Queue an appointment only when the capture is actually validated.
       if (saved.status === AnprCaptureStatus.VALIDATED) {
-        await this.captureValidation.ensureQueuedAppointment(
+        await this.captureValidation.attachCaptureToAppointment(
           saved,
           getCreatedById(actor),
         );

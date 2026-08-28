@@ -66,14 +66,6 @@ export class CreateConfigurationDto {
   auto_close_time?: string;
 
   @ApiPropertyOptional({
-    description: 'Payment mandatory for this centre',
-    default: true,
-  })
-  @IsOptional()
-  @IsBoolean()
-  payment_mandatory?: boolean;
-
-  @ApiPropertyOptional({
     description: 'Working hours start (Oman), HH:mm',
     example: '08:00',
   })

@@ -24,7 +24,8 @@ describe('parseHikvisionOverlayFields', () => {
     assert.strictEqual(f.plateColour, 'Yellow');
     assert.strictEqual(f.plateSize, 'Long');
     assert.strictEqual(f.plateType, 'Private');
-    assert.strictEqual(f.province, 'unknown');
+    // "unknown" is the camera saying it has no value — not a value.
+    assert.strictEqual(f.province, undefined);
     assert.strictEqual(f.category, 'R');
   });
 
@@ -39,6 +40,131 @@ describe('parseHikvisionOverlayFields', () => {
     assert.strictEqual(f.plateSize, 'Long');
     assert.strictEqual(f.plateType, 'Private');
     assert.strictEqual(f.category, 'R');
+  });
+
+  /**
+   * Verbatim OCR from examples/192.168.7.190_01_20260827103629771_OCR.txt —
+   * a real frame with a wrapped timestamp, a split label ("Veh icle Brand"),
+   * V→U and S→3 substitutions, and six fields the camera reported as unknown.
+   */
+  it('parses a real garbled frame exactly', () => {
+    const real = `Camera Info:Cl1l Device No. :Cl Capture Time:08-27-2026 10:36:2
+9 Plate No. unknown Uehicle Color :Red Vehicle Type:Sedan Veh
+icle Brand:BMU Moving Direction:Forward Conf idence:0x Camera
+No. : 1 Area~Country:NON Plate Color unknown Plate 3ize:unkn
+oun Plate Type unknown Province unknown Category:`;
+    const f = parseHikvisionOverlayFields(real);
+
+    // Recovered despite the wrap and the substitutions.
+    assert.strictEqual(f.captureTimeLabel, '08-27-2026 10:36:29');
+    assert.strictEqual(f.vehicleColour, 'Red');
+    assert.strictEqual(f.vehicleType, 'Sedan');
+    assert.strictEqual(f.vehicleBrand, 'BMU');
+    assert.strictEqual(f.direction, 'Forward');
+    assert.strictEqual(f.confidence, 0);
+
+    // Reported as unknown by the camera — absent, not the string "unknown".
+    assert.strictEqual(f.plateNumber, undefined);
+    assert.strictEqual(f.plateColour, undefined);
+    assert.strictEqual(f.plateSize, undefined);
+    assert.strictEqual(f.plateType, undefined);
+    assert.strictEqual(f.province, undefined);
+    assert.strictEqual(f.category, undefined);
+  });
+
+  it('canonicalises vehicle classes, including motorcycles', () => {
+    const t = (raw: string) =>
+      parseHikvisionOverlayFields(
+        `Vehicle Type:${raw} Moving Direction:Forward`,
+      ).vehicleType;
+    assert.strictEqual(t('Motorcycle'), 'Motorcycle');
+    assert.strictEqual(t('Motorbike'), 'Motorcycle');
+    assert.strictEqual(t('Bus'), 'Bus');
+    assert.strictEqual(t('Truck'), 'Truck');
+    assert.strictEqual(t('Lorry'), 'Truck');
+    assert.strictEqual(t('3edan'), 'Sedan');
+    assert.strictEqual(t('unknown'), undefined);
+  });
+
+  /**
+   * Values seen on the live centre: S/5, V/U and B/8 are indistinguishable at
+   * overlay resolution, and a three-letter class cannot be rescued by edit
+   * distance alone — one wrong character out of three is a different word.
+   */
+  it('repairs the character confusions real captures come back with', () => {
+    const t = (raw: string) =>
+      parseHikvisionOverlayFields(
+        `Vehicle Type:${raw} Moving Direction:Forward`,
+      ).vehicleType;
+    assert.strictEqual(t('5uv'), 'SUV');
+    assert.strictEqual(t('Suu'), 'SUV');
+    assert.strictEqual(t('Uan'), 'Van');
+    assert.strictEqual(t('8us'), 'Bus');
+
+    // Distinct classes must stay distinct — no fold may collapse two of them.
+    for (const v of ['Van', 'Bus', 'SUV', 'MPV', 'Truck', 'Taxi', 'Trailer']) {
+      assert.strictEqual(
+        t(v),
+        v === 'Truck' || v === 'Taxi' || v === 'Trailer' ? v : v,
+      );
+    }
+    assert.strictEqual(t('Van'), 'Van');
+    assert.strictEqual(t('Bus'), 'Bus');
+    assert.strictEqual(t('MPV'), 'MPV');
+
+    // An unfamiliar class is kept, not forced onto the nearest known one.
+    assert.strictEqual(t('Lamborghini'), 'Lamborghini');
+  });
+
+  /**
+   * The frame the live camera produced on 27 Aug, read with the settings the
+   * service now uses. Every field on this strip is correct, so it is the
+   * regression guard for the whole pipeline: the wrap splits the timestamp
+   * seconds and both "Vehicle Type" and "Confidence", and the plate, class,
+   * brand and category all still come out.
+   */
+  it('parses the live 23547DD capture exactly', () => {
+    const live = `Camera Info:C1 Device No.:C1 Capture Time:08-27-2026 13:05:5
+8 Plate No. :23547DD Vehicle Color :Gray Vehicle Type:5UV or H
+PU Uehicle Brand:Toyota Moving Direction:Reverse Conf idence:
+96 Camera No. :Cl Area Country:0MN Plate Color:Yellow Plate
+S5ize:Long Plate Type:Private Province unknown Category:DD`;
+    const f = parseHikvisionOverlayFields(live);
+    assert.strictEqual(f.plateNumber, '23547DD');
+    assert.strictEqual(f.captureTimeLabel, '08-27-2026 13:05:58');
+    assert.strictEqual(f.confidence, 96);
+    assert.strictEqual(f.vehicleColour, 'Gray');
+    // The camera's class is "SUV or MPV"; the head of it is what we store.
+    assert.strictEqual(f.vehicleType, 'SUV');
+    assert.strictEqual(f.vehicleBrand, 'Toyota');
+    assert.strictEqual(f.direction, 'Reverse');
+    assert.strictEqual(f.plateColour, 'Yellow');
+    assert.strictEqual(f.plateSize, 'Long');
+    assert.strictEqual(f.plateType, 'Private');
+    assert.strictEqual(f.province, undefined);
+    assert.strictEqual(f.category, 'DD');
+  });
+
+  it('snaps direction and plate type back to the camera vocabulary', () => {
+    const f = parseHikvisionOverlayFields(
+      'Moving Direction:Reuerse Plate Type:Priuate Category:R',
+    );
+    assert.strictEqual(f.direction, 'Reverse');
+    assert.strictEqual(f.plateType, 'Private');
+
+    const g = parseHikvisionOverlayFields(
+      'Moving Direction:Foruard Plate Type:Gouernment Category:R',
+    );
+    assert.strictEqual(g.direction, 'Forward');
+    assert.strictEqual(g.plateType, 'Government');
+  });
+
+  it('keeps a vocabulary word it does not recognise rather than dropping it', () => {
+    const f = parseHikvisionOverlayFields(
+      'Moving Direction:Sideways Plate Type:Consular Category:R',
+    );
+    assert.strictEqual(f.direction, 'Sideways');
+    assert.strictEqual(f.plateType, 'Consular');
   });
 
   it('returns only present fields when overlay is partial', () => {

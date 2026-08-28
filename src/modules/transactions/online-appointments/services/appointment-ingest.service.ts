@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { DataSource } from 'typeorm';
 import { AppLogger } from '../../../../common/logger/app.logger';
+import { omanDayRange } from '../../../../common/utils/util';
 import { generateSnowflakeId } from '../../../../common/shared/snowflakeIdGeneration';
 import {
   AppointmentStatus,
@@ -147,7 +148,7 @@ export class AppointmentIngestService {
       this.logger.warn(
         paused
           ? `Appointment ingest is PAUSED${until ? ` until ${until}` : ' indefinitely'} — ` +
-            `bookings will not be pulled until the pause is cleared.`
+              `bookings will not be pulled until the pause is cleared.`
           : 'Appointment ingest RESUMED — pulling bookings again.',
         AppointmentIngestService.context,
       );
@@ -341,6 +342,7 @@ export class AppointmentIngestService {
     if (booking.plate_number) {
       const open = await this.appointmentDao.findOpenByPlate(
         booking.plate_number,
+        omanDayRange().start,
       );
       if (open) {
         this.logger.warn(
@@ -472,12 +474,33 @@ export class AppointmentIngestService {
       await this.customerDao.findByVehicleRecordId(vehicleRecordId);
     if (existing) return existing.id;
 
+    // Driver name and phone come from the booking when the provider sends
+    // them, and are left blank otherwise for an operator to fill in on the
+    // convert screen. Read defensively off the raw payload rather than the
+    // typed shape: the schema we hold carries no driver block, so a
+    // provider-side addition flows through without a code change.
+    //
+    // Deliberately NOT defaulted to the customer. Recording the person who
+    // booked as the person who drove is a guess, and it would be written into
+    // the job as though it were known.
+    const raw = (payload ?? {}) as unknown as Record<string, unknown>;
+    const driverName =
+      typeof raw.driver_name === 'string' && raw.driver_name.trim()
+        ? raw.driver_name.trim()
+        : undefined;
+    const driverPhone =
+      typeof raw.driver_phone === 'string' && raw.driver_phone.trim()
+        ? toLocalOmanDigits(raw.driver_phone)
+        : undefined;
+
     const created = await this.customerDao.save(
       this.customerDao.create({
         id: generateSnowflakeId(),
         customer_id: await this.customerDao.getNextCustomerId(),
         owner_name: name,
         owner_phone_number: phone,
+        driver_name: driverName,
+        driver_phone_number: driverPhone,
         // The provider also sends an email, but Customer has no column for it
         // — it stays recoverable in appointment_bookings.payload.
         vehicle_record_id: vehicleRecordId,
@@ -597,10 +620,19 @@ export class AppointmentIngestService {
 
       const changed: string[] = [];
 
-      // Reinstated upstream after a cancellation.
+      // Reinstated upstream after a cancellation. The payment has to come back
+      // with it: handleWithdrawn cancelled that row, and leaving it cancelled
+      // records money as reversed when it never was.
       if (appointment.status === AppointmentStatus.CANCELLED) {
         appointment.status = AppointmentStatus.QUEUED;
         changed.push('status');
+        await this.restorePaymentFor(booking);
+      }
+
+      // Whatever the withdrawal warned about no longer applies.
+      if (appointment.auto_convert_blocked_reason) {
+        appointment.auto_convert_blocked_reason = null;
+        changed.push('auto_convert_blocked_reason');
       }
 
       // Rescheduled — only meaningful while the car has not arrived; once it
@@ -621,6 +653,24 @@ export class AppointmentIngestService {
         );
       }
     }
+  }
+
+  /** Un-cancels the payment for a booking the provider brought back. */
+  private async restorePaymentFor(booking: AppointmentBooking): Promise<void> {
+    const reference = (booking.payload as unknown as ProviderBooking)
+      ?.payment_reference;
+    if (!reference) return;
+
+    const payment = await this.paymentsDao.findByProviderReference(reference);
+    if (!payment || payment.status !== PaymentStatusEnum.CANCELLED) return;
+
+    await this.paymentsDao.update(payment.id, {
+      status: PaymentStatusEnum.PAID,
+    });
+    this.logger.log(
+      `Restored payment ${reference} — booking ${booking.booking_id} reinstated upstream`,
+      AppointmentIngestService.context,
+    );
   }
 
   /**
@@ -654,6 +704,18 @@ export class AppointmentIngestService {
       `Booking ${booking.booking_id} withdrawn upstream but appointment ${appointment.id} has already been acted on (status ${appointment.status}, capture ${appointment.anpr_capture_id ?? 'none'}) — left for an operator to resolve`,
       AppointmentIngestService.context,
     );
+
+    // The system will not undo work a camera or a person has already done, but
+    // it must not keep that to itself either: a warning in a log file reaches
+    // nobody standing at the lane. Written onto the appointment, which both the
+    // queue row and the job screen read.
+    const reason =
+      'Booking cancelled upstream — confirm with the customer before proceeding';
+    if (appointment.auto_convert_blocked_reason !== reason) {
+      await this.appointmentDao.update(appointment.id, {
+        auto_convert_blocked_reason: reason,
+      });
+    }
   }
 
   /** Cancels the payment recorded for a withdrawn booking, if there is one. */

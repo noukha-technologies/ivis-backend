@@ -3,13 +3,21 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { UserContext } from '../../../common/dto/auth.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 import { RopVerificationStatus } from '../../../common/enums/common.enums';
+import { PaymentStatusEnum } from '../../../common/enums/payment.enums';
 import {
   AppointmentAuditDetails,
   AppointmentAuditEntity,
+  PlateEligibility,
   PlateLookupResult,
 } from 'src/common/interfaces/common.interfaces';
 import { AppointmentStatus, BookingType } from 'src/common/enums/common.enums';
 import { PaginatedResult } from '../../../common/interfaces/pagination.interface';
+import {
+  appointmentExpiry,
+  isSameOmanDay,
+  omanDayRange,
+} from '../../../common/utils/util';
+import { vehicleTypesAgree } from '../../../common/utils/normalize-vehicle-type.util';
 import {
   CreateAppointmentDto,
   UpdateAppointmentDto,
@@ -36,6 +44,8 @@ import { PaymentTypeDao } from '../../database/dao/payment-type.dao';
 import { Appointment } from '../../database/entity/appointment.entity';
 import { VehicleRecordDao } from '../../database/dao/vehicle-record.dao';
 import { RopVerificationDao } from '../../database/dao/rop-verification.dao';
+import { PaymentsDao } from '../../database/dao/payments.dao';
+import { VehicleDao } from '../../database/dao/vehicle.dao';
 import { RopApiClientService } from '../../../common/integrations/rop/rop-api-client.service';
 
 @Injectable()
@@ -54,7 +64,141 @@ export class AppointmentService {
     private readonly ropApiClient: RopApiClientService,
     private readonly vehicleRecordDao: VehicleRecordDao,
     private readonly ropVerificationDao: RopVerificationDao,
+    private readonly paymentsDao: PaymentsDao,
+    private readonly vehicleDao: VehicleDao,
   ) {}
+
+  /**
+   * Whether this plate is ready to become a job, and what is still missing.
+   *
+   * Reception can register a vehicle at any point — this does not gate that.
+   * It reports what the queue row will show: `eligible` true means the capture
+   * and the ROP verification are both present, so Convert to Job is available;
+   * false means the appointment is created and waiting, and `reason` says what
+   * for.
+   *
+   *   1. ANPR must hold a capture for the plate. Captured today is the normal
+   *      case — the car is at the centre now. An older capture for the same
+   *      vehicle counts too, so a returning vehicle whose camera reading has
+   *      not landed yet still reads as known.
+   *   2. ROP must have been fetched for it (`Fetched`).
+   *
+   * Read-only, and it never calls the ROP API — both answers come from what
+   * the capture pipeline has already recorded locally.
+   */
+  async checkPlateEligibility(plate: string): Promise<PlateEligibility> {
+    const p = plate?.trim() ?? '';
+    const base: PlateEligibility = {
+      plate: p,
+      anpr_found: false,
+      anpr_today: false,
+      anpr_capture_id: null,
+      anpr_capture_time: null,
+      rop_found: false,
+      rop_status: null,
+      rop_verified: false,
+      eligible: false,
+      reason: null,
+      rop_verification_id: null,
+      known: null,
+    };
+
+    if (!p) {
+      return { ...base, reason: 'Enter a plate number.' };
+    }
+
+    const capture = await this.anprCaptureDao.findLatestByPlate(p);
+    if (!capture) {
+      return {
+        ...base,
+        reason: `Not captured by ANPR yet. Convert to Job unlocks once the vehicle is read at a lane.`,
+      };
+    }
+
+    const captureTime = capture.capture_time ?? null;
+    const withAnpr: PlateEligibility = {
+      ...base,
+      anpr_found: true,
+      anpr_today: captureTime ? isSameOmanDay(captureTime, new Date()) : false,
+      anpr_capture_id: capture.id,
+      anpr_capture_time: captureTime,
+      // The camera saw the car; report what it read even before ROP answers.
+      known: {
+        owner_name: null,
+        owner_phone: null,
+        mulkiya_id: null,
+        chassis_no: null,
+        vehicle_make: null,
+        vehicle_model: null,
+        vehicle_type: capture.vehicle_type ?? null,
+        vehicle_color: capture.vehicle_color ?? null,
+        plate_color: capture.plate_color ?? null,
+        plate_image_url: capture.image_url ?? null,
+        scene_image_url: capture.scene_image_url ?? null,
+        line_id: capture.line_id ?? null,
+      },
+    };
+
+    const rop = await this.ropVerificationDao.findLatestByRegNo(p);
+    if (!rop) {
+      return {
+        ...withAnpr,
+        reason: `Waiting on ROP for ${p}. The lookup runs automatically once the vehicle is captured.`,
+      };
+    }
+
+    // fetch_status is a plain varchar on the entity; narrow once here so the
+    // rest reads as the enum it actually holds.
+    const ropStatus = rop.fetch_status as RopVerificationStatus | undefined;
+    const verified = ropStatus === RopVerificationStatus.VALIDATED;
+
+    // Anything an operator already saved wins over ROP: a customer standing at
+    // the counter can correct a record ROP has not caught up with.
+    const record = await this.vehicleRecordDao.findByPlateNumber(p);
+    const customer = record
+      ? await this.customerDao.findByVehicleRecordId(record.id)
+      : null;
+
+    return {
+      ...withAnpr,
+      rop_found: true,
+      rop_status: rop.fetch_status ?? null,
+      rop_verified: verified,
+      eligible: verified,
+      rop_verification_id: rop.id,
+      known: {
+        owner_name: customer?.owner_name ?? rop.owner_name ?? null,
+        owner_phone: customer?.owner_phone_number ?? rop.owner_phone ?? null,
+        mulkiya_id: customer?.mulkiya_id ?? rop.mulkiya_id ?? null,
+        chassis_no:
+          customer?.chassis_no ?? record?.chassis_no ?? rop.chassis_no ?? null,
+        vehicle_make: record?.vehicle_make ?? rop.vehicle_make ?? null,
+        vehicle_model: record?.vehicle_model ?? rop.vehicle_model ?? null,
+        // The camera's reading of the car in front of us is preferred over
+        // ROP's registration record, which can be years out of date.
+        vehicle_type:
+          capture.vehicle_type ??
+          record?.vehicle_type ??
+          rop.vehicle_type ??
+          null,
+        vehicle_color:
+          capture.vehicle_color ??
+          record?.vehicle_color ??
+          rop.vehicle_color ??
+          null,
+        plate_color:
+          capture.plate_color ?? record?.plate_color ?? rop.plate_color ?? null,
+        plate_image_url: capture.image_url ?? null,
+        scene_image_url: capture.scene_image_url ?? null,
+        line_id: capture.line_id ?? null,
+      },
+      reason: verified
+        ? null
+        : ropStatus === RopVerificationStatus.FAILED
+          ? `ROP verification failed for ${p}. It is retried automatically — resolve it before converting.`
+          : `ROP verification for ${p} is still pending.`,
+    };
+  }
 
   async resolveByPlate(plate: string): Promise<PlateLookupResult | null> {
     const p = plate?.trim();
@@ -177,13 +321,69 @@ export class AppointmentService {
         plateNumber = plateNumber || capture.plate_number;
       }
 
+      /**
+       * Adopt the arrival this registration is for.
+       *
+       * Reception-first and lane-first are the same visit in a different order.
+       * When reception goes first the appointment is already waiting and the
+       * arriving capture attaches itself to it. When the car goes first there is
+       * nothing to attach to — the capture has already been processed and is
+       * never revisited — so the registration has to reach back and pick it up.
+       *
+       * Without this the inspector's walk-in carried the customer and the
+       * payment but no capture, and Convert to Job refused it for having none.
+       * (The ROP verification is already resolved by plate further down, so
+       * only the arrival itself was missing.)
+       *
+       * Today's arrival only — an older capture is a previous visit.
+       */
+      if (!capture && plateNumber) {
+        const today = omanDayRange();
+        const arrival =
+          await this.anprCaptureDao.findLatestByPlate(plateNumber);
+        if (
+          arrival?.capture_time != null &&
+          arrival.capture_time >= today.start &&
+          arrival.capture_time < today.end
+        ) {
+          capture = arrival;
+          this.logger.log(
+            `Walk-in for ${plateNumber} adopted today's capture ${arrival.id}`,
+            AppointmentService.context,
+          );
+        }
+      }
+
+      // Payment is mandatory for every job, and reception is where a walk-in
+      // pays. Unlike ANPR and ROP — which the customer cannot influence and
+      // which the appointment can simply wait for — the money is settled at the
+      // counter or not at all, so this one is asked while they are standing
+      // there. FOC is 0, which is a value; only a missing amount is refused.
+      if (createDto.amount === undefined || createDto.amount === null) {
+        throw new BadRequestException(
+          'Record the payment (or mark it FOC) before creating the appointment.',
+        );
+      }
+
+      // ANPR and ROP are NOT required to register. A customer can reach
+      // reception before the camera has read the plate — or before ROP has
+      // answered — and turning them away at the counter for that helps nobody.
+      // The appointment is created and waits: the arriving capture is matched
+      // onto it by applyRopFetched, and only then does Convert to Job become
+      // available. The verification is enforced there, where it decides whether
+      // an inspection may start, rather than here, where it would only decide
+      // whether a customer may queue.
+
       // One open appointment per plate. A vehicle already queued or scheduled
       // must finish that visit — be CONVERTED into a job, or CANCELLED —
       // before it can be booked in again; otherwise the same car occupies two
       // queue slots. Checked here because the plate is fully resolved by this
       // point and nothing has been written yet.
       if (plateNumber) {
-        const open = await this.appointmentDao.findOpenByPlate(plateNumber);
+        const open = await this.appointmentDao.findOpenByPlate(
+          plateNumber,
+          omanDayRange().start,
+        );
         if (open) {
           throw new DuplicateResourceException(
             'Appointment',
@@ -215,6 +415,7 @@ export class AppointmentService {
         createDto.vehicle_color,
         createDto.vehicle_make ?? rop?.vehicle_make ?? undefined,
         createDto.vehicle_model ?? rop?.vehicle_model ?? undefined,
+        createDto.charge_category_id,
       );
 
       // Create / link the customer with all entered details (#4) and link it to
@@ -229,8 +430,19 @@ export class AppointmentService {
         ? await this.ensureCustomer(createDto, vehicleRecordId, actor)
         : undefined;
 
+      // The lane the car actually drove onto, when the form did not name one.
+      // This is what fills Centre / Line on the queue row for a lane-first
+      // arrival; without it both columns read "—" and the convert screen has
+      // to ask for a lane the camera already knows.
+      const captureLine = capture?.line_id
+        ? await this.lineDao.findActiveById(capture.line_id)
+        : null;
+
       const resolvedCentreId =
-        createDto.centre_id ?? actor.user.center_id ?? undefined;
+        createDto.centre_id ??
+        captureLine?.centre_id ??
+        actor.user.center_id ??
+        undefined;
 
       // `rop` is resolved above, before the vehicle record — linking it here
       // means a later real ANPR arrival for the same plate can be matched back
@@ -238,12 +450,12 @@ export class AppointmentService {
       const appointment = this.appointmentDao.create({
         id: generateSnowflakeId(),
         appointment_id: appointmentId,
-        anpr_capture_id: createDto.anpr_capture_id,
+        anpr_capture_id: createDto.anpr_capture_id ?? capture?.id ?? null,
         rop_verification_id: rop?.id ?? null,
         customer_id: customerId,
         vehicle_record_id: vehicleRecordId,
         centre_id: resolvedCentreId,
-        line_id: createDto.line_id,
+        line_id: createDto.line_id ?? capture?.line_id ?? null,
         appointment_at: new Date(createDto.appointment_at),
         status: AppointmentStatus.QUEUED,
         notes: createDto.notes,
@@ -273,6 +485,9 @@ export class AppointmentService {
           `Appointment created ID: ${saved.id}`,
           AppointmentService.context,
         );
+
+        await this.recordWalkInPayment(saved, createDto);
+
         return (await this.appointmentDao.findActiveById(saved.id)) ?? saved;
       } finally {
         patchAuditContext({
@@ -281,7 +496,13 @@ export class AppointmentService {
         });
       }
     } catch (error) {
+      // A deliberate refusal carries a message written for the operator — the
+      // ANPR/ROP gate, the payment gate, the one-open-appointment-per-plate
+      // rule. Swallowing it into a DatabaseException turns a 400 that says
+      // what to fix into a 500 that says "try again", and the operator retries
+      // the same thing forever.
       if (
+        error instanceof BadRequestException ||
         error instanceof DuplicateResourceException ||
         error instanceof ResourceNotFoundException
       ) {
@@ -298,11 +519,37 @@ export class AppointmentService {
     }
   }
 
+  /**
+   * Stamps the derived expiry fields onto a row. Applied on every read path so
+   * a caller can never see an appointment without knowing whether it is dead.
+   */
+  private withExpiry(appointment: Appointment): Appointment {
+    const { is_expired, expired_since } = appointmentExpiry(
+      appointment.status,
+      appointment.appointment_at,
+    );
+    appointment.is_expired = is_expired;
+    appointment.expired_since = expired_since;
+
+    // Camera vs ROP on what kind of vehicle this is. Derived rather than
+    // stored: both sides are already on the row's relations, and a value that
+    // is only ever a function of them has nothing to gain from a column that
+    // could fall out of step with either.
+    const camera = appointment.anprCapture?.vehicle_type;
+    const rop = appointment.ropVerification?.vehicle_type;
+    appointment.vehicle_type_mismatch = vehicleTypesAgree(camera, rop)
+      ? null
+      : { camera: camera as string, rop: rop as string };
+
+    return appointment;
+  }
+
   async findAll(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Appointment>> {
     try {
-      return await this.appointmentDao.findPaginated(query);
+      const result = await this.appointmentDao.findPaginated(query);
+      return { ...result, data: result.data.map((a) => this.withExpiry(a)) };
     } catch (error) {
       this.logger.error(
         `Failed to fetch appointments: ${(error as Error).message}`,
@@ -320,7 +567,112 @@ export class AppointmentService {
     if (!appointment) {
       throw new ResourceNotFoundException('Appointment', id);
     }
-    return appointment;
+    return this.withExpiry(appointment);
+  }
+
+  /**
+   * Writes the payment taken at reception as a real Payments row.
+   *
+   * The wizard used to send `amount` and nothing kept it: the appointment has
+   * no such column, so the money collected at the counter was recorded
+   * nowhere. Job creation then had no payment to find.
+   *
+   * Written through the DAO rather than PaymentsService.create for the same
+   * reason the provider ingest does: that path auto-creates a job when paid,
+   * and no job exists yet — the vehicle still has to be converted, with its own
+   * line and assignee. `job_id` is filled in later by linkExistingPaymentToJob,
+   * so the same row follows the appointment into its job instead of a second
+   * one being raised.
+   *
+   * FOC is `grand_total` 0 with status PAID, exactly as the provider ingest
+   * records a FREE re-inspection — a free inspection is settled, not unpaid.
+   */
+  private async recordWalkInPayment(
+    appointment: Appointment,
+    createDto: CreateAppointmentDto,
+  ): Promise<void> {
+    const amount = Number(createDto.amount ?? 0);
+
+    // Money has to belong to someone and to a vehicle — both are non-nullable
+    // on Payments. The wizard always supplies them, so this is a guard against
+    // a caller that does not rather than an expected path.
+    if (!appointment.customer_id || !appointment.vehicle_record_id) {
+      this.logger.warn(
+        `Appointment ${appointment.id} has no customer or vehicle record — payment of ${amount.toFixed(3)} OMR not recorded`,
+        AppointmentService.context,
+      );
+      return;
+    }
+
+    const existing = await this.paymentsDao.findSettledByAppointmentId(
+      appointment.id,
+    );
+    if (existing) return;
+
+    await this.paymentsDao.save(
+      this.paymentsDao.create({
+        id: generateSnowflakeId(),
+        payment_id: await this.paymentsDao.getNextPaymentsId(),
+        appointment_id: appointment.id,
+        customer_id: appointment.customer_id,
+        vehicle_record_id: appointment.vehicle_record_id,
+        centre_id: appointment.centre_id ?? null,
+        line_id: appointment.line_id ?? null,
+        // Filled when the vehicle is converted — see linkExistingPaymentToJob.
+        job_id: null,
+        payment_type_id: createDto.payment_type_id ?? null,
+        status: PaymentStatusEnum.PAID,
+        grand_total: amount,
+        pay_date: new Date(),
+        created_by: 'walk-in-appointment',
+      }),
+    );
+
+    this.logger.log(
+      `Recorded walk-in payment of ${amount.toFixed(3)} OMR for appointment ${appointment.id}`,
+      AppointmentService.context,
+    );
+  }
+
+  /**
+   * Cancels an appointment an operator no longer expects to happen — the
+   * customer left, or never turned up.
+   *
+   * Refused once CONVERTED: a job exists, and whether to abandon inspection
+   * work is a decision on the job, not on the booking that produced it. Any
+   * settled payment is Cancelled, not refunded, exactly as an upstream
+   * withdrawal is treated — we know the visit stopped, not that money moved.
+   */
+  async cancel(id: string, reason?: string): Promise<Appointment> {
+    const appointment = await this.findOne(id);
+
+    if (appointment.status === AppointmentStatus.CONVERTED) {
+      throw new BadRequestException(
+        'This appointment has already been converted to a job. Cancel or redo the job instead.',
+      );
+    }
+    if (appointment.status === AppointmentStatus.CANCELLED) {
+      return appointment;
+    }
+
+    const payment = await this.paymentsDao.findSettledByAppointmentId(id);
+    if (payment) {
+      await this.paymentsDao.update(payment.id, {
+        status: PaymentStatusEnum.CANCELLED,
+      });
+    }
+
+    await this.appointmentDao.update(id, {
+      status: AppointmentStatus.CANCELLED,
+      auto_convert_blocked_reason: reason?.trim() || null,
+    });
+
+    this.logger.log(
+      `Appointment ${id} cancelled${reason ? `: ${reason}` : ''}`,
+      AppointmentService.context,
+    );
+
+    return this.findOne(id);
   }
 
   async update(
@@ -567,6 +919,57 @@ export class AppointmentService {
    * type / chassis (ANPR or operator entered). Returns the record id, or the
    * passed id / undefined when there is no plate to resolve.
    */
+  /**
+   * Links the plate's vehicle master to the type and category the operator
+   * chose, and returns its id.
+   *
+   * Job pricing reads the category off the MASTER
+   * (`job.vehicleRecord.vehicleMaster.charge_category_id`), not off the
+   * appointment — and the appointment has no column for it at all, so the
+   * wizard's choice used to reach the audit log and nowhere else. Without this
+   * the job screen opened with the category unselected and priced the job by
+   * vehicle type alone, discarding a decision the operator had already made.
+   *
+   * Unlike the ANPR path this derives nothing: the operator picked both, and a
+   * guess would only overwrite a real answer with a worse one.
+   */
+  private async ensureVehicleMaster(
+    plate: string,
+    vehicleType: string | undefined,
+    chargeCategoryId: string | undefined,
+    chassisNo: string | undefined,
+    actor: UserContext,
+  ): Promise<string | undefined> {
+    const code = plate.trim();
+    if (!code) return undefined;
+
+    const existing = await this.vehicleDao.findByCode(code);
+    const enrich = {
+      vehicle_type: vehicleType ?? existing?.vehicle_type,
+      vin_no: chassisNo ?? existing?.vin_no,
+      charge_category_id:
+        chargeCategoryId ?? existing?.charge_category_id ?? null,
+    };
+
+    if (!existing) {
+      const created = await this.vehicleDao.save(
+        this.vehicleDao.create({
+          id: generateSnowflakeId(),
+          vehicle_id: await this.vehicleDao.getNextVehicleId(),
+          name: code,
+          code,
+          status: 'Active',
+          ...enrich,
+          created_by: getCreatedById(actor),
+        }),
+      );
+      return created.id;
+    }
+
+    return (await this.vehicleDao.save(this.vehicleDao.merge(existing, enrich)))
+      .id;
+  }
+
   private async ensureVehicleRecord(
     existingRecordId: string | null | undefined,
     plateNumber: string | undefined,
@@ -577,11 +980,19 @@ export class AppointmentService {
     vehicleColor?: string,
     vehicleMake?: string,
     vehicleModel?: string,
+    chargeCategoryId?: string,
   ): Promise<string | undefined> {
     if (existingRecordId) {
       const record =
         await this.vehicleRecordDao.findActiveById(existingRecordId);
       if (record) {
+        const masterId = await this.ensureVehicleMaster(
+          record.plate_number,
+          vehicleType,
+          chargeCategoryId,
+          chassisNo,
+          actor,
+        );
         const merged = this.vehicleRecordDao.merge(record, {
           vehicle_type: vehicleType ?? record.vehicle_type,
           chassis_no: chassisNo ?? record.chassis_no,
@@ -591,6 +1002,7 @@ export class AppointmentService {
           // without ROP data cannot blank what an earlier one established.
           vehicle_make: vehicleMake ?? record.vehicle_make,
           vehicle_model: vehicleModel ?? record.vehicle_model,
+          vehicle_master_id: masterId ?? record.vehicle_master_id ?? null,
         });
         const saved = await this.vehicleRecordDao.save(merged);
         return saved.id;
@@ -599,6 +1011,16 @@ export class AppointmentService {
 
     const plate = plateNumber?.trim();
     if (!plate) return existingRecordId ?? undefined;
+
+    // Resolved once and shared by both remaining paths — the master is keyed by
+    // plate, so it is the same row whether the record already exists or not.
+    const masterId = await this.ensureVehicleMaster(
+      plate,
+      vehicleType,
+      chargeCategoryId,
+      chassisNo,
+      actor,
+    );
 
     const found = await this.vehicleRecordDao.findByPlateNumber(plate);
     if (found) {
@@ -609,6 +1031,7 @@ export class AppointmentService {
         vehicle_color: vehicleColor ?? found.vehicle_color,
         vehicle_make: vehicleMake ?? found.vehicle_make,
         vehicle_model: vehicleModel ?? found.vehicle_model,
+        vehicle_master_id: masterId ?? found.vehicle_master_id ?? null,
       });
       const saved = await this.vehicleRecordDao.save(merged);
       return saved.id;
@@ -625,6 +1048,7 @@ export class AppointmentService {
         vehicle_color: vehicleColor,
         vehicle_make: vehicleMake,
         vehicle_model: vehicleModel,
+        vehicle_master_id: masterId ?? null,
         created_by: getCreatedById(actor),
       }),
     );

@@ -80,6 +80,26 @@ export class PaymentsDao extends Repository<Payments> implements IPaymentsDao {
     });
   }
 
+  /**
+   * The settled payment for an appointment, if there is one.
+   *
+   * Cancelled rows are excluded for the same reason as findSettledByJobId:
+   * they are money that did not stay taken. FOC needs no special case — it is
+   * stored PAID with grand_total 0, so a free inspection reads as settled.
+   */
+  async findSettledByAppointmentId(
+    appointmentId: string,
+  ): Promise<Payments | null> {
+    return this.findOne({
+      where: {
+        appointment_id: appointmentId,
+        is_deleted: false,
+        status: Not(PaymentStatusEnum.CANCELLED),
+      },
+      order: { created_at: 'ASC' },
+    });
+  }
+
   async findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<Payments>> {

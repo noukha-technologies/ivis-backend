@@ -14,7 +14,10 @@ export interface IRopVerificationDao {
   findByRopVerificationId(
     ropVerificationId: number,
   ): Promise<RopVerification | null>;
-  findLatestByRegNo(regNo: string): Promise<RopVerification | null>;
+  findLatestByRegNo(
+    regNo: string,
+    within?: { start: Date; end: Date },
+  ): Promise<RopVerification | null>;
   findPaginated(
     query: PaginationQueryDto,
   ): Promise<PaginatedResult<RopVerification>>;

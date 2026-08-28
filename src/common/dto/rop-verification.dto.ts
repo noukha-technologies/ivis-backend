@@ -45,6 +45,22 @@ export class CreateRopVerificationDto {
   @IsString()
   vehicle_make?: string;
 
+  @ApiPropertyOptional({
+    description: "Owner's phone as held by ROP",
+    example: '91234567',
+  })
+  @IsOptional()
+  @IsString({ message: 'owner_phone must be a string' })
+  owner_phone?: string;
+
+  @ApiPropertyOptional({
+    description: 'Oman Mulkiya ID as held by ROP (10 digits and 1 letter)',
+    example: '1234567890A',
+  })
+  @IsOptional()
+  @IsString({ message: 'mulkiya_id must be a string' })
+  mulkiya_id?: string;
+
   @ApiPropertyOptional({ description: 'Vehicle model', example: 'Corolla' })
   @IsOptional()
   @IsString()

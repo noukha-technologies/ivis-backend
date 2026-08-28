@@ -67,6 +67,19 @@ function parseRopDate(value: string | undefined): Date | undefined {
 export class RopApiClientService {
   private static readonly context = 'RopApiClientService';
 
+  /**
+   * Attempts per lookup before the plate is given up on. A vehicle is
+   * physically at the lane while this runs, so the ceiling is deliberately
+   * low — three quick tries ride out a blip, and anything worse is a real
+   * outage an operator needs to see rather than wait through.
+   */
+  private static readonly MAX_FETCH_ATTEMPTS = 3;
+
+  /** Linear backoff between attempts: 400ms, then 800ms. */
+  private static pause(attempt: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, attempt * 400));
+  }
+
   constructor(private readonly logger: AppLogger) {}
 
   /**
@@ -79,6 +92,11 @@ export class RopApiClientService {
    * error also resolves to `null` (never throws) so callers that don't wrap
    * this in a try/catch (e.g. the walk-in plate-lookup path) degrade
    * gracefully instead of failing the whole request.
+   *
+   * Transient failures (transport errors, non-404 HTTP failures) are retried up
+   * to MAX_FETCH_ATTEMPTS times with a short backoff before giving up. A 404 or
+   * a well-formed empty response is a definitive answer from ROP and is never
+   * retried.
    */
   async fetchByPlate(plateNumber: string): Promise<RopApiResult | null> {
     const baseUrl = process.env.ROP_API_URL?.trim();
@@ -90,62 +108,88 @@ export class RopApiClientService {
       return null;
     }
 
-    try {
-      const url = `${baseUrl.replace(/\/$/, '')}?plateNumber=${encodeURIComponent(plateNumber)}`;
-      const headers: Record<string, string> = { Accept: 'application/json' };
-      const apiKey = process.env.ROP_API_KEY?.trim();
-      if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+    const url = `${baseUrl.replace(/\/$/, '')}?plateNumber=${encodeURIComponent(plateNumber)}`;
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const apiKey = process.env.ROP_API_KEY?.trim();
+    if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
 
-      const res = await fetch(url, { method: 'GET', headers });
-      if (res.status === 404) {
-        this.logger.log(
-          `ROP API: no record for plate ${plateNumber}`,
-          RopApiClientService.context,
-        );
-        return null;
-      }
-      if (!res.ok) {
+    for (
+      let attempt = 1;
+      attempt <= RopApiClientService.MAX_FETCH_ATTEMPTS;
+      attempt += 1
+    ) {
+      const last = attempt === RopApiClientService.MAX_FETCH_ATTEMPTS;
+      try {
+        const res = await fetch(url, { method: 'GET', headers });
+
+        // A definitive answer from ROP: the vehicle is not on their register.
+        // Retrying cannot change it, so return rather than burn attempts.
+        if (res.status === 404) {
+          this.logger.log(
+            `ROP API: no record for plate ${plateNumber}`,
+            RopApiClientService.context,
+          );
+          return null;
+        }
+
+        // Anything else non-OK is treated as transient — an overloaded or
+        // briefly unavailable ROP is the common case, and the alternative is
+        // failing a vehicle that is physically waiting at the lane.
+        if (!res.ok) {
+          this.logger.warn(
+            `ROP API ${res.status} for plate ${plateNumber} (attempt ${attempt}/${RopApiClientService.MAX_FETCH_ATTEMPTS})`,
+            RopApiClientService.context,
+          );
+          if (last) return null;
+          await RopApiClientService.pause(attempt);
+          continue;
+        }
+
+        const body = (await res.json()) as RopMockApiResponse;
+        // A well-formed "no data" response is also definitive.
+        if (!body?.success || !body.data) {
+          return null;
+        }
+
+        const raw = body.data;
+        return {
+          owner_name: raw.ownerName,
+          owner_phone: toLocalOmanDigits(raw.ownerPhone),
+          driver_name: raw.driverName,
+          driver_phone: toLocalOmanDigits(raw.driverPhone),
+          mulkiya_id: raw.mulkiyaId,
+          vehicle_make: raw.make,
+          vehicle_model: raw.model,
+          reg_no: raw.plateNumber ?? plateNumber,
+          chassis_no: raw.vinNumber,
+          insurance: raw.insurance,
+          // ROP quotes the expiry as a plain YYYY-MM-DD day, which `new Date`
+          // reads as midnight UTC. Left as a date-only value rather than being
+          // shifted into Oman time: an expiry is a calendar day, not an instant,
+          // and adding a timezone offset would move it across midnight.
+          reg_expiry: parseRopDate(raw.regExpiry),
+          plate_color: raw.plateColour,
+          vehicle_color: raw.vehicleColor,
+          vehicle_type: raw.vehicleType,
+          raw_response: raw as unknown as Record<string, unknown>,
+        };
+      } catch (err) {
         this.logger.warn(
-          `ROP API ${res.status} for plate ${plateNumber}`,
+          `ROP API lookup failed for ${plateNumber} (attempt ${attempt}/${RopApiClientService.MAX_FETCH_ATTEMPTS}): ${(err as Error).message}`,
           RopApiClientService.context,
         );
-        return null;
+        if (last) {
+          this.logger.warn(
+            `ROP API gave up on plate ${plateNumber} after ${RopApiClientService.MAX_FETCH_ATTEMPTS} attempts`,
+            RopApiClientService.context,
+          );
+          return null;
+        }
+        await RopApiClientService.pause(attempt);
       }
-
-      const body = (await res.json()) as RopMockApiResponse;
-      if (!body?.success || !body.data) {
-        return null;
-      }
-
-      const raw = body.data;
-      return {
-        owner_name: raw.ownerName,
-        owner_phone: toLocalOmanDigits(raw.ownerPhone),
-        driver_name: raw.driverName,
-        driver_phone: toLocalOmanDigits(raw.driverPhone),
-        mulkiya_id: raw.mulkiyaId,
-        vehicle_make: raw.make,
-        vehicle_model: raw.model,
-        reg_no: raw.plateNumber ?? plateNumber,
-        chassis_no: raw.vinNumber,
-        insurance: raw.insurance,
-        // ROP quotes the expiry as a plain YYYY-MM-DD day, which `new Date`
-        // reads as midnight UTC. Left as a date-only value rather than being
-        // shifted into Oman time: an expiry is a calendar day, not an instant,
-        // and adding a timezone offset would move it across midnight.
-        reg_expiry: parseRopDate(raw.regExpiry),
-        plate_color: raw.plateColour,
-        vehicle_color: raw.vehicleColor,
-        vehicle_type: raw.vehicleType,
-        raw_response: raw as unknown as Record<string, unknown>,
-      };
-    } catch (err) {
-      this.logger.warn(
-        `ROP API lookup failed for ${plateNumber}: ${(err as Error).message}`,
-        RopApiClientService.context,
-      );
-      return null;
     }
+
+    return null;
   }
 
   /**

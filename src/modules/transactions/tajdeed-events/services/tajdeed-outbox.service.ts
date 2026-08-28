@@ -113,7 +113,7 @@ export class TajdeedOutboxService {
    * failed transaction to processed, and re-pushing its id only earns E0007.
    * A fresh id is the only way the corrected event can be applied.
    */
-/**
+  /**
    * Where a job currently stands with the provider, for the job screen.
    *
    * Returns null when nothing was ever queued — a walk-in, or a job whose
@@ -124,7 +124,7 @@ export class TajdeedOutboxService {
     return this.outboxDao.findLatestInspectionResultByJobId(jobId);
   }
 
-/** True while a job still has an inspection result queued or unconfirmed. */
+  /** True while a job still has an inspection result queued or unconfirmed. */
   async hasLiveResult(jobId: string): Promise<boolean> {
     return this.outboxDao.hasLiveInspectionResult(jobId);
   }
@@ -134,7 +134,7 @@ export class TajdeedOutboxService {
     return this.outboxDao.findLatestInspectionResultsByJobIds(jobIds);
   }
 
-    /**
+  /**
    * Operator-driven retry: re-queue a job's most recent rejected result now.
    *
    * Exists because the automatic retry waits 30 minutes, and an operator who
@@ -159,7 +159,7 @@ export class TajdeedOutboxService {
     return this.repush(latest.transaction_id, new Date());
   }
 
-    /**
+  /**
    * Clones a rejected event as a fresh one.
    *
    * @param runAt when the successor becomes eligible to send. Defaults to now

@@ -60,9 +60,6 @@ export class Configurations implements IConfigurationFields {
   @Column({ type: 'varchar', length: 5, nullable: true })
   auto_close_time?: string;
 
-  @Column({ type: 'boolean', default: true })
-  payment_mandatory!: boolean;
-
   @Column({ type: 'varchar', length: 5, nullable: true })
   working_hours_start?: string;
 

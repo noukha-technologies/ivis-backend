@@ -263,6 +263,57 @@ export function isSameOmanDay(a: Date, b: Date): boolean {
   return fmt(a) === fmt(b);
 }
 
+/**
+ * The half-open [start, end) instants bounding an Oman calendar day.
+ *
+ * Oman is a fixed UTC+4 with no DST, so the offset can be stated literally —
+ * there is no transition to straddle. Used for "today only" queries, where
+ * comparing formatted strings per row is not an option.
+ */
+export function omanDayRange(reference: Date = new Date()): {
+  start: Date;
+  end: Date;
+} {
+  const ymd = new Intl.DateTimeFormat('en-CA', {
+    timeZone: OmanTimeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(reference);
+  const start = new Date(`${ymd}T00:00:00.000+04:00`);
+  return { start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
+}
+
+/**
+ * A queued appointment expires once its own Oman day has passed.
+ *
+ * An expired appointment is dead, not dormant. It is never revived, reused or
+ * updated: the vehicle that comes back tomorrow gets a NEW appointment, on
+ * today's ANPR reading, today's ROP verification and its own payment. Reusing
+ * yesterday's row would carry forward details gathered for a visit that did
+ * not happen, and money that was taken for it.
+ *
+ * Derived on read, never stored — no scheduler, no migration, and no state to
+ * fall out of step with the clock. Only QUEUED rows expire; CONVERTED and
+ * CANCELLED are terminal and their age is history, not a warning.
+ *
+ * `expired_since` is the instant it crossed over: the end of the Oman day it
+ * was booked for.
+ */
+export function appointmentExpiry(
+  status: string | null | undefined,
+  appointmentAt: Date | null | undefined,
+  now: Date = new Date(),
+): { is_expired: boolean; expired_since: Date | null } {
+  if (status !== 'Queued' || !appointmentAt) {
+    return { is_expired: false, expired_since: null };
+  }
+  const ownDayEnd = omanDayRange(appointmentAt).end;
+  return ownDayEnd <= now
+    ? { is_expired: true, expired_since: ownDayEnd }
+    : { is_expired: false, expired_since: null };
+}
+
 export function getDateFolder(): string {
   const [yyyy, mm, dd] = new Intl.DateTimeFormat('en-CA', {
     timeZone: OmanTimeZone,

@@ -318,12 +318,27 @@ export class FtpMethodService {
       return null;
     }
 
+    // The DETECTION image is the only one that carries data. The camera burns
+    // a `Label:Value` strip across its foot — plate, type, colour, brand,
+    // direction, confidence — and that strip is the record of what drove onto
+    // the lane. The plate crop is a thumbnail and the scene picture is a
+    // photograph; neither states anything, they only look like the vehicle.
+    //
+    // So without the detection image there is nothing to extract. Running on
+    // the other two produced captures whose "plate" was OCR of whatever text
+    // happened to be in frame — a windscreen sticker, a hoarding — recorded
+    // with the same confidence as a real read.
+    if (!bundle.vehicleDetectionPath) {
+      this.logger.warn(
+        `[FTP JPEG] Skipping ${bundle.eventKey} (${camera.cameraCode}) — no VEHICLE_DETECTION image, so no overlay to read`,
+      );
+      return null;
+    }
+
     const start = Date.now();
-    const metadata = bundle.vehicleDetectionPath
-      ? await this.overlayOcr.extractFromDetectionImage(
-          bundle.vehicleDetectionPath,
-        )
-      : null;
+    const metadata = await this.overlayOcr.extractFromDetectionImage(
+      bundle.vehicleDetectionPath,
+    );
 
     const plateHints = {
       category: metadata?.category,
@@ -456,7 +471,32 @@ export class FtpMethodService {
 
     const plateNumber = bestPlate?.plate;
     const confidence = metadata?.confidence;
-    const captureTime = metadata?.captureTime ?? bundle.captureTime;
+    /**
+     * The filename's timestamp wins over the overlay's.
+     *
+     * Both name the same instant, but the filename was written by the camera
+     * and the overlay was read back out of a picture of itself — one is a
+     * value, the other is a guess at a value. A real capture made the cost
+     * concrete: the overlay read 13:05:50 where the filename said 13:05:58,
+     * which would have filed the arrival in the wrong minute.
+     *
+     * The overlay stays as the fallback for a filename we could not parse, and
+     * a disagreement is worth saying out loud — beyond a couple of seconds it
+     * means the strip is being misread, not merely rendered late.
+     */
+    const captureTime = bundle.captureTime ?? metadata?.captureTime;
+    if (metadata?.captureTime && bundle.captureTime) {
+      const drift = Math.abs(
+        metadata.captureTime.getTime() - bundle.captureTime.getTime(),
+      );
+      if (drift > 5000) {
+        this.logger.warn(
+          `[FTP JPEG] Overlay time ${metadata.captureTime.toISOString()} disagrees with filename ` +
+            `${bundle.captureTime.toISOString()} by ${Math.round(drift / 1000)}s for ${bundle.eventKey} ` +
+            `(${camera.cameraCode}) — using the filename`,
+        );
+      }
+    }
 
     if (!plateNumber) {
       this.logger.warn(
@@ -466,6 +506,10 @@ export class FtpMethodService {
     }
 
     const minConf = this.overlayOcr.getMinConfidence();
+    // A plate read only from the scene photograph is a guess: it is OCR of the
+    // whole frame, so it picks up signage and stickers as readily as a plate.
+    // It stays as a last resort, but never inherits a confidence it did not
+    // earn — the overlay reported none, so neither does this.
     const sceneOnly =
       Boolean(bundle.vehiclePicturePath) &&
       !bundle.platePath &&
